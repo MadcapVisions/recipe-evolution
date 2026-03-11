@@ -11,6 +11,12 @@ type ProviderCallContext = {
   timeoutMs: number;
 };
 
+export type AICallResult = {
+  text: string;
+  provider: AIProvider;
+  finishReason?: string | null;
+};
+
 class AIProviderError extends Error {
   provider: AIProvider;
   statusCode?: number;
@@ -158,7 +164,7 @@ async function fetchWithTimeoutForProvider(provider: AIProvider, input: string, 
   }
 }
 
-async function callOpenAI(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<string> {
+async function callOpenAI(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
   try {
     const client = await getOpenAIClient();
     const response = await client.chat.completions.create(
@@ -173,7 +179,11 @@ async function callOpenAI(messages: AIMessage[], options: AICallOptions, context
       }
     );
 
-    return response.choices[0]?.message?.content ?? "";
+    return {
+      text: response.choices[0]?.message?.content ?? "",
+      provider: "openai",
+      finishReason: response.choices[0]?.finish_reason ?? null,
+    };
   } catch (error) {
     const statusCode = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : undefined;
     throw new AIProviderError("openai", "OpenAI request failed", {
@@ -184,7 +194,7 @@ async function callOpenAI(messages: AIMessage[], options: AICallOptions, context
   }
 }
 
-async function callGemini(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<string> {
+async function callGemini(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
   const prompt = messages.map((message) => message.content).join("\n");
   const apiKey = requireEnv("GEMINI_API_KEY");
 
@@ -215,13 +225,41 @@ async function callGemini(messages: AIMessage[], options: AICallOptions, context
   }
 
   const data = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: Array<{
+      finishReason?: string;
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
   };
+  const candidate = data.candidates?.[0];
+  const finishReason = candidate?.finishReason ?? null;
+  const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
 
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const suspiciousFinishReason =
+    finishReason &&
+    finishReason !== "STOP" &&
+    finishReason !== "MAX_TOKENS";
+
+  const suspiciousText =
+    !text ||
+    /:\s*$/.test(text) ||
+    /:\s*\d+[\.\)]?\s*$/.test(text) ||
+    /\b\d+\.\s*$/.test(text);
+
+  if (suspiciousFinishReason || suspiciousText) {
+    throw new AIProviderError("gemini", `Gemini returned incomplete content${finishReason ? ` (${finishReason})` : ""}`, {
+      retryable: true,
+      cause: data,
+    });
+  }
+
+  return {
+    text,
+    provider: "gemini",
+    finishReason,
+  };
 }
 
-async function callClaude(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<string> {
+async function callClaude(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
   const prompt = messages.map((message) => message.content).join("\n");
 
   const response = await fetchWithTimeoutForProvider(
@@ -255,18 +293,23 @@ async function callClaude(messages: AIMessage[], options: AICallOptions, context
 
   const data = (await response.json()) as {
     content?: Array<{ text?: string }>;
+    stop_reason?: string;
   };
 
-  return data.content?.[0]?.text ?? "";
+  return {
+    text: data.content?.[0]?.text ?? "",
+    provider: "claude",
+    finishReason: data.stop_reason ?? null,
+  };
 }
 
-const providerCallers: Record<AIProvider, (messages: AIMessage[], options: AICallOptions, context: ProviderCallContext) => Promise<string>> = {
+const providerCallers: Record<AIProvider, (messages: AIMessage[], options: AICallOptions, context: ProviderCallContext) => Promise<AICallResult>> = {
   openai: callOpenAI,
   gemini: callGemini,
   claude: callClaude,
 };
 
-export async function callAI(messages: AIMessage[], options: AICallOptions = {}): Promise<string> {
+export async function callAIWithMeta(messages: AIMessage[], options: AICallOptions = {}): Promise<AICallResult> {
   const providerOrder = getProviderOrder();
   const timeoutMs = DEFAULT_TIMEOUT_MS;
   const errors: string[] = [];
@@ -285,4 +328,9 @@ export async function callAI(messages: AIMessage[], options: AICallOptions = {})
   }
 
   throw new Error(`All AI providers failed. ${errors.join(" | ")}`);
+}
+
+export async function callAI(messages: AIMessage[], options: AICallOptions = {}): Promise<string> {
+  const result = await callAIWithMeta(messages, options);
+  return result.text;
 }

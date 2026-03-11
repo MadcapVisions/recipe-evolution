@@ -5,6 +5,12 @@ import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
 
 export async function POST(request: Request) {
+  let trackedAccess:
+    | {
+        supabase: Awaited<ReturnType<typeof import("@/lib/supabaseServer").createSupabaseServerClient>>;
+        userId: string;
+      }
+    | null = null;
   try {
     const access = await requireAuthenticatedAiAccess({
       route: "chef-chat",
@@ -15,6 +21,11 @@ export async function POST(request: Request) {
     if (access.errorResponse) {
       return access.errorResponse;
     }
+
+    trackedAccess = {
+      supabase: access.supabase,
+      userId: access.userId,
+    };
 
     const body = (await request.json()) as {
       userMessage?: string;
@@ -42,6 +53,8 @@ export async function POST(request: Request) {
     if (result.repaired) {
       void trackServerEvent(access.supabase, access.userId, "chef_chat_repaired", {
         route: "chef-chat",
+        provider: result.provider,
+        finish_reason: result.finishReason ?? null,
         user_message_length: userMessage.length,
         initial_reply_length: result.initialReply.trim().length,
         final_reply_length: result.reply.trim().length,
@@ -52,6 +65,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply: result.reply });
   } catch (error) {
     console.error("Chef chat route failed", error);
+    if (trackedAccess) {
+      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+        route: "chef-chat",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
     return NextResponse.json(
       {
         error: true,

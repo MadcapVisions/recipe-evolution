@@ -1,4 +1,4 @@
-import { callAI } from "./aiClient";
+import { callAIWithMeta } from "./aiClient";
 import { buildChefChatPrompt, type AIMessage, type RecipeContext } from "./chatPromptBuilder";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
 
@@ -6,6 +6,8 @@ export type ChefChatResult = {
   reply: string;
   repaired: boolean;
   initialReply: string;
+  provider: string;
+  finishReason?: string | null;
 };
 
 function looksIncomplete(reply: string): boolean {
@@ -29,6 +31,18 @@ function looksIncomplete(reply: string): boolean {
     return true;
   }
 
+  if (/:\s*\d+[\.\)]?\s*$/.test(normalized)) {
+    return true;
+  }
+
+  if (/\b\d+\.\s*$/.test(normalized)) {
+    return true;
+  }
+
+  if (/:\s*$/.test(normalized)) {
+    return true;
+  }
+
   const sentenceCount = normalized.split(/[.!?]+/).filter((part) => part.trim().length > 0).length;
   if (sentenceCount < 2 && !normalized.includes("\n")) {
     return true;
@@ -43,13 +57,16 @@ export async function chefChat(
   conversationHistory: AIMessage[] = []
 ): Promise<ChefChatResult> {
   const messages = buildChefChatPrompt(userMessage, recipeContext, conversationHistory);
-  const firstReply = await callAI(messages, TOKEN_LIMITS.chefChat);
+  const firstAttempt = await callAIWithMeta(messages, TOKEN_LIMITS.chefChat);
+  const firstReply = firstAttempt.text;
 
   if (!looksIncomplete(firstReply)) {
     return {
       reply: firstReply,
       repaired: false,
       initialReply: firstReply,
+      provider: firstAttempt.provider,
+      finishReason: firstAttempt.finishReason ?? null,
     };
   }
 
@@ -63,10 +80,13 @@ export async function chefChat(
     },
   ];
 
-  const repairedReply = await callAI(repairMessages, TOKEN_LIMITS.chefChat);
+  const repairedAttempt = await callAIWithMeta(repairMessages, TOKEN_LIMITS.chefChat);
+  const repairedReply = repairedAttempt.text;
   return {
     reply: repairedReply.trim().length > 0 ? repairedReply : firstReply,
     repaired: true,
     initialReply: firstReply,
+    provider: repairedAttempt.provider,
+    finishReason: repairedAttempt.finishReason ?? null,
   };
 }

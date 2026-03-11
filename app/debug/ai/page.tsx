@@ -22,11 +22,14 @@ export default async function AiDebugPage() {
     .from("product_events")
     .select("id, event_name, metadata_json, created_at")
     .eq("owner_id", user.id)
-    .eq("event_name", "chef_chat_repaired")
+    .in("event_name", ["chef_chat_repaired", "ai_route_failed"])
     .order("created_at", { ascending: false })
     .limit(50);
 
   const events = (data ?? []) as ProductEventRow[];
+
+  const repairedEvents = events.filter((event) => event.event_name === "chef_chat_repaired");
+  const failedEvents = events.filter((event) => event.event_name === "ai_route_failed");
 
   return (
     <div className="mx-auto max-w-5xl page-shell">
@@ -34,28 +37,25 @@ export default async function AiDebugPage() {
         <p className="app-kicker">Debug</p>
         <h1 className="page-title">AI Repair Events</h1>
         <p className="text-[16px] leading-7 text-[color:var(--muted)]">
-          These events are logged when the chef chat returns an incomplete answer and the server has to repair it before sending it back to the UI.
+          This page shows both repaired chef responses and hard AI route failures.
         </p>
       </div>
 
       <section className="saas-card p-5">
         <div className="grid gap-4 md:grid-cols-4">
-          <StatCard label="Repairs logged" value={String(events.length)} />
+          <StatCard label="Repairs logged" value={String(repairedEvents.length)} />
+          <StatCard label="Failures logged" value={String(failedEvents.length)} />
           <StatCard
             label="Home hub repairs"
-            value={String(events.filter((event) => event.metadata_json?.route === "home-hub").length)}
-          />
-          <StatCard
-            label="Recipe page repairs"
-            value={String(events.filter((event) => event.metadata_json?.route === "chef-chat").length)}
+            value={String(repairedEvents.filter((event) => event.metadata_json?.route === "home-hub").length)}
           />
           <StatCard
             label="Avg final length"
             value={
-              events.length > 0
+              repairedEvents.length > 0
                 ? String(
                     Math.round(
-                      events.reduce((sum, event) => sum + Number(event.metadata_json?.final_reply_length ?? 0), 0) / events.length
+                      repairedEvents.reduce((sum, event) => sum + Number(event.metadata_json?.final_reply_length ?? 0), 0) / repairedEvents.length
                     )
                   )
                 : "0"
@@ -66,14 +66,14 @@ export default async function AiDebugPage() {
 
       <section className="saas-card overflow-hidden">
         <div className="border-b border-[rgba(57,75,70,0.08)] px-5 py-4">
-          <h2 className="text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Recent repaired responses</h2>
-          <p className="mt-1 text-sm text-[color:var(--muted)]">Newest first. Showing up to 50 repair events.</p>
+          <h2 className="text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Recent AI events</h2>
+          <p className="mt-1 text-sm text-[color:var(--muted)]">Newest first. Showing up to 50 repaired responses and failures.</p>
         </div>
 
         {error ? (
           <div className="px-5 py-5 text-sm text-red-600">Could not load repair events: {error.message}</div>
         ) : events.length === 0 ? (
-          <div className="px-5 py-8 text-[16px] text-[color:var(--muted)]">No repair events logged yet.</div>
+          <div className="px-5 py-8 text-[16px] text-[color:var(--muted)]">No AI debug events logged yet.</div>
         ) : (
           <div className="divide-y divide-[rgba(57,75,70,0.08)]">
             {events.map((event) => {
@@ -82,19 +82,30 @@ export default async function AiDebugPage() {
               const initialReplyLength = Number(event.metadata_json?.initial_reply_length ?? 0);
               const finalReplyLength = Number(event.metadata_json?.final_reply_length ?? 0);
               const conversationTurns = Number(event.metadata_json?.conversation_turns ?? 0);
+              const message = typeof event.metadata_json?.message === "string" ? event.metadata_json.message : null;
+              const provider = typeof event.metadata_json?.provider === "string" ? event.metadata_json.provider : null;
+              const finishReason =
+                typeof event.metadata_json?.finish_reason === "string" ? event.metadata_json.finish_reason : null;
+              const isFailure = event.event_name === "ai_route_failed";
 
               return (
                 <div key={event.id} className="px-5 py-5">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="text-[17px] font-semibold text-[color:var(--text)]">{new Date(event.created_at).toLocaleString()}</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted)]">Route: {route}</p>
+                      <p className="mt-1 text-sm text-[color:var(--muted)]">
+                        {isFailure ? "Failure" : "Repair"} on route: {route}
+                      </p>
+                      {provider ? <p className="mt-1 text-sm text-[color:var(--muted)]">Provider: {provider}</p> : null}
+                      {finishReason ? <p className="mt-1 text-sm text-[color:var(--muted)]">Finish reason: {finishReason}</p> : null}
+                      {message ? <p className="mt-1 text-sm text-red-600">{message}</p> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Badge label={`Turns ${conversationTurns}`} />
-                      <Badge label={`User ${userMessageLength}`} />
-                      <Badge label={`Initial ${initialReplyLength}`} />
-                      <Badge label={`Final ${finalReplyLength}`} />
+                      <Badge label={isFailure ? "Failure" : "Repair"} />
+                      {conversationTurns > 0 ? <Badge label={`Turns ${conversationTurns}`} /> : null}
+                      {userMessageLength > 0 ? <Badge label={`User ${userMessageLength}`} /> : null}
+                      {initialReplyLength > 0 ? <Badge label={`Initial ${initialReplyLength}`} /> : null}
+                      {finalReplyLength > 0 ? <Badge label={`Final ${finalReplyLength}`} /> : null}
                     </div>
                   </div>
                 </div>
