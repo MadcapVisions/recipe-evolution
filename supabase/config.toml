@@ -1,0 +1,10 @@
+project_id = "drbpavxcaxlkztodangi"
+
+[functions.ai-structure-recipe]
+verify_jwt = true
+
+[functions.ai-improve-recipe]
+verify_jwt = false
+
+[functions.ai-generate-recipe]
+verify_jwt = false
