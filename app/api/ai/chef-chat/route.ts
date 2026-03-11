@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { chefChat } from "@/lib/ai/chefChat";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
+import { trackServerEvent } from "@/lib/trackServerEvent";
 
 export async function POST(request: Request) {
   try {
@@ -36,8 +37,19 @@ export async function POST(request: Request) {
         )
       : [];
 
-    const reply = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory);
-    return NextResponse.json({ reply });
+    const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory);
+
+    if (result.repaired) {
+      void trackServerEvent(access.supabase, access.userId, "chef_chat_repaired", {
+        route: "chef-chat",
+        user_message_length: userMessage.length,
+        initial_reply_length: result.initialReply.trim().length,
+        final_reply_length: result.reply.trim().length,
+        conversation_turns: conversationHistory.length,
+      });
+    }
+
+    return NextResponse.json({ reply: result.reply });
   } catch (error) {
     console.error("Chef chat route failed", error);
     return NextResponse.json(

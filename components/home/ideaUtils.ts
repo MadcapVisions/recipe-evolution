@@ -215,6 +215,77 @@ export const buildSmartFallbackIdeas = (
   ];
 };
 
+const FALLBACK_STOP_WORDS = new Set([
+  "i",
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "with",
+  "for",
+  "to",
+  "of",
+  "in",
+  "on",
+  "at",
+  "my",
+  "want",
+  "make",
+  "something",
+  "dish",
+  "meal",
+  "ideas",
+  "give",
+  "some",
+  "using",
+  "have",
+  "love",
+  "like",
+  "dinner",
+  "lunch",
+  "breakfast",
+]);
+
+function toTitleCase(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+export function buildPromptFallbackIdeas(prompt: string): RecipeIdea[] {
+  const parts = prompt
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, " ")
+    .split(/,|\n|\s+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 2 && !FALLBACK_STOP_WORDS.has(item));
+
+  const base = toTitleCase(parts.slice(0, 3).join(" ")) || "Chef Special";
+  const descriptors = [
+    {
+      title: `${base} Skillet`,
+      description: `A savory, weeknight-friendly skillet direction built around ${base.toLowerCase()} with strong browning and bright finishing notes.`,
+    },
+    {
+      title: `${base} Bowl`,
+      description: `A balanced bowl format that keeps ${base.toLowerCase()} hearty, practical, and easy to customize with sauce or crunch.`,
+    },
+    {
+      title: `Roasted ${base} Plate`,
+      description: `A roasted dinner direction that leans into caramelized flavor, simple prep, and a clean, satisfying finish.`,
+    },
+  ];
+
+  return descriptors.map((item, index) => ({
+    title: item.title,
+    description: item.description,
+    cook_time_min: index === 0 ? 25 : index === 1 ? 30 : 35,
+  }));
+}
+
 export const normalizeIdeas = (value: unknown): RecipeIdea[] => {
   if (!Array.isArray(value)) {
     return [];

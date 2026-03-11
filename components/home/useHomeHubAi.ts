@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { createRecipeWithVersion } from "@/lib/client/recipeMutations";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import {
+  buildPromptFallbackIdeas,
   buildSmartFallbackIdeas,
   cookTimeLabelToMinutes,
   matchesCookTime,
@@ -65,6 +66,12 @@ const buildConversationHistory = (messages: ChatMessage[]): AIMessage[] =>
     role: message.role === "user" ? "user" : "assistant",
     content: message.text,
   }));
+
+const buildFallbackChefReply = (prompt: string) => {
+  const fallbackIdeas = buildPromptFallbackIdeas(prompt).slice(0, 3);
+  const lines = fallbackIdeas.map((idea) => `- ${idea.title}: ${idea.description}`);
+  return `Here are 3 solid directions to start with:\n${lines.join("\n")}\nIf one of these feels right, apply suggestions and generate the recipe from there.`;
+};
 
 export function useHomeHubAi() {
   const router = useRouter();
@@ -194,8 +201,12 @@ export function useHomeHubAi() {
       setIdeaBatchIndex(1);
       setStatus("Choose an idea to generate the full recipe.");
     } catch (aiError) {
-      setError(aiError instanceof Error ? aiError.message : "Failed to generate recipe ideas.");
-      setStatus(null);
+      const fallbackIdeas = dedupeIdeas(buildPromptFallbackIdeas(prompt ?? ingredients?.join(" ") ?? ""));
+      setIdeas(fallbackIdeas.slice(0, IDEA_BATCH_SIZE));
+      setIdeaSource(source);
+      setIdeaBatchIndex(1);
+      setError(null);
+      setStatus("Showing fallback ideas while AI is unavailable.");
     } finally {
       setLoading(false);
     }
@@ -262,8 +273,12 @@ export function useHomeHubAi() {
       setIdeaBatchIndex(nextBatchIndex);
       setStatus("Choose an idea to generate the full recipe.");
     } catch (aiError) {
-      setError(aiError instanceof Error ? aiError.message : "Failed to generate more ideas.");
-      setStatus(null);
+      const fallbackIdeas = buildPromptFallbackIdeas(promptInput.trim()).filter(
+        (idea) => !ideas.some((existing) => existing.title.toLowerCase() === idea.title.toLowerCase())
+      );
+      setIdeas(dedupeIdeas([...ideas, ...fallbackIdeas]).slice(0, MAX_IDEA_COUNT));
+      setError(null);
+      setStatus("Added fallback ideas while AI is unavailable.");
     } finally {
       setLoading(false);
     }
@@ -306,8 +321,15 @@ export function useHomeHubAi() {
       setStatus("Chef suggestions are ready to apply.");
       setPromptInput("");
     } catch (chatError) {
-      setError(chatError instanceof Error ? chatError.message : "Chef chat failed.");
-      setStatus(null);
+      setHeroChatMessages((current) => [
+        ...current,
+        { role: "user", text: trimmedPrompt },
+        { role: "ai", text: buildFallbackChefReply(trimmedPrompt) },
+      ]);
+      setHeroChatReadyToApply(true);
+      setError(null);
+      setStatus("Showing fallback chef guidance while AI is unavailable.");
+      setPromptInput("");
     } finally {
       setLoading(false);
     }
@@ -356,6 +378,7 @@ export function useHomeHubAi() {
     setSmartLoading(true);
     setSmartError(null);
     setSmartStatus("Generating recipe ideas...");
+    setSmartIdeas([]);
 
     const filters = {
       cuisine: smartCuisines[0] ?? "Any",
@@ -390,8 +413,11 @@ export function useHomeHubAi() {
       setSmartIdeas(nextIdeas);
       setSmartStatus("Select an idea to generate the full recipe.");
     } catch (aiError) {
-      setSmartError(aiError instanceof Error ? aiError.message : "Failed to generate smart meal ideas.");
-      setSmartStatus(null);
+      const cookTimeMinutes = smartCookTimes.map(cookTimeLabelToMinutes);
+      const fallbackIdeas = buildSmartFallbackIdeas(smartProteins, smartCuisines, cookTimeMinutes, smartPreferences);
+      setSmartIdeas(dedupeIdeas(fallbackIdeas));
+      setSmartError(null);
+      setSmartStatus("Showing fallback ideas while AI is unavailable.");
     } finally {
       setSmartLoading(false);
     }
