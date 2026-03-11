@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { chefChat } from "@/lib/ai/chefChat";
-import type { RecipeContext } from "@/lib/ai/chatPromptBuilder";
+import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 
 export async function POST(request: Request) {
@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       userMessage?: string;
       recipeContext?: RecipeContext;
+      conversationHistory?: AIMessage[];
     };
 
     const userMessage = body.userMessage?.trim();
@@ -25,7 +26,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: true, message: "userMessage is required" }, { status: 400 });
     }
 
-    const reply = await chefChat(userMessage, body.recipeContext ?? null);
+    const conversationHistory = Array.isArray(body.conversationHistory)
+      ? body.conversationHistory.filter(
+          (message): message is AIMessage =>
+            Boolean(message) &&
+            (message.role === "user" || message.role === "assistant") &&
+            typeof message.content === "string" &&
+            message.content.trim().length > 0
+        )
+      : [];
+
+    const reply = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory);
     return NextResponse.json({ reply });
   } catch (error) {
     console.error("Chef chat route failed", error);

@@ -1,4 +1,5 @@
 import { CHEF_SYSTEM_PROMPT } from "./chefSystemPrompt";
+import { CHEF_CHAT_REGRESSION_EXAMPLES } from "./chefChatExamples";
 import { analyzeFlavor } from "./chefEngine/flavorAnalyzer";
 import { generateFlavorContext } from "./flavorGraph/flavorGraphEngine";
 import { generateSubstitutionContext } from "./substitutionEngine/substitutionEngine";
@@ -15,7 +16,11 @@ export type AIMessage = {
   content: string;
 };
 
-export function buildChefChatPrompt(userMessage: string, recipeContext: RecipeContext): AIMessage[] {
+export function buildChefChatPrompt(
+  userMessage: string,
+  recipeContext: RecipeContext,
+  conversationHistory: AIMessage[] = []
+): AIMessage[] {
   let contextText = "";
 
   if (recipeContext) {
@@ -44,11 +49,15 @@ ${recipeContext.steps?.join("\n") ?? "None provided"}
     },
     {
       role: "system",
-      content:
-        "You are currently in conversation mode only. Provide guidance and suggestions only. Never provide a full recipe or full ingredient/instruction blocks in this mode.",
+      content: `
+You are in conversation mode only.
+Give the user concrete meal direction quickly.
+If the user asks for "best options", "what would be flavorful", or something similar, respond with actual options instead of asking them to restate their goal.
+When the user has already supplied meal type, main ingredients, or flavor direction, synthesize that information and move forward.
+`,
     },
     {
-      role: "user",
+      role: "system",
       content: `
 ${contextText}
 
@@ -60,11 +69,13 @@ ${flavorGraphContext}
 ${substitutionContext}
 
 ${cookingContext}
-
-User question:
-
-${userMessage}
 `,
+    },
+    ...CHEF_CHAT_REGRESSION_EXAMPLES,
+    ...conversationHistory,
+    {
+      role: "user",
+      content: userMessage,
     },
   ];
 }

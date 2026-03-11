@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { RecipeContext } from "@/lib/ai/chatPromptBuilder";
+import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { supabase } from "@/lib/supabaseClient";
 import { createRecipeWithVersion } from "@/lib/client/recipeMutations";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
@@ -58,10 +58,13 @@ const dedupeIdeas = (ideas: RecipeIdea[]) => {
   return Array.from(unique.values());
 };
 
-const buildHeroConversationContext = (messages: ChatMessage[]) =>
-  messages
-    .map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.text}`)
-    .join("\n");
+const buildHeroConversationContext = (messages: ChatMessage[]) => messages.map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.text}`).join("\n");
+
+const buildConversationHistory = (messages: ChatMessage[]): AIMessage[] =>
+  messages.map((message) => ({
+    role: message.role === "user" ? "user" : "assistant",
+    content: message.text,
+  }));
 
 export function useHomeHubAi() {
   const router = useRouter();
@@ -291,6 +294,7 @@ export function useHomeHubAi() {
         mode: "chef_chat",
         userMessage: trimmedPrompt,
         recipeContext,
+        conversationHistory: buildConversationHistory(heroChatMessages),
       })) as { reply?: string; message?: string };
 
       if (!data.reply) {

@@ -1,7 +1,7 @@
 export const TOKEN_LIMITS = {
   chefChat: {
     max_tokens: 400,
-    temperature: 0.6,
+    temperature: 0.35,
   },
   recipeGeneration: {
     max_tokens: 900,
