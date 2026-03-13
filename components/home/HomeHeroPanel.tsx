@@ -38,19 +38,19 @@ export function HomeHeroPanel({
   ];
 
   return (
-    <section className="app-panel flex h-full min-h-[860px] flex-col overflow-hidden xl:min-h-[980px]">
+    <section className="app-panel flex h-full min-h-0 flex-col overflow-hidden">
       <div
-        className={`grid gap-6 overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-6 transition-[max-height,padding,opacity] duration-300 lg:grid-cols-[minmax(0,1.4fr)_300px] lg:px-8 ${
-          hasConversation ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-[520px] py-6 lg:py-8 opacity-100"
+        className={`hidden overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-5 transition-[max-height,padding,opacity] duration-300 md:block md:px-6 lg:grid lg:grid-cols-[minmax(0,1.4fr)_300px] lg:px-8 ${
+          hasConversation ? "md:max-h-0 md:border-b-0 md:py-0 md:opacity-0" : "md:max-h-[500px] md:py-6 md:opacity-100 lg:max-h-[520px] lg:py-8"
         }`}
       >
         <div className="space-y-4">
           <div className="space-y-3">
             <p className="app-kicker">Start here</p>
-            <h1 className="font-display text-[40px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] sm:text-[52px]">
+            <h1 className="font-display text-[32px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] sm:text-[46px] lg:text-[52px]">
               What do you want to cook today?
             </h1>
-            <p className="max-w-2xl text-[18px] leading-8 text-[color:var(--muted)]">
+            <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[18px] sm:leading-8">
               Start with a dish, ingredient, or constraint. Chef helps you shape it before it becomes a recipe.
             </p>
           </div>
@@ -69,7 +69,7 @@ export function HomeHeroPanel({
           </div>
         </div>
 
-        <aside className="rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.08)] p-5">
+        <aside className="mt-5 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.08)] p-5 lg:mt-0">
           <p className="app-kicker">How it works</p>
           <div className="mt-4 space-y-4 text-[15px] leading-6 text-[color:var(--muted)]">
             <div className="flex gap-3">
@@ -88,7 +88,7 @@ export function HomeHeroPanel({
         </aside>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col bg-[rgba(255,255,255,0.34)] p-6 lg:p-8">
+      <div className="flex min-h-0 flex-1 flex-col bg-[rgba(255,255,255,0.34)] p-5 sm:p-6 lg:p-8">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="app-kicker">Chef conversation</p>
@@ -98,7 +98,7 @@ export function HomeHeroPanel({
           </div>
         </div>
 
-        <div ref={heroChatFrameRef} className="flex min-h-0 flex-1 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.84)] p-4">
+        <div ref={heroChatFrameRef} className="flex min-h-[360px] flex-1 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.84)] p-3 sm:min-h-[420px] sm:p-4 lg:min-h-[480px]">
           <div
             ref={heroChatViewportRef}
             className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-4"
@@ -129,7 +129,7 @@ export function HomeHeroPanel({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+        <div className="mt-4 flex flex-col gap-3">
           <input
             value={promptInput}
             onChange={(event) => onPromptInputChange(event.target.value)}
@@ -137,12 +137,12 @@ export function HomeHeroPanel({
             placeholder="Describe the dish, ingredients, or constraint..."
             className="min-h-12 flex-1 rounded-full bg-white px-5 text-[16px]"
           />
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={onAskChef}
               disabled={loading}
-              className="min-w-[140px] rounded-full bg-[color:var(--primary)] px-5 py-3 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+              className="w-full rounded-full bg-[color:var(--primary)] px-5 py-3 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
             >
               Ask Chef
             </button>
@@ -150,7 +150,7 @@ export function HomeHeroPanel({
               type="button"
               onClick={onApplySuggestions}
               disabled={loading || !heroChatReadyToApply}
-              className="min-w-[180px] rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(141,169,187,0.08)] px-5 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(141,169,187,0.14)] disabled:opacity-60"
+              className="w-full rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(141,169,187,0.08)] px-5 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(141,169,187,0.14)] disabled:opacity-60"
             >
               Apply Suggestions
             </button>
