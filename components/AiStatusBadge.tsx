@@ -54,10 +54,10 @@ export function AiStatusBadge({ defaultMessage }: { defaultMessage: string }) {
 
   return (
     <div
-      className={`inline-flex min-h-12 items-center gap-3 rounded-full border px-4 py-2.5 text-[15px] font-semibold tracking-[0.01em] transition-all duration-300 ${classes.wrap}`}
+      className={`inline-flex min-h-10 items-center gap-2.5 rounded-full border px-3 py-2 text-[14px] font-semibold tracking-[0.01em] transition-all duration-300 sm:min-h-12 sm:gap-3 sm:px-4 sm:py-2.5 sm:text-[15px] ${classes.wrap}`}
       aria-live="polite"
     >
-      <span className={`h-2.5 w-2.5 rounded-full ${classes.dot}`} />
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${classes.dot}`} />
       {activeMessage}
     </div>
   );

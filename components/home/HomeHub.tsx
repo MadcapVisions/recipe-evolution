@@ -176,7 +176,7 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
               <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Recent recipes</h2>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {recentRecipes.map((recipe, index) => (
               <Link
                 key={recipe.id}

@@ -42,14 +42,6 @@ export function TonightSuggestions({
   const byTitle = useMemo(() => new Map(trendingRecipes.map((item) => [item.title, item])), []);
   const customIdeas = Array.isArray(ideas) && ideas.length > 0 ? ideas : null;
 
-  const compactDescription = (value: string) => {
-    const normalized = value.trim().replace(/\s+/g, " ");
-    if (normalized.length <= 125) {
-      return normalized;
-    }
-    return `${normalized.slice(0, 122).trimEnd()}...`;
-  };
-
   useEffect(() => {
     if (customIdeas) {
       return;
@@ -95,7 +87,7 @@ export function TonightSuggestions({
         </div>
       ) : null}
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {(customIdeas ?? suggestions).map((suggestion, index) => (
           <article
             key={`${suggestion.title}-${index}`}
@@ -103,8 +95,7 @@ export function TonightSuggestions({
           >
             <h3 className="text-[18px] font-semibold text-[color:var(--text)]">{suggestion.title}</h3>
             <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
-              <span className="sm:hidden">{compactDescription(suggestion.description)}</span>
-              <span className="hidden sm:inline">{suggestion.description}</span>
+              {suggestion.description}
             </p>
             {"cookTime" in suggestion ? (
               <>

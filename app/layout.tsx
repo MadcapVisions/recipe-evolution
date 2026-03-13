@@ -41,18 +41,21 @@ export default async function RootLayout({
       <body className="font-sans-ui text-slate-900">
         <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(79,54,33,0.08)] bg-[rgba(246,241,232,0.86)] backdrop-blur-xl">
           <nav className="mx-auto w-full max-w-[1440px] px-4 py-3 sm:px-6 lg:flex lg:min-h-20 lg:items-center lg:gap-3 lg:px-10 lg:py-2">
-            <div className="flex items-center justify-between gap-3">
-              <a href="/" className="inline-flex items-center shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 lg:contents">
+              <a href="/" className="inline-flex shrink-0 items-center">
                 <Image
                   src="/assets/RE Logo png.png"
                   alt="Recipe Evolution"
                   width={460}
                   height={88}
                   priority
-                  className="h-[3.2rem] w-auto opacity-90 sm:h-[3.5rem] lg:h-[4.5rem]"
+                  className="h-[2.85rem] w-auto opacity-90 sm:h-[3.25rem] lg:h-[4.5rem]"
                 />
               </a>
-              <div className="flex items-center gap-2 lg:hidden">
+              <div className="min-w-0 flex-1 lg:hidden">
+                <AiStatusBadge defaultMessage={aiStatusLabel} />
+              </div>
+              <div className="flex shrink-0 items-center gap-2 lg:hidden">
                 {user ? (
                   <UserMenu label={userLabel} email={user.email ?? null} />
                 ) : (
@@ -103,7 +106,7 @@ export default async function RootLayout({
               </div>
             </div>
 
-            <div className="mt-3 lg:mx-auto lg:mt-0 lg:flex lg:flex-1 lg:justify-center">
+            <div className="hidden lg:mx-auto lg:flex lg:flex-1 lg:justify-center">
               <AiStatusBadge defaultMessage={aiStatusLabel} />
             </div>
 
@@ -118,7 +121,7 @@ export default async function RootLayout({
             </div>
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-36 sm:px-6 sm:pt-40 lg:px-10 lg:pb-8 lg:pt-26">
+        <main className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-32 sm:px-6 sm:pt-34 lg:px-10 lg:pb-8 lg:pt-26">
           <div className="app-shell p-4 sm:p-6 lg:p-7">{children}</div>
         </main>
       </body>
