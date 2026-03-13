@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
+import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 
 type ImproveRecipeRequest = {
   recipeId?: string;
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
 
     const result = await improveRecipe({
       instruction,
+      userTasteSummary: await buildUserTasteSummary(access.supabase as any, access.userId),
       recipe: {
         title: recipe.title,
         servings: typeof recipe.servings === "number" ? recipe.servings : null,

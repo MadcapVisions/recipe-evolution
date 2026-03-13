@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { structureRecipeFromText } from "@/lib/client/aiStructureRecipe";
 import { createRecipeWithVersion } from "@/lib/client/recipeMutations";
 import { Button } from "@/components/Button";
+import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
 type ImportRecipeFormProps = {
   ownerId: string;
@@ -23,6 +24,34 @@ export function ImportRecipeForm({ ownerId }: ImportRecipeFormProps) {
   const [ingredientsInput, setIngredientsInput] = useState("");
   const [stepsInput, setStepsInput] = useState("");
   const [readyToSave, setReadyToSave] = useState(false);
+
+  useEffect(() => {
+    let message: string | null = null;
+    let tone: "default" | "loading" | "success" | "fallback" = "default";
+    const lowerError = error?.toLowerCase() ?? "";
+
+    if (loading) {
+      message = "Chef is structuring your recipe...";
+      tone = "loading";
+    } else if (saving) {
+      message = "Generating recipe...";
+      tone = "loading";
+    } else if (readyToSave && !error) {
+      message = "Suggestions ready";
+      tone = "success";
+    } else if (error) {
+      if (lowerError.includes("unavailable") || lowerError.includes("rate-limited") || lowerError.includes("failed")) {
+        message = "AI temporarily unavailable";
+        tone = "fallback";
+      }
+    }
+
+    publishAiStatus({ message, tone });
+
+    return () => {
+      publishAiStatus({ message: null });
+    };
+  }, [loading, saving, readyToSave, error]);
 
   const handleStructure = async () => {
     if (!rawText.trim()) {

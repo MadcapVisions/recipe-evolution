@@ -1,0 +1,264 @@
+type SupabaseLike = {
+  from: (table: string) => any;
+};
+
+type ExplicitPreferencesRow = {
+  preferred_units?: string | null;
+  common_diet_tags?: string[] | null;
+  disliked_ingredients?: string[] | null;
+  cooking_skill_level?: string | null;
+  favorite_cuisines?: string[] | null;
+  favorite_proteins?: string[] | null;
+  preferred_flavors?: string[] | null;
+  pantry_staples?: string[] | null;
+  spice_tolerance?: string | null;
+  health_goals?: string[] | null;
+  taste_notes?: string | null;
+};
+
+const CUISINE_KEYWORDS = ["italian", "mexican", "asian", "mediterranean", "comfort", "healthy", "seafood", "dessert"];
+const PROTEIN_KEYWORDS = ["chicken", "beef", "pork", "fish", "salmon", "shrimp", "tofu", "beans", "eggs", "turkey", "chickpeas"];
+const FLAVOR_KEYWORDS = ["spicy", "bright", "creamy", "fresh", "herby", "smoky", "savory", "crispy", "lemon", "lime", "garlic"];
+
+type ProductEventRow = {
+  event_name?: string | null;
+  metadata_json?: Record<string, unknown> | null;
+};
+
+function normalizeList(values: string[] | null | undefined) {
+  return (values ?? []).map((value) => value.trim()).filter(Boolean);
+}
+
+function extractKeywordCounts(values: string[], keywords: string[]) {
+  const counts = new Map<string, number>();
+  const haystack = values.join(" ").toLowerCase();
+  for (const keyword of keywords) {
+    if (haystack.includes(keyword)) {
+      counts.set(keyword, (counts.get(keyword) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function topKeywords(counts: Map<string, number>, max = 3) {
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([keyword]) => keyword);
+}
+
+function summarizeExplicit(preferences: ExplicitPreferencesRow | null) {
+  if (!preferences) {
+    return "";
+  }
+
+  const parts: string[] = [];
+  const cuisines = normalizeList(preferences.favorite_cuisines);
+  const proteins = normalizeList(preferences.favorite_proteins);
+  const flavors = normalizeList(preferences.preferred_flavors);
+  const dietTags = normalizeList(preferences.common_diet_tags);
+  const pantry = normalizeList(preferences.pantry_staples);
+  const healthGoals = normalizeList(preferences.health_goals);
+  const dislikes = normalizeList(preferences.disliked_ingredients);
+
+  if (cuisines.length > 0) {
+    parts.push(`Prefers ${cuisines.join(", ")} styles.`);
+  }
+  if (proteins.length > 0) {
+    parts.push(`Often wants ${proteins.join(", ")}.`);
+  }
+  if (flavors.length > 0) {
+    parts.push(`Likes ${flavors.join(", ")} flavors.`);
+  }
+  if (dietTags.length > 0) {
+    parts.push(`Diet goals: ${dietTags.join(", ")}.`);
+  }
+  if (healthGoals.length > 0) {
+    parts.push(`Health goals: ${healthGoals.join(", ")}.`);
+  }
+  if (preferences.spice_tolerance?.trim()) {
+    parts.push(`Spice tolerance: ${preferences.spice_tolerance.trim()}.`);
+  }
+  if (dislikes.length > 0) {
+    parts.push(`Avoid ${dislikes.join(", ")}.`);
+  }
+  if (pantry.length > 0) {
+    parts.push(`Common pantry staples include ${pantry.join(", ")}.`);
+  }
+  if (preferences.cooking_skill_level?.trim()) {
+    parts.push(`Cooking skill: ${preferences.cooking_skill_level.trim()}.`);
+  }
+  if (preferences.taste_notes?.trim()) {
+    parts.push(preferences.taste_notes.trim());
+  }
+
+  return parts.join(" ");
+}
+
+function summarizeInferred(input: { recipeTitles: string[]; recipeTags: string[]; ingredientNames: string[] }) {
+  const cuisineCounts = extractKeywordCounts([...input.recipeTitles, ...input.recipeTags], CUISINE_KEYWORDS);
+  const proteinCounts = extractKeywordCounts([...input.recipeTitles, ...input.ingredientNames], PROTEIN_KEYWORDS);
+  const flavorCounts = extractKeywordCounts([...input.recipeTitles, ...input.ingredientNames], FLAVOR_KEYWORDS);
+
+  const cuisines = topKeywords(cuisineCounts);
+  const proteins = topKeywords(proteinCounts);
+  const flavors = topKeywords(flavorCounts);
+
+  const parts: string[] = [];
+  if (cuisines.length > 0) {
+    parts.push(`Recent behavior leans toward ${cuisines.join(", ")} dishes.`);
+  }
+  if (proteins.length > 0) {
+    parts.push(`Frequently chosen ingredients include ${proteins.join(", ")}.`);
+  }
+  if (flavors.length > 0) {
+    parts.push(`Observed taste signals suggest ${flavors.join(", ")} preferences.`);
+  }
+
+  return {
+    summary: parts.join(" "),
+    signals: {
+      cuisines,
+      proteins,
+      flavors,
+    },
+  };
+}
+
+function collectStrings(value: unknown): string[] {
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectStrings(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap((item) => collectStrings(item));
+  }
+
+  return [];
+}
+
+function extractTextFromMetadata(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata) {
+    return [];
+  }
+
+  const keys = [
+    "title",
+    "description",
+    "prompt",
+    "instruction",
+    "recipeTitle",
+    "ideaTitle",
+    "selectedIdeaTitle",
+    "conversation",
+    "versionLabel",
+  ] as const;
+
+  const values: string[] = [];
+
+  for (const key of keys) {
+    values.push(...collectStrings(metadata[key]));
+  }
+
+  return values;
+}
+
+function repeatValues(values: string[], count: number) {
+  return values.flatMap((value) => Array.from({ length: count }, () => value));
+}
+
+export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: string): Promise<string> {
+  const preferencesQuery = supabase
+    .from("user_preferences")
+    .select(
+      "preferred_units, common_diet_tags, disliked_ingredients, cooking_skill_level, favorite_cuisines, favorite_proteins, preferred_flavors, pantry_staples, spice_tolerance, health_goals, taste_notes"
+    )
+    .eq("owner_id", ownerId)
+    .maybeSingle?.();
+
+  const recipesQuery = supabase
+    .from("recipes")
+    .select("id, title, tags, is_favorite")
+    .eq("owner_id", ownerId)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
+  const eventsQuery = supabase
+    .from("product_events")
+    .select("event_name, metadata_json")
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  const [preferencesResult, recipesResult, eventsResult] = await Promise.all([
+    preferencesQuery ?? Promise.resolve({ data: null, error: null }),
+    recipesQuery ?? Promise.resolve({ data: [], error: null }),
+    eventsQuery ?? Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const preferences = (preferencesResult as any)?.data as ExplicitPreferencesRow | null;
+  const recipes = Array.isArray((recipesResult as any)?.data) ? (recipesResult as any).data : [];
+  const events = Array.isArray((eventsResult as any)?.data) ? ((eventsResult as any).data as ProductEventRow[]) : [];
+
+  const recipeIds = recipes.map((recipe: any) => String(recipe?.id ?? "")).filter(Boolean);
+  const versionsResult =
+    recipeIds.length > 0
+      ? await supabase
+          .from("recipe_versions")
+          .select("ingredients_json, recipe_id")
+          .in("recipe_id", recipeIds)
+          .order("created_at", { ascending: false })
+          .limit(24)
+      : { data: [], error: null };
+  const versions = Array.isArray((versionsResult as any)?.data) ? (versionsResult as any).data : [];
+
+  const favoriteRecipes = recipes.filter((recipe: any) => recipe?.is_favorite);
+  const titlePool = [...repeatValues(favoriteRecipes.map((recipe: any) => String(recipe?.title ?? "").trim()).filter(Boolean), 2)]
+    .concat(recipes.map((recipe: any) => String(recipe?.title ?? "").trim()).filter(Boolean));
+  const tagPool = [...favoriteRecipes, ...recipes]
+    .flatMap((recipe: any) => (Array.isArray(recipe?.tags) ? recipe.tags : []))
+    .map((tag: any) => String(tag).trim())
+    .filter(Boolean);
+  const ingredientPool = versions
+    .flatMap((version: any) => (Array.isArray(version?.ingredients_json) ? version.ingredients_json : []))
+    .map((item: any) => String(item?.name ?? "").trim())
+    .filter(Boolean);
+  const behaviorTextPool = events.flatMap((event) => {
+    const baseTexts = extractTextFromMetadata(event.metadata_json);
+    if (event.event_name === "recipe_favorited") {
+      return repeatValues(baseTexts, 2);
+    }
+    if (event.event_name === "recipe_created" || event.event_name === "recipe_improved" || event.event_name === "recipe_remixed") {
+      return repeatValues(baseTexts, 2);
+    }
+    return baseTexts;
+  });
+
+  const explicitSummary = summarizeExplicit(preferences);
+  const inferred = summarizeInferred({
+    recipeTitles: [...titlePool, ...behaviorTextPool],
+    recipeTags: tagPool,
+    ingredientNames: [...ingredientPool, ...behaviorTextPool],
+  });
+
+  const combinedSummary = [explicitSummary, inferred.summary].filter(Boolean).join(" ");
+
+  if (combinedSummary && supabase.from("user_taste_profiles").upsert) {
+    void supabase.from("user_taste_profiles").upsert?.(
+      {
+        owner_id: ownerId,
+        explicit_summary: explicitSummary || null,
+        inferred_summary: inferred.summary || null,
+        combined_summary: combinedSummary,
+        inferred_signals_json: inferred.signals,
+      },
+      { onConflict: "owner_id" }
+    );
+  }
+
+  return combinedSummary;
+}

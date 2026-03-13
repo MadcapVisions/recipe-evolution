@@ -123,6 +123,7 @@ const toTitleCase = (value: string) =>
 export const buildVersionLabelFromInstruction = (instruction: string) => {
   const normalized = instruction.trim().toLowerCase();
   if (!normalized) return "AI Update";
+  if (normalized.includes("remix")) return "Remix Version";
   if (normalized.includes("vegetarian")) return "Vegetarian Version";
   if (normalized.includes("gluten")) return "Gluten-Free Version";
   if (normalized.includes("protein")) return "High Protein Version";

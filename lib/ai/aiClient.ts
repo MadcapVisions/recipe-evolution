@@ -63,6 +63,19 @@ function parseProvider(value: string | undefined): AIProvider | null {
   return null;
 }
 
+function hasProviderConfig(provider: AIProvider): boolean {
+  if (provider === "gemini") {
+    return Boolean(process.env.GEMINI_API_KEY?.trim());
+  }
+  if (provider === "openai") {
+    return Boolean(process.env.OPENAI_API_KEY?.trim());
+  }
+  if (provider === "claude") {
+    return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  }
+  return false;
+}
+
 function getProviderOrder(): AIProvider[] {
   const primary = parseProvider(process.env.AI_PROVIDER) ?? "openai";
   const configuredFallbacks =
@@ -70,10 +83,17 @@ function getProviderOrder(): AIProvider[] {
       .map((item) => parseProvider(item.trim()))
       .filter((item): item is AIProvider => item !== null) ?? [];
 
-  const defaults: AIProvider[] = ["openai", "gemini", "claude"];
-  return [primary, ...configuredFallbacks, ...defaults].filter(
+  const configuredOrder = [primary, ...configuredFallbacks].filter(
     (provider, index, list) => list.indexOf(provider) === index
   );
+
+  const usableProviders = configuredOrder.filter(hasProviderConfig);
+  if (usableProviders.length > 0) {
+    return usableProviders;
+  }
+
+  const defaults: AIProvider[] = ["gemini", "openai", "claude"];
+  return defaults.filter(hasProviderConfig);
 }
 
 function shouldRetry(error: unknown): boolean {
@@ -195,8 +215,22 @@ async function callOpenAI(messages: AIMessage[], options: AICallOptions, context
 }
 
 async function callGemini(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
-  const prompt = messages.map((message) => message.content).join("\n");
   const apiKey = requireEnv("GEMINI_API_KEY");
+  const systemMessages = messages.filter((message) => message.role === "system").map((message) => message.content.trim()).filter(Boolean);
+  const chatMessages = messages.filter((message) => message.role !== "system");
+
+  const contents =
+    chatMessages.length > 0
+      ? chatMessages.map((message) => ({
+          role: message.role === "assistant" ? "model" : "user",
+          parts: [{ text: message.content }],
+        }))
+      : [
+          {
+            role: "user",
+            parts: [{ text: systemMessages.join("\n\n") }],
+          },
+        ];
 
   const response = await fetchWithTimeoutForProvider(
     "gemini",
@@ -205,9 +239,10 @@ async function callGemini(messages: AIMessage[], options: AICallOptions, context
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: systemMessages.length > 0 ? { parts: [{ text: systemMessages.join("\n\n") }] } : undefined,
+        contents,
         generationConfig: {
-          maxOutputTokens: options.max_tokens || 400,
+          maxOutputTokens: options.max_tokens || 500,
           temperature: options.temperature || 0.6,
         },
       }),
@@ -219,7 +254,7 @@ async function callGemini(messages: AIMessage[], options: AICallOptions, context
     const text = await response.text();
     throw new AIProviderError("gemini", `Gemini (${GEMINI_MODEL}) error (${response.status})`, {
       statusCode: response.status,
-      retryable: RETRYABLE_STATUS_CODES.has(response.status),
+      retryable: response.status === 429 ? false : RETRYABLE_STATUS_CODES.has(response.status),
       cause: text,
     });
   }

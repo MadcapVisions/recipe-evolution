@@ -287,12 +287,12 @@ Return ONLY valid JSON:
 }`;
 }
 
-export async function generateHomeIdeas(input: IdeaInput): Promise<HomeIdea[]> {
+export async function generateHomeIdeas(input: IdeaInput, userTasteSummary?: string): Promise<HomeIdea[]> {
   const messages = [
     {
       role: "system" as const,
-      content:
-        "You are a recipe ideation assistant. Return only valid JSON. Keep titles distinct and natural. Keep ideas practical for a home cook.",
+      content: `You are a recipe ideation assistant. Return only valid JSON. Keep titles distinct and natural. Keep ideas practical for a home cook.
+User taste summary: ${userTasteSummary?.trim() || "No user taste summary available."}`,
     },
     {
       role: "user" as const,
@@ -314,11 +314,12 @@ export async function generateHomeRecipe(input: {
   ideaTitle: string;
   prompt?: string;
   ingredients?: string[];
-}): Promise<HomeGeneratedRecipe> {
+}, userTasteSummary?: string): Promise<HomeGeneratedRecipe> {
   const messages = [
     {
       role: "system" as const,
       content: `You are a professional recipe developer.
+User taste summary: ${userTasteSummary?.trim() || "No user taste summary available."}
 Return ONLY valid JSON:
 {
   "title": string,

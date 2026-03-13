@@ -9,6 +9,7 @@ import { SmartMealBuilder } from "@/components/home/SmartMealBuilder";
 import { TonightSuggestions } from "@/components/home/TonightSuggestions";
 import { useHomeHubAi } from "@/components/home/useHomeHubAi";
 import type { HomeHubProps } from "@/components/home/types";
+import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
 export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps) {
   const [recipesState, setRecipesState] = useState(recentRecipes);
@@ -63,10 +64,44 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
     setRecipesState(recentRecipes);
   }, [recentRecipes]);
 
+  useEffect(() => {
+    const activeStatus = smartStatus || status;
+    const activeLoading = smartLoading || loading || smartGeneratingRecipe || generatingRecipe;
+
+    if (!activeStatus) {
+      publishAiStatus({ message: null });
+      return;
+    }
+
+    const lower = activeStatus.toLowerCase();
+    const tone = activeLoading ? "loading" : lower.includes("fallback") || lower.includes("unavailable") || lower.includes("rate-limited") ? "fallback" : "success";
+
+    let message = activeStatus;
+    if (activeLoading) {
+      if (smartGeneratingRecipe || generatingRecipe || lower.includes("full recipe")) {
+        message = "Generating recipe...";
+      } else {
+        message = "Chef is thinking...";
+      }
+    } else if (lower.includes("choose an idea") || lower.includes("select an idea")) {
+      message = "Suggestions ready";
+    } else if (lower.includes("fallback")) {
+      message = lower.includes("rate-limited") ? "Using backup recipe engine" : "AI temporarily unavailable";
+    } else if (lower.includes("chef responded") || lower.includes("ready to apply")) {
+      message = "Suggestions ready";
+    }
+
+    publishAiStatus({ message, tone });
+
+    return () => {
+      publishAiStatus({ message: null });
+    };
+  }, [status, smartStatus, loading, smartLoading, generatingRecipe, smartGeneratingRecipe]);
+
   return (
     <div className="mx-auto w-full max-w-[1380px] space-y-8">
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.9fr)_minmax(360px,1fr)] xl:items-stretch">
-        <div className="space-y-6">
+        <div className="h-full">
           <HomeHeroPanel
             heroChatMessages={heroChatMessages}
             promptInput={promptInput}
@@ -81,29 +116,6 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
             heroChatViewportRef={heroChatViewportRef}
           />
 
-          {status ? (
-            <section className="app-panel p-4">
-              <div
-                className={`rounded-[22px] border px-4 py-3 text-base font-semibold shadow-sm ${
-                  loading
-                    ? "border-emerald-300 bg-emerald-100 text-emerald-900"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-900"
-                }`}
-                role="status"
-                aria-live="polite"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex h-2.5 w-2.5 rounded-full ${
-                      loading ? "animate-pulse bg-emerald-500" : "bg-emerald-500"
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span>{status}</span>
-                </div>
-              </div>
-            </section>
-          ) : null}
         </div>
 
         <SmartMealBuilder
@@ -112,17 +124,12 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
           smartCookTimes={smartCookTimes}
           smartPreferences={smartPreferences}
           smartLoading={smartLoading}
-          smartStatus={smartStatus}
           smartError={smartError}
-          smartGeneratingRecipe={smartGeneratingRecipe}
-          smartSelectedIdeaTitle={smartSelectedIdeaTitle}
-          smartIdeas={smartIdeas}
           onToggleProtein={toggleSmartProtein}
           onToggleCuisine={toggleSmartCuisine}
           onToggleCookTime={toggleSmartCookTime}
           onTogglePreference={toggleSmartPreference}
           onGenerateRecipes={() => void handleGenerateSmartMeals()}
-          onSelectIdea={(idea) => void handleSelectSmartIdea(idea)}
         />
       </section>
 
@@ -137,7 +144,24 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
           onGenerateMoreIdeas={() => void handleGenerateMoreIdeas()}
         />
 
-        {ideas.length === 0 ? (
+        {smartIdeas.length > 0 ? (
+          <TonightSuggestions
+            ideas={smartIdeas}
+            kicker="Suggested directions"
+            heading="Built from your filters"
+            description="Choose one of these meal directions to generate the full recipe."
+            onCookThis={async (title) => {
+              const selectedIdea = smartIdeas.find((idea) => idea.title === title);
+              if (selectedIdea) {
+                await handleSelectSmartIdea(selectedIdea);
+              }
+            }}
+            loading={smartGeneratingRecipe}
+            activeTitle={smartSelectedIdeaTitle}
+          />
+        ) : null}
+
+        {ideas.length === 0 && smartIdeas.length === 0 ? (
           <TonightSuggestions
             onCookThis={generateRecipeFromIdea}
             loading={generatingRecipe}

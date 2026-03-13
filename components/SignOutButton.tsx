@@ -17,7 +17,7 @@ export function SignOutButton() {
     <Button
       onClick={handleSignOut}
       variant="secondary"
-      className="w-full justify-start"
+      className="min-h-12 w-full justify-center sm:w-auto"
     >
       Sign Out
     </Button>

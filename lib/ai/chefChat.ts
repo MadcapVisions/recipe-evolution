@@ -43,6 +43,31 @@ function looksIncomplete(reply: string): boolean {
     return true;
   }
 
+  if (!/[.!?]$/.test(normalized) && !normalized.includes("\n")) {
+    const trailingFragments = [
+      "with",
+      "and",
+      "or",
+      "to",
+      "for",
+      "into",
+      "over",
+      "using",
+      "plus",
+      "pan-sear",
+      "sear",
+      "roast",
+      "saute",
+      "then",
+      "thin",
+      "thick",
+    ];
+    const lastWord = normalized.split(/\s+/).filter(Boolean).at(-1) ?? "";
+    if (trailingFragments.includes(lastWord)) {
+      return true;
+    }
+  }
+
   const sentenceCount = normalized.split(/[.!?]+/).filter((part) => part.trim().length > 0).length;
   if (sentenceCount < 2 && !normalized.includes("\n")) {
     return true;
@@ -54,9 +79,10 @@ function looksIncomplete(reply: string): boolean {
 export async function chefChat(
   userMessage: string,
   recipeContext: RecipeContext,
-  conversationHistory: AIMessage[] = []
+  conversationHistory: AIMessage[] = [],
+  userTasteSummary?: string
 ): Promise<ChefChatResult> {
-  const messages = buildChefChatPrompt(userMessage, recipeContext, conversationHistory);
+  const messages = buildChefChatPrompt(userMessage, recipeContext, conversationHistory, userTasteSummary);
   const firstAttempt = await callAIWithMeta(messages, TOKEN_LIMITS.chefChat);
   const firstReply = firstAttempt.text;
 
@@ -82,6 +108,11 @@ export async function chefChat(
 
   const repairedAttempt = await callAIWithMeta(repairMessages, TOKEN_LIMITS.chefChat);
   const repairedReply = repairedAttempt.text;
+
+  if (looksIncomplete(repairedReply)) {
+    throw new Error("Chef chat returned incomplete content after repair.");
+  }
+
   return {
     reply: repairedReply.trim().length > 0 ? repairedReply : firstReply,
     repaired: true,

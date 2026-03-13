@@ -6,6 +6,7 @@ import { validateRecipe } from "./schema/recipeValidator";
 
 type ImproveRecipeInput = {
   instruction: string;
+  userTasteSummary?: string;
   recipe: {
     title: string;
     servings: number | null;
@@ -71,6 +72,8 @@ export async function improveRecipe(input: ImproveRecipeInput): Promise<ImproveR
     {
       role: "system" as const,
       content: `${CHEF_SYSTEM_PROMPT}
+
+User taste summary: ${input.userTasteSummary?.trim() || "No user taste summary available."}
 
 When asked to improve a recipe, you must return ONLY valid JSON with no markdown:
 {

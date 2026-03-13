@@ -26,6 +26,15 @@ export function RecipeIdeasPanel({
     return null;
   }
 
+  const compactDescription = (description: string) => {
+    const normalized = description.trim().replace(/\s+/g, " ");
+    if (normalized.length <= 165) {
+      return normalized;
+    }
+    const truncated = normalized.slice(0, 162).trimEnd();
+    return `${truncated}...`;
+  };
+
   return (
     <section className="app-panel p-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -48,26 +57,31 @@ export function RecipeIdeasPanel({
             type="button"
             onClick={() => onSelectIdea(idea)}
             disabled={loading}
-            className="flex cursor-pointer items-start gap-4 rounded-[24px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.86)] p-5 text-left transition hover:-translate-y-px hover:shadow-[0_14px_30px_rgba(76,50,24,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex cursor-pointer items-start gap-3 rounded-[24px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.86)] p-4 text-left transition hover:-translate-y-px hover:shadow-[0_14px_30px_rgba(76,50,24,0.08)] disabled:cursor-not-allowed disabled:opacity-60 sm:gap-4 sm:p-5"
           >
             <div
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl text-xl ${getIconTone(idea)}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-lg ${getIconTone(idea)} sm:h-12 sm:w-12 sm:text-xl`}
               aria-hidden="true"
             >
               {getIdeaIcon(idea, index)}
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <p className="text-[18px] font-semibold text-[color:var(--text)]">{idea.title}</p>
-              <p className="text-[16px] leading-7 text-[color:var(--muted)]">{idea.description}</p>
+              <p className="text-[15px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
+                <span className="sm:hidden">{compactDescription(idea.description)}</span>
+                <span className="hidden sm:inline">{idea.description}</span>
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {getIdeaTags(idea).map((tag) => (
+                {getIdeaTags(idea)
+                  .slice(0, 2)
+                  .map((tag) => (
                   <span
                     key={`${idea.title}-${tag}`}
                     className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-xs font-medium text-[color:var(--muted)]"
                   >
                     {tag}
                   </span>
-                ))}
+                  ))}
               </div>
             </div>
           </button>

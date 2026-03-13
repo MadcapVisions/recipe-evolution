@@ -45,7 +45,9 @@ export default function HomePage() {
                   <p className="app-kicker">Sample workflow</p>
                   <p className="mt-2 text-[24px] font-semibold text-[color:var(--text)]">Plan dinner in minutes.</p>
                 </div>
-                <div className="rounded-full bg-[rgba(82,124,116,0.08)] px-3 py-1.5 text-sm font-semibold text-[color:var(--primary)]">AI ready</div>
+                <div className="rounded-full bg-[linear-gradient(135deg,rgba(223,247,235,0.95)_0%,rgba(245,252,248,0.98)_100%)] px-3 py-1.5 text-sm font-semibold text-emerald-950 shadow-[0_10px_24px_rgba(46,125,94,0.1)]">
+                  AI Chef Ready
+                </div>
               </div>
               <div className="mt-4 space-y-3">
                 <div className="rounded-[22px] bg-[rgba(141,169,187,0.08)] p-4 text-[15px] leading-7 text-[color:var(--text)]">
@@ -99,7 +101,6 @@ export default function HomePage() {
                     <p className="app-kicker">Chef conversation</p>
                     <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">First action: tell Chef what you want.</p>
                   </div>
-                  <div className="rounded-full bg-[rgba(82,124,116,0.08)] px-3 py-1.5 text-sm font-semibold text-[color:var(--primary)]">Ready to help</div>
                 </div>
                 <div className="mt-4 rounded-[22px] bg-[rgba(141,169,187,0.08)] p-4 text-[15px] leading-7 text-[color:var(--muted)]">
                   Ask for substitutions, technique advice, or ingredient combinations before you commit.

@@ -137,6 +137,73 @@ export const cookTimeLabelToMinutes = (value: string) => {
 
 const normalizeSmartValue = (value: string) => value.trim().toLowerCase();
 
+const describeSmartFlavorProfile = ({
+  format,
+  protein,
+  cuisine,
+  preferences,
+  cookMinutes,
+}: {
+  format: "bowl" | "skillet" | "plate";
+  protein: string;
+  cuisine: string;
+  preferences: string[];
+  cookMinutes: number;
+}) => {
+  const normalizedCuisine = cuisine.trim().toLowerCase();
+  const normalizedProtein = protein.trim().toLowerCase();
+  const normalizedPreferences = preferences.map((item) => item.trim().toLowerCase());
+
+  const cuisineProfile =
+    normalizedCuisine === "mexican"
+      ? "Expect smoky seasoning, lime brightness, and a savory finish that keeps the dish lively."
+      : normalizedCuisine === "italian"
+        ? "Expect garlic, herbs, and a bright citrus or parmesan finish for a polished, balanced bite."
+        : normalizedCuisine === "asian"
+          ? "Expect ginger, soy, sesame, and a clean acidic lift that keeps the flavor sharp and layered."
+          : normalizedCuisine === "mediterranean"
+            ? "Expect lemon, herbs, and clean savory depth with a fresh finish that never feels heavy."
+            : normalizedCuisine === "comfort food"
+              ? "Expect deeper savory notes, gentle richness, and enough brightness to keep it from feeling too heavy."
+              : "Expect balanced seasoning, a clean finish, and practical weeknight flavor.";
+
+  const proteinProfile =
+    normalizedProtein === "chicken"
+      ? "Chicken gives it an easy savory base that works well with herbs, browning, and quick pan sauces."
+      : normalizedProtein === "pork"
+        ? "Pork brings richer savory flavor, so the profile works best with acidity, char, or a lightly spicy finish."
+        : normalizedProtein === "fish"
+          ? "Fish keeps the dish lighter and benefits from bright acid, herbs, and a gentler aromatic finish."
+          : normalizedProtein === "beef"
+            ? "Beef gives this direction more depth and a stronger browned flavor core."
+            : normalizedProtein === "tofu"
+              ? "Tofu keeps the dish lighter while soaking up sauce, aromatics, and spice especially well."
+              : normalizedProtein === "beans"
+                ? "Beans make the dish hearty and satisfying while pairing well with herbs, spice, and bright finishing notes."
+                : normalizedProtein === "eggs"
+                  ? "Eggs make it softer and more delicate, with room for herbs, spice, and savory contrast."
+                  : "The protein keeps the dish satisfying while leaving room for sauce and texture contrast.";
+
+  const preferenceNotes = [
+    normalizedPreferences.includes("high protein") ? "It is tuned to feel filling and protein-forward." : null,
+    normalizedPreferences.includes("low carb") ? "The structure stays lighter and avoids unnecessary heaviness." : null,
+    normalizedPreferences.includes("spicy") ? "A gentle chili heat would fit naturally here." : null,
+    normalizedPreferences.includes("vegetarian") ? "The flavors are built to feel complete even without meat." : null,
+    normalizedPreferences.includes("gluten free") ? "The format stays naturally simple and gluten-friendly." : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const formatProfile =
+    format === "bowl"
+      ? "As a bowl, it gives you soft grains, savory protein, and room for crunchy or herb-driven toppings."
+      : format === "skillet"
+        ? "As a skillet, the flavor leans more browned, concentrated, and weeknight-friendly."
+        : `As a plated dinner, it feels more complete and dinner-table ready within about ${cookMinutes} minutes.`;
+
+  return [cuisineProfile, proteinProfile, formatProfile, preferenceNotes].filter(Boolean).join(" ");
+};
+
 export const getRecipeCategory = (title: string) => {
   const text = title.toLowerCase();
   if (text.includes("cake") || text.includes("cookie") || text.includes("pie") || text.includes("dessert")) {
@@ -199,17 +266,35 @@ export const buildSmartFallbackIdeas = (
   return [
     {
       title: `${cuisineText} ${proteinText} Bowl`,
-      description: `${prefText}flavor-forward bowl built around ${proteinText.toLowerCase()} with balanced seasoning and texture.`,
+      description: `${prefText}${describeSmartFlavorProfile({
+        format: "bowl",
+        protein: proteinText,
+        cuisine: cuisineText,
+        preferences,
+        cookMinutes,
+      })}`,
       cook_time_min: cookMinutes,
     },
     {
       title: `${cuisineText} ${proteinText} Skillet`,
-      description: `${prefText}one-pan skillet recipe featuring ${proteinText.toLowerCase()} and weeknight-friendly prep.`,
+      description: `${prefText}${describeSmartFlavorProfile({
+        format: "skillet",
+        protein: proteinText,
+        cuisine: cuisineText,
+        preferences,
+        cookMinutes,
+      })}`,
       cook_time_min: cookMinutes,
     },
     {
       title: `${cuisineText} ${proteinText} Plate`,
-      description: `${prefText}complete dinner with ${proteinText.toLowerCase()} and sides, tuned for a ${cookMinutes} min cook window.`,
+      description: `${prefText}${describeSmartFlavorProfile({
+        format: "plate",
+        protein: proteinText,
+        cuisine: cuisineText,
+        preferences,
+        cookMinutes,
+      })}`,
       cook_time_min: cookMinutes,
     },
   ];
@@ -242,6 +327,8 @@ const FALLBACK_STOP_WORDS = new Set([
   "have",
   "love",
   "like",
+  "let",
+  "lets",
   "dinner",
   "lunch",
   "breakfast",

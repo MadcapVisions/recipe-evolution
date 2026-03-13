@@ -191,7 +191,7 @@ export function RecipesBrowser({ ownerId, recipes, initialVisibilityStates }: Re
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)_290px]">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="space-y-4">
         <section className="app-panel p-5">
           <p className="app-kicker">Browse</p>
@@ -247,16 +247,10 @@ export function RecipesBrowser({ ownerId, recipes, initialVisibilityStates }: Re
 
       <section className="space-y-5">
         <section className="app-panel p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
             <div>
               <p className="app-kicker">All recipes</p>
               <h1 className="mt-2 text-[40px] font-semibold tracking-tight text-[color:var(--text)]">Find the recipe you want fast.</h1>
-              <p className="mt-2 text-[16px] leading-7 text-[color:var(--muted)]">
-                Browse by category, sort by recency, or open favorites from the side rail.
-              </p>
-            </div>
-            <div className="rounded-[24px] bg-[rgba(141,169,187,0.08)] px-4 py-3 text-[15px] text-[color:var(--muted)]">
-              {visibleRecipes.length} recipe{visibleRecipes.length === 1 ? "" : "s"} shown
             </div>
           </div>
 
@@ -268,6 +262,28 @@ export function RecipesBrowser({ ownerId, recipes, initialVisibilityStates }: Re
             ))}
           </div>
         </section>
+
+        <div className="flex flex-col gap-3 rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[15px] font-semibold text-[color:var(--text)]">
+              {visibleRecipes.length} recipe{visibleRecipes.length === 1 ? "" : "s"}
+            </p>
+            <p className="text-[14px] text-[color:var(--muted)]">Filtered from your library</p>
+          </div>
+          <label className="flex items-center gap-3 text-[15px] font-medium text-[color:var(--text)]">
+            <span>Sort by</span>
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              className="settings-field min-h-11 min-w-[200px]"
+            >
+              <option value="recent">Recent</option>
+              <option value="alphabetical">Alphabetical</option>
+              <option value="most_versions">Most versions</option>
+              <option value="favorites">Favorites</option>
+            </select>
+          </label>
+        </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {visibleRecipes.map((recipe, index) => (
@@ -340,69 +356,6 @@ export function RecipesBrowser({ ownerId, recipes, initialVisibilityStates }: Re
           ))}
         </div>
       </section>
-
-      <aside className="space-y-4">
-        <section className="app-panel p-5">
-          <p className="app-kicker">Sort</p>
-          <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Sort by</h2>
-          <div className="mt-4 space-y-2">
-            {[
-              { key: "recent", label: "Recent" },
-              { key: "alphabetical", label: "Alphabetical" },
-              { key: "most_versions", label: "Most versions" },
-              { key: "favorites", label: "Favorites" },
-            ].map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setSortMode(option.key as SortMode)}
-                className={`w-full rounded-[22px] px-4 py-3 text-left text-[15px] font-semibold transition ${
-                  sortMode === option.key
-                    ? "bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] text-white"
-                    : "border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] text-[color:var(--text)] hover:bg-white"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="app-panel p-5">
-          <p className="app-kicker">Filters</p>
-          <h2 className="mt-2 text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Category</h2>
-          <div className="mt-4 space-y-2">
-            {CATEGORY_OPTIONS.filter((option) => option.key !== "all").map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setCategoryFilter(option.key)}
-                className={`w-full rounded-[22px] px-4 py-3 text-left text-[15px] font-semibold transition ${
-                  categoryFilter === option.key
-                    ? "bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] text-white"
-                    : "border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] text-[color:var(--text)] hover:bg-white"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setCategoryFilter("all")}
-              className="w-full rounded-[22px] border border-[rgba(57,75,70,0.12)] bg-white px-4 py-3 text-left text-[15px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(141,169,187,0.08)]"
-            >
-              Clear filters
-            </button>
-          </div>
-        </section>
-
-        <section className="app-panel p-5">
-          <p className="app-kicker">Visibility</p>
-          <p className="mt-3 rounded-[22px] bg-[rgba(141,169,187,0.08)] px-4 py-4 text-[15px] leading-7 text-[color:var(--muted)]">
-            Hidden and archived recipes stay attached to your account and stay consistent across pages.
-          </p>
-        </section>
-      </aside>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { chefChat } from "@/lib/ai/chefChat";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
+import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 
 export async function POST(request: Request) {
   let trackedAccess:
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
+    const userTasteSummary = await buildUserTasteSummary(access.supabase as any, access.userId);
 
     const body = (await request.json()) as {
       userMessage?: string;
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
         )
       : [];
 
-    const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory);
+    const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary);
 
     if (result.repaired) {
       void trackServerEvent(access.supabase, access.userId, "chef_chat_repaired", {

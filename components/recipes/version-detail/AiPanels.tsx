@@ -17,6 +17,7 @@ export function ChefAiPanel({
   isGeneratingVersion,
   aiError,
   onQuickAction,
+  onRemixLeftovers,
   onInstructionChange,
   onAskSubmit,
   onApplySuggestedChange,
@@ -29,6 +30,7 @@ export function ChefAiPanel({
   isGeneratingVersion: boolean;
   aiError: string | null;
   onQuickAction: (instruction: string) => void;
+  onRemixLeftovers: () => void;
   onInstructionChange: (value: string) => void;
   onAskSubmit: () => void;
   onApplySuggestedChange: () => void;
@@ -39,10 +41,6 @@ export function ChefAiPanel({
       <p className="app-kicker">Chef AI</p>
       <h2 className="mt-2 text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Refine this version.</h2>
       <p className="mt-2 text-[16px] leading-7 text-[color:var(--muted)]">Ask questions, explore changes, or turn a suggestion into a new version.</p>
-      <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[rgba(82,124,116,0.16)] bg-[rgba(82,124,116,0.08)] px-3 py-1.5 text-sm font-semibold text-[color:var(--primary)]">
-        <span className="h-2 w-2 rounded-full bg-[color:var(--primary)]" />
-        Ready to help
-      </div>
 
       <div className="mt-5">
         <p className="app-kicker">Quick improvements</p>
@@ -60,6 +58,14 @@ export function ChefAiPanel({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={onRemixLeftovers}
+          disabled={isAskingAi || isGeneratingVersion}
+          className="mt-3 w-full rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] px-4 py-3 text-[15px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
+        >
+          Remix Leftovers
+        </button>
       </div>
 
       <div className="mt-5">
@@ -127,8 +133,6 @@ export function ChefAiPanel({
         </div>
       </div>
 
-      {isGeneratingVersion ? <p className="mt-3 text-sm text-[color:var(--primary)]">Creating new version...</p> : null}
-      {aiError ? <p className="mt-2 text-sm text-red-600">{aiError}</p> : null}
     </section>
   );
 }

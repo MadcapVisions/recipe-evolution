@@ -148,4 +148,26 @@
   .app-muted {
     color: var(--muted);
   }
+
+  .settings-section {
+    background: rgba(255, 252, 246, 0.84);
+    border: 1px solid rgba(79, 54, 33, 0.1);
+    box-shadow: 0 14px 30px rgba(76, 50, 24, 0.06);
+    @apply rounded-[24px];
+  }
+
+  .settings-highlight {
+    background: linear-gradient(180deg, rgba(141, 169, 187, 0.12) 0%, rgba(255, 252, 246, 0.9) 100%);
+    border: 1px solid rgba(79, 54, 33, 0.08);
+    box-shadow: 0 14px 30px rgba(76, 50, 24, 0.05);
+    @apply rounded-[24px];
+  }
+
+  .settings-field {
+    background: rgba(255, 252, 246, 0.98);
+    border-color: rgba(79, 54, 33, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      0 8px 18px rgba(76, 50, 24, 0.04);
+  }
 }

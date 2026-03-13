@@ -4,6 +4,7 @@ import { generateHomeIdeas, generateHomeRecipe } from "@/lib/ai/homeHub";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
+import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 
 type HomeAiRequest =
   | {
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
+    const userTasteSummary = await buildUserTasteSummary(access.supabase as any, access.userId);
 
     const body = (await request.json()) as HomeAiRequest;
 
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
           )
         : [];
 
-      const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory);
+      const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary);
 
       if (result.repaired) {
         void trackServerEvent(access.supabase, access.userId, "chef_chat_repaired", {
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
         ingredients,
         excludeTitles: Array.isArray(body.exclude_titles) ? body.exclude_titles : [],
         batchIndex: typeof body.batch_index === "number" ? body.batch_index : 1,
-      });
+      }, userTasteSummary);
 
       return NextResponse.json({ ideas });
     }
@@ -122,7 +124,7 @@ export async function POST(request: Request) {
       const ideas = await generateHomeIdeas({
         mode: "filtered_ideas",
         filters: body.filters,
-      });
+      }, userTasteSummary);
       return NextResponse.json({ ideas });
     }
 
@@ -138,7 +140,7 @@ export async function POST(request: Request) {
         ingredients: Array.isArray(body.ingredients)
           ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
           : undefined,
-      });
+      }, userTasteSummary);
 
       return NextResponse.json({ recipe });
     }

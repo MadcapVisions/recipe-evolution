@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { structureRecipeFromText } from "@/lib/client/aiStructureRecipe";
 import { createRecipeWithVersion, LimitExceededError } from "@/lib/client/recipeMutations";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { Button } from "@/components/Button";
+import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
 type PreferredUnits = "metric" | "imperial";
 
@@ -104,6 +105,39 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
   const [difficultyInput, setDifficultyInput] = useState("");
   const [ingredientsInput, setIngredientsInput] = useState("");
   const [stepsInput, setStepsInput] = useState("");
+
+  useEffect(() => {
+    let message: string | null = null;
+    let tone: "default" | "loading" | "success" | "fallback" = "default";
+    const lowerError = error?.toLowerCase() ?? "";
+
+    if (structuring) {
+      message = "Chef is structuring your recipe...";
+      tone = "loading";
+    } else if (saving) {
+      message = "Generating recipe...";
+      tone = "loading";
+    } else if (structured && !error) {
+      message = "Suggestions ready";
+      tone = "success";
+    } else if (error) {
+      if (
+        lowerError.includes("unavailable") ||
+        lowerError.includes("rate-limited") ||
+        lowerError.includes("failed") ||
+        lowerError.includes("parsing")
+      ) {
+        message = "AI temporarily unavailable";
+        tone = "fallback";
+      }
+    }
+
+    publishAiStatus({ message, tone });
+
+    return () => {
+      publishAiStatus({ message: null });
+    };
+  }, [structuring, saving, structured, error]);
 
   const canStructure = rawText.trim().length > 0 && !structuring;
 

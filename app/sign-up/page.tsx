@@ -8,6 +8,8 @@ import { Button } from "@/components/Button";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -20,7 +22,22 @@ export default function SignUpPage() {
     setError(null);
     setMessage(null);
 
-    const { error: signUpError } = await supabase.auth.signUp({ email, password });
+    const safeFirstName = firstName.trim();
+    const safeLastName = lastName.trim();
+    const fullName = [safeFirstName, safeLastName].filter(Boolean).join(" ");
+
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: safeFirstName,
+          last_name: safeLastName,
+          display_name: fullName || null,
+          full_name: fullName || null,
+        },
+      },
+    });
 
     if (signUpError) {
       setError(signUpError.message);
@@ -41,6 +58,28 @@ export default function SignUpPage() {
         <p className="text-[16px] leading-7 text-[color:var(--muted)]">Save recipes, generate versions, and keep your kitchen organized in one place.</p>
       </div>
       <form onSubmit={handleSubmit} className="saas-card space-y-4 p-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-[15px] font-medium text-[color:var(--text)]">First name</span>
+            <input
+              type="text"
+              className="w-full"
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              required
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-[15px] font-medium text-[color:var(--text)]">Last name</span>
+            <input
+              type="text"
+              className="w-full"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              required
+            />
+          </label>
+        </div>
         <label className="block space-y-1">
           <span className="text-[15px] font-medium text-[color:var(--text)]">Email</span>
           <input

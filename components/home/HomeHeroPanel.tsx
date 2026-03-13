@@ -30,6 +30,7 @@ export function HomeHeroPanel({
   heroChatFrameRef,
   heroChatViewportRef,
 }: HomeHeroPanelProps) {
+  const hasConversation = heroChatMessages.length > 0;
   const promptSuggestions = [
     "30-minute high-protein dinner",
     "Something fresh with chicken and herbs",
@@ -37,16 +38,20 @@ export function HomeHeroPanel({
   ];
 
   return (
-    <section className="app-panel overflow-hidden">
-      <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.4fr)_300px] lg:p-8">
-        <div className="space-y-5">
+    <section className="app-panel flex h-full min-h-[860px] flex-col overflow-hidden xl:min-h-[980px]">
+      <div
+        className={`grid gap-6 overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-6 transition-[max-height,padding,opacity] duration-300 lg:grid-cols-[minmax(0,1.4fr)_300px] lg:px-8 ${
+          hasConversation ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-[520px] py-6 lg:py-8 opacity-100"
+        }`}
+      >
+        <div className="space-y-4">
           <div className="space-y-3">
             <p className="app-kicker">Start here</p>
             <h1 className="font-display text-[40px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] sm:text-[52px]">
               What do you want to cook today?
             </h1>
             <p className="max-w-2xl text-[18px] leading-8 text-[color:var(--muted)]">
-              Begin with a simple idea. Describe the dish, ingredients, or constraint, then let Chef AI help shape it into something useful.
+              Start with a dish, ingredient, or constraint. Chef helps you shape it before it becomes a recipe.
             </p>
           </div>
 
@@ -56,7 +61,7 @@ export function HomeHeroPanel({
                 key={suggestion}
                 type="button"
                 onClick={() => onPromptInputChange(suggestion)}
-                className="app-chip border border-[rgba(57,75,70,0.08)] bg-[rgba(142,168,141,0.08)] text-[15px] hover:bg-[rgba(142,168,141,0.14)]"
+                className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,255,255,0.82)] px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(142,168,141,0.1)]"
               >
                 {suggestion}
               </button>
@@ -69,43 +74,41 @@ export function HomeHeroPanel({
           <div className="mt-4 space-y-4 text-[15px] leading-6 text-[color:var(--muted)]">
             <div className="flex gap-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--primary)] text-sm font-semibold text-white">1</span>
-              <p>Type a short idea or pick one of the examples.</p>
+              <p>Type a short idea.</p>
             </div>
             <div className="flex gap-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--primary)] text-sm font-semibold text-white">2</span>
-              <p>Ask Chef for refinements, swaps, or technique help.</p>
+              <p>Refine flavor, swaps, or technique.</p>
             </div>
             <div className="flex gap-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--primary)] text-sm font-semibold text-white">3</span>
-              <p>Apply suggestions when the direction feels right.</p>
+              <p>Apply suggestions when it feels right.</p>
             </div>
           </div>
         </aside>
       </div>
 
-      <div className="border-t border-[rgba(57,75,70,0.08)] bg-[rgba(255,255,255,0.34)] p-6 lg:p-8">
+      <div className="flex min-h-0 flex-1 flex-col bg-[rgba(255,255,255,0.34)] p-6 lg:p-8">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="app-kicker">Chef conversation</p>
-            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">First action: tell Chef what you want.</p>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(82,124,116,0.16)] bg-[rgba(82,124,116,0.08)] px-3 py-1.5 text-sm font-semibold text-[color:var(--primary)]">
-            <span className="h-2 w-2 rounded-full bg-[color:var(--primary)]" />
-            Ready to help
+            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">
+              {hasConversation ? "Keep refining the direction." : "Tell Chef what you want."}
+            </p>
           </div>
         </div>
 
-        <div ref={heroChatFrameRef} className="rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.84)] p-4">
+        <div ref={heroChatFrameRef} className="flex min-h-0 flex-1 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.84)] p-4">
           <div
             ref={heroChatViewportRef}
-            className="min-h-[220px] space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-4"
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-4"
           >
             {heroChatMessages.length === 0 ? (
               <div className="space-y-3">
                 <p className="text-[14px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Example prompt</p>
                 <p className="text-[18px] font-semibold text-[color:var(--text)]">“I want a quick, healthy dinner with chicken and lemon.”</p>
                 <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
-                  Ask for substitutions, flavor ideas, ingredient combinations, or better technique. Nothing becomes a recipe until you apply suggestions.
+                  Ask for flavor ideas, substitutions, or technique help. The recipe only gets created when you apply suggestions.
                 </p>
               </div>
             ) : (

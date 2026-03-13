@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
+import { generateLocalChefReply, generateLocalRecipeDraft, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
 import { supabase } from "@/lib/supabaseClient";
 import { createRecipeWithVersion } from "@/lib/client/recipeMutations";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import {
-  buildPromptFallbackIdeas,
   buildSmartFallbackIdeas,
   cookTimeLabelToMinutes,
   matchesCookTime,
@@ -67,12 +67,6 @@ const buildConversationHistory = (messages: ChatMessage[]): AIMessage[] =>
     content: message.text,
   }));
 
-const buildFallbackChefReply = (prompt: string) => {
-  const fallbackIdeas = buildPromptFallbackIdeas(prompt).slice(0, 3);
-  const lines = fallbackIdeas.map((idea) => `- ${idea.title}: ${idea.description}`);
-  return `Here are 3 solid directions to start with:\n${lines.join("\n")}\nIf one of these feels right, apply suggestions and generate the recipe from there.`;
-};
-
 export function useHomeHubAi() {
   const router = useRouter();
   const [promptInput, setPromptInput] = useState("");
@@ -100,6 +94,8 @@ export function useHomeHubAi() {
   const [heroChatReadyToApply, setHeroChatReadyToApply] = useState(false);
   const heroChatFrameRef = useRef<HTMLDivElement | null>(null);
   const heroChatViewportRef = useRef<HTMLDivElement | null>(null);
+  const heroSubmitLockRef = useRef(false);
+  const lastHeroPromptRef = useRef<{ value: string; at: number } | null>(null);
 
   useEffect(() => {
     if (!heroChatViewportRef.current) {
@@ -137,11 +133,15 @@ export function useHomeHubAi() {
     trackEventInBackground("recipe_created", {
       recipeId: created.recipeId,
       source,
+      title: recipe.title,
+      description: recipe.description,
+      prompt: promptInput.trim() || null,
     });
     trackEventInBackground("version_created", {
       recipeId: created.recipeId,
       versionNumber: 1,
       source,
+      title: recipe.title,
     });
 
     return {
@@ -165,6 +165,24 @@ export function useHomeHubAi() {
     }
 
     return data;
+  };
+
+  const describeAiOutage = (rawError: unknown, fallbackLabel: string) => {
+    const message = rawError instanceof Error ? rawError.message : "";
+    if (message.includes("(429)") || message.toLowerCase().includes("toomanyrequests")) {
+      return `${fallbackLabel} while Gemini is rate-limited.`;
+    }
+    return `${fallbackLabel} while AI is unavailable.`;
+  };
+
+  const setTransientStatus = (message: string | null, durationMs = 4500) => {
+    setStatus(message);
+    if (!message || typeof window === "undefined") {
+      return;
+    }
+    window.setTimeout(() => {
+      setStatus((current) => (current === message ? null : current));
+    }, durationMs);
   };
 
   const runIdeaGeneration = async ({
@@ -199,9 +217,9 @@ export function useHomeHubAi() {
       setIdeas(nextIdeas.slice(0, IDEA_BATCH_SIZE));
       setIdeaSource(source);
       setIdeaBatchIndex(1);
-      setStatus("Choose an idea to generate the full recipe.");
+      setTransientStatus("Choose an idea to turn into a full recipe.");
     } catch (aiError) {
-      const fallbackIdeas = dedupeIdeas(buildPromptFallbackIdeas(prompt ?? ingredients?.join(" ") ?? ""));
+      const fallbackIdeas = dedupeIdeas(generateLocalRecipeIdeas(prompt ?? ingredients?.join(" ") ?? "", ingredients ?? []));
       setIdeas(fallbackIdeas.slice(0, IDEA_BATCH_SIZE));
       setIdeaSource(source);
       setIdeaBatchIndex(1);
@@ -235,8 +253,13 @@ export function useHomeHubAi() {
       const created = await saveGeneratedRecipe(recipe, source);
       router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
     } catch (aiError) {
-      setError(aiError instanceof Error ? aiError.message : "Failed to generate full recipe.");
-      throw aiError;
+      const fallbackRecipe = generateLocalRecipeDraft({
+        ideaTitle: selectedIdea.title,
+        prompt: promptInput.trim() || selectedIdea.description,
+        ingredients: detectPromptType(promptInput) === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined,
+      });
+      const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
+      router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
     } finally {
       setGeneratingRecipe(false);
       setSelectedIdeaTitle(null);
@@ -249,7 +272,7 @@ export function useHomeHubAi() {
   };
 
   const handleGenerateMoreIdeas = async () => {
-    if (!ideaSource || ideas.length >= MAX_IDEA_COUNT) {
+    if (loading || !ideaSource || ideas.length >= MAX_IDEA_COUNT) {
       return;
     }
 
@@ -271,36 +294,53 @@ export function useHomeHubAi() {
       const mergedIdeas = dedupeIdeas([...ideas, ...normalizeIdeas(data?.ideas)]).slice(0, MAX_IDEA_COUNT);
       setIdeas(mergedIdeas);
       setIdeaBatchIndex(nextBatchIndex);
-      setStatus("Choose an idea to generate the full recipe.");
+      setTransientStatus("Choose an idea to turn into a full recipe.");
     } catch (aiError) {
-      const fallbackIdeas = buildPromptFallbackIdeas(promptInput.trim()).filter(
+      const fallbackIdeas = generateLocalRecipeIdeas(promptInput.trim()).filter(
         (idea) => !ideas.some((existing) => existing.title.toLowerCase() === idea.title.toLowerCase())
       );
       setIdeas(dedupeIdeas([...ideas, ...fallbackIdeas]).slice(0, MAX_IDEA_COUNT));
       setError(null);
-      setStatus("Added fallback ideas while AI is unavailable.");
+      setStatus(describeAiOutage(aiError, "Added fallback ideas"));
     } finally {
       setLoading(false);
     }
   };
 
   const handleAskChefInHero = async () => {
+    if (loading || heroSubmitLockRef.current) {
+      return;
+    }
+
     const trimmedPrompt = promptInput.trim();
     if (!trimmedPrompt) {
       setError("Enter what you want to cook first.");
       return;
     }
 
+    const lastPrompt = lastHeroPromptRef.current;
+    if (lastPrompt && lastPrompt.value === trimmedPrompt && Date.now() - lastPrompt.at < 2000) {
+      return;
+    }
+
+    heroSubmitLockRef.current = true;
+    lastHeroPromptRef.current = { value: trimmedPrompt, at: Date.now() };
     setLoading(true);
     setError(null);
     setStatus("Chef is thinking...");
+    setPromptInput("");
+    trackEventInBackground("chef_chat_prompt", {
+      prompt: trimmedPrompt,
+      source: "home-hub",
+      messageCount: heroChatMessages.length,
+    });
 
     try {
       const recipeContext: RecipeContext =
         ideas.length > 0
           ? {
               title: ideas[0]?.title,
-              ingredients: extractIngredientsFromPrompt(promptInput),
+              ingredients: extractIngredientsFromPrompt(trimmedPrompt),
               steps: heroChatMessages.filter((message) => message.role === "ai").map((message) => message.text),
             }
           : null;
@@ -318,19 +358,18 @@ export function useHomeHubAi() {
 
       setHeroChatMessages((current) => [...current, { role: "user", text: trimmedPrompt }, { role: "ai", text: data.reply! }]);
       setHeroChatReadyToApply(true);
-      setStatus("Chef suggestions are ready to apply.");
-      setPromptInput("");
+      setTransientStatus("Chef responded. Apply suggestions when the direction feels right.");
     } catch (chatError) {
       setHeroChatMessages((current) => [
         ...current,
         { role: "user", text: trimmedPrompt },
-        { role: "ai", text: buildFallbackChefReply(trimmedPrompt) },
+        { role: "ai", text: generateLocalChefReply(trimmedPrompt, extractIngredientsFromPrompt(trimmedPrompt)) },
       ]);
       setHeroChatReadyToApply(true);
       setError(null);
-      setStatus("Showing fallback chef guidance while AI is unavailable.");
-      setPromptInput("");
+      setTransientStatus(describeAiOutage(chatError, "Showing fallback chef guidance"));
     } finally {
+      heroSubmitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -341,6 +380,12 @@ export function useHomeHubAi() {
       setError("Ask Chef something first.");
       return;
     }
+
+    trackEventInBackground("hero_chat_applied", {
+      source: "home-hub",
+      messageCount: heroChatMessages.length,
+      conversation: conversation.slice(0, 1200),
+    });
 
     await runIdeaGeneration({
       mode: "mood_ideas",
@@ -375,10 +420,20 @@ export function useHomeHubAi() {
   };
 
   const handleGenerateSmartMeals = async () => {
+    if (smartLoading) {
+      return;
+    }
+
     setSmartLoading(true);
     setSmartError(null);
     setSmartStatus("Generating recipe ideas...");
     setSmartIdeas([]);
+    trackEventInBackground("smart_filters_used", {
+      proteins: smartProteins,
+      cuisines: smartCuisines,
+      cookTimes: smartCookTimes,
+      preferences: smartPreferences,
+    });
 
     const filters = {
       cuisine: smartCuisines[0] ?? "Any",
@@ -414,16 +469,27 @@ export function useHomeHubAi() {
       setSmartStatus("Select an idea to generate the full recipe.");
     } catch (aiError) {
       const cookTimeMinutes = smartCookTimes.map(cookTimeLabelToMinutes);
-      const fallbackIdeas = buildSmartFallbackIdeas(smartProteins, smartCuisines, cookTimeMinutes, smartPreferences);
-      setSmartIdeas(dedupeIdeas(fallbackIdeas));
+      const fallbackPrompt = `${smartProteins.join(" ")} ${smartCuisines.join(" ")} ${smartPreferences.join(" ")} ${smartCookTimes.join(" ")}`.trim();
+      const fallbackIdeas = dedupeIdeas(
+        fallbackPrompt
+          ? generateLocalRecipeIdeas(fallbackPrompt)
+          : buildSmartFallbackIdeas(smartProteins, smartCuisines, cookTimeMinutes, smartPreferences)
+      );
+      setSmartIdeas(fallbackIdeas);
       setSmartError(null);
-      setSmartStatus("Showing fallback ideas while AI is unavailable.");
+      setSmartStatus(describeAiOutage(aiError, "Showing fallback ideas"));
     } finally {
       setSmartLoading(false);
     }
   };
 
   const handleSelectSmartIdea = async (idea: RecipeIdea) => {
+    trackEventInBackground("recipe_idea_selected", {
+      source: "smart",
+      title: idea.title,
+      description: idea.description,
+      cookTimeMin: idea.cook_time_min ?? null,
+    });
     setSmartGeneratingRecipe(true);
     setSmartSelectedIdeaTitle(idea.title);
     setSmartError(null);
@@ -438,6 +504,16 @@ export function useHomeHubAi() {
       setSmartSelectedIdeaTitle(null);
       setSmartStatus(null);
     }
+  };
+
+  const handleTrackedSelectIdea = async (idea: RecipeIdea) => {
+    trackEventInBackground("recipe_idea_selected", {
+      source: ideaSource ?? "mood",
+      title: idea.title,
+      description: idea.description,
+      cookTimeMin: idea.cook_time_min ?? null,
+    });
+    await handleSelectIdea(idea);
   };
 
   return {
@@ -468,7 +544,7 @@ export function useHomeHubAi() {
     handleAskChefInHero,
     handleApplyHeroChatIdeas,
     handleGenerateMoreIdeas,
-    handleSelectIdea,
+    handleSelectIdea: handleTrackedSelectIdea,
     generateRecipeFromIdea,
     toggleSmartPreference,
     toggleSmartProtein,

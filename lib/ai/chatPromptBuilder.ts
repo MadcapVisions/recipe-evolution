@@ -19,7 +19,8 @@ export type AIMessage = {
 export function buildChefChatPrompt(
   userMessage: string,
   recipeContext: RecipeContext,
-  conversationHistory: AIMessage[] = []
+  conversationHistory: AIMessage[] = [],
+  userTasteSummary?: string
 ): AIMessage[] {
   let contextText = "";
 
@@ -60,6 +61,9 @@ When the user has already supplied meal type, main ingredients, or flavor direct
       role: "system",
       content: `
 ${contextText}
+
+User Taste Profile:
+${userTasteSummary?.trim() || "No user taste profile available."}
 
 Flavor Suggestions From Chef Engine:
 ${flavorAdvice.length > 0 ? flavorAdvice.join("\n") : "None"}

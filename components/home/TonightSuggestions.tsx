@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { RecipeIdea } from "@/components/home/types";
 import { trendingRecipes, type TrendingRecipe } from "@/lib/trendingRecipes";
 
 type TonightSuggestionsProps = {
   onCookThis: (title: string) => Promise<void>;
   loading: boolean;
   activeTitle: string | null;
+  ideas?: RecipeIdea[] | null;
+  kicker?: string;
+  heading?: string;
+  description?: string;
 };
 
 const iconByTag: Record<string, string> = {
@@ -23,14 +28,34 @@ const pickRandom = (items: TrendingRecipe[], count: number) =>
     .sort(() => 0.5 - Math.random())
     .slice(0, Math.min(count, items.length));
 
-export function TonightSuggestions({ onCookThis, loading, activeTitle }: TonightSuggestionsProps) {
+export function TonightSuggestions({
+  onCookThis,
+  loading,
+  activeTitle,
+  ideas,
+  kicker = "Starting points",
+  heading = "What should I cook tonight?",
+  description = "Popular meals people are cooking right now.",
+}: TonightSuggestionsProps) {
   const [suggestions, setSuggestions] = useState<TrendingRecipe[]>(() => trendingRecipes.slice(0, 3));
   const [localError, setLocalError] = useState<string | null>(null);
   const byTitle = useMemo(() => new Map(trendingRecipes.map((item) => [item.title, item])), []);
+  const customIdeas = Array.isArray(ideas) && ideas.length > 0 ? ideas : null;
+
+  const compactDescription = (value: string) => {
+    const normalized = value.trim().replace(/\s+/g, " ");
+    if (normalized.length <= 125) {
+      return normalized;
+    }
+    return `${normalized.slice(0, 122).trimEnd()}...`;
+  };
 
   useEffect(() => {
+    if (customIdeas) {
+      return;
+    }
     setSuggestions(pickRandom(trendingRecipes, 3));
-  }, []);
+  }, [customIdeas]);
 
   const swapIdea = (index: number) => {
     setSuggestions((current) => {
@@ -61,9 +86,9 @@ export function TonightSuggestions({ onCookThis, loading, activeTitle }: Tonight
 
   return (
     <section className="app-panel p-6">
-      <p className="app-kicker">Starting points</p>
-      <h2 className="mt-2 font-display text-[36px] font-semibold tracking-tight text-[color:var(--text)]">What should I cook tonight?</h2>
-      <p className="mt-2 text-[16px] text-[color:var(--muted)]">Popular meals people are cooking right now.</p>
+      <p className="app-kicker">{kicker}</p>
+      <h2 className="mt-2 font-display text-[36px] font-semibold tracking-tight text-[color:var(--text)]">{heading}</h2>
+      <p className="mt-2 text-[16px] text-[color:var(--muted)]">{description}</p>
       {loading && activeTitle ? (
         <div className="mt-4 rounded-[22px] border border-[rgba(111,135,103,0.18)] bg-[rgba(111,135,103,0.1)] px-4 py-3 text-sm text-[color:#35513a]">
           Creating <span className="font-semibold">{activeTitle}</span> now. Please wait...
@@ -71,23 +96,34 @@ export function TonightSuggestions({ onCookThis, loading, activeTitle }: Tonight
       ) : null}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {suggestions.map((suggestion, index) => (
+        {(customIdeas ?? suggestions).map((suggestion, index) => (
           <article
             key={`${suggestion.title}-${index}`}
-            className="flex h-full cursor-pointer flex-col rounded-[26px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.92)] p-5 shadow-[0_12px_24px_rgba(76,50,24,0.06)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(76,50,24,0.08)]"
+            className="flex h-full cursor-pointer flex-col rounded-[26px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.92)] p-4 shadow-[0_12px_24px_rgba(76,50,24,0.06)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(76,50,24,0.08)] sm:p-5"
           >
             <h3 className="text-[18px] font-semibold text-[color:var(--text)]">{suggestion.title}</h3>
-            <p className="mt-1 text-[16px] leading-7 text-[color:var(--muted)]">{suggestion.description}</p>
-            <p className="mt-3 text-[16px] font-medium text-[color:var(--text)]">⏱ {suggestion.cookTime}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {suggestion.tags.slice(0, 2).map((tag) => (
-                <span key={`${suggestion.title}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-xs font-medium text-[color:var(--muted)]">
-                  {iconByTag[tag] ? `${iconByTag[tag]} ` : ""}
-                  {tag}
-                </span>
-              ))}
-            </div>
-            <div className="mt-auto flex gap-2 pt-4">
+            <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
+              <span className="sm:hidden">{compactDescription(suggestion.description)}</span>
+              <span className="hidden sm:inline">{suggestion.description}</span>
+            </p>
+            {"cookTime" in suggestion ? (
+              <>
+                <p className="mt-3 text-[16px] font-medium text-[color:var(--text)]">⏱ {suggestion.cookTime}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggestion.tags.slice(0, 1).map((tag) => (
+                    <span key={`${suggestion.title}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-xs font-medium text-[color:var(--muted)]">
+                      {iconByTag[tag] ? `${iconByTag[tag]} ` : ""}
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[rgba(111,102,95,0.8)]">
+                Est. cook time {suggestion.cook_time_min ?? 30} min
+              </p>
+            )}
+            <div className="mt-auto flex flex-col gap-2 pt-4 sm:flex-row">
               <button
                 type="button"
                 onClick={() => void handleCook(suggestion.title)}
@@ -96,14 +132,16 @@ export function TonightSuggestions({ onCookThis, loading, activeTitle }: Tonight
               >
                 {activeTitle === suggestion.title ? "Cooking..." : "Cook This"}
               </button>
-              <button
-                type="button"
-                onClick={() => swapIdea(index)}
-                disabled={loading}
-                className="flex-1 rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.92)] px-4 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
-              >
-                Swap Idea
-              </button>
+              {!customIdeas ? (
+                <button
+                  type="button"
+                  onClick={() => swapIdea(index)}
+                  disabled={loading}
+                  className="flex-1 rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.92)] px-4 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
+                >
+                  Swap Idea
+                </button>
+              ) : null}
             </div>
           </article>
         ))}

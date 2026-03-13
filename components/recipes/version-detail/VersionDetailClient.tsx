@@ -8,6 +8,9 @@ import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanel
 import { RecipeActionMenu, RecipeSidebar, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
 import { useRecipeAssistant } from "@/components/recipes/version-detail/useRecipeAssistant";
 import { useRecipeSidebarState } from "@/components/recipes/version-detail/useRecipeSidebarState";
+import { generateLocalChefReply, generateLocalImprovedRecipe, generateLocalRemixRecipe } from "@/lib/localRecipeGenerator";
+import { trackEventInBackground } from "@/lib/trackEventInBackground";
+import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 import {
   buildVersionLabelFromInstruction,
   normalizeIngredients,
@@ -22,6 +25,15 @@ import {
 } from "@/components/recipes/version-detail/types";
 import type { RecipeSidebarData } from "@/lib/recipeSidebarData";
 import type { VersionDetailData } from "@/lib/versionDetailData";
+
+function mapInstructionToImproveGoal(instruction: string): "high protein" | "vegetarian" | "faster" | "spicier" | null {
+  const lower = instruction.toLowerCase();
+  if (lower.includes("vegetarian")) return "vegetarian";
+  if (lower.includes("faster")) return "faster";
+  if (lower.includes("spicy")) return "spicier";
+  if (lower.includes("protein")) return "high protein";
+  return null;
+}
 
 export function VersionDetailClient({
   recipeId,
@@ -109,6 +121,46 @@ export function VersionDetailClient({
     };
   }, []);
 
+  useEffect(() => {
+    let message: string | null = null;
+    let tone: "loading" | "success" | "fallback" | "default" = "default";
+    const lowerError = assistant.aiError?.toLowerCase() ?? "";
+
+    if (assistant.isGeneratingVersion) {
+      message = "Generating recipe...";
+      tone = "loading";
+    } else if (assistant.isAskingAi) {
+      message = "Chef is thinking...";
+      tone = "loading";
+    } else if (assistant.aiError) {
+      if (
+        lowerError.includes("fallback") ||
+        lowerError.includes("unavailable") ||
+        lowerError.includes("rate-limited") ||
+        lowerError.includes("backup")
+      ) {
+        message = "Using backup recipe engine";
+        tone = "fallback";
+      } else if (
+        lowerError.includes("please wait") ||
+        lowerError.includes("could not") ||
+        lowerError.includes("failed")
+      ) {
+        message = "AI temporarily unavailable";
+        tone = "fallback";
+      }
+    } else if (assistant.suggestedChange) {
+      message = "Suggestions ready";
+      tone = "success";
+    }
+
+    publishAiStatus({ message, tone });
+
+    return () => {
+      publishAiStatus({ message: null });
+    };
+  }, [assistant.isGeneratingVersion, assistant.isAskingAi, assistant.aiError, assistant.suggestedChange]);
+
   const closeRecipeMenu = () => {
     sidebar.setOpenMenuRecipeId(null);
     sidebar.setMenuAnchor(null);
@@ -190,6 +242,71 @@ export function VersionDetailClient({
     };
   }
 
+  function buildDeterministicSuggestion(instruction: string): SuggestedChange | null {
+    if (!recipe || !version) {
+      return null;
+    }
+
+    const improveGoal = mapInstructionToImproveGoal(instruction);
+    if (!improveGoal) {
+      return null;
+    }
+
+    const improved = generateLocalImprovedRecipe(
+      {
+        title: recipe.title,
+        description: version.change_summary ?? null,
+        servings: version.servings,
+        prep_time_min: version.prep_time_min,
+        cook_time_min: version.cook_time_min,
+        difficulty: version.difficulty,
+        ingredients,
+        steps,
+      },
+      improveGoal,
+      instruction
+    );
+
+    return {
+      instruction,
+      explanation: `Built with the deterministic fallback engine for a ${improveGoal} variation.`,
+      servings: typeof improved.servings === "number" ? improved.servings : version.servings,
+      prep_time_min: typeof improved.prep_time_min === "number" ? improved.prep_time_min : version.prep_time_min,
+      cook_time_min: typeof improved.cook_time_min === "number" ? improved.cook_time_min : version.cook_time_min,
+      difficulty: improved.difficulty ?? version.difficulty,
+      ingredients: improved.ingredients,
+      steps: improved.steps,
+    };
+  }
+
+  function buildDeterministicRemixSuggestion(): SuggestedChange | null {
+    if (!recipe || !version) {
+      return null;
+    }
+
+    const remixed = generateLocalRemixRecipe({
+      title: recipe.title,
+      description: version.change_summary ?? null,
+      servings: version.servings,
+      prep_time_min: version.prep_time_min,
+      cook_time_min: version.cook_time_min,
+      difficulty: version.difficulty,
+      ingredients,
+      steps,
+    });
+
+    return {
+      instruction: "Remix leftovers into a new version",
+      explanation: remixed.remix_description,
+      servings: typeof remixed.servings === "number" ? remixed.servings : version.servings,
+      prep_time_min: typeof remixed.prep_time_min === "number" ? remixed.prep_time_min : version.prep_time_min,
+      cook_time_min: typeof remixed.cook_time_min === "number" ? remixed.cook_time_min : version.cook_time_min,
+      difficulty: remixed.difficulty ?? version.difficulty,
+      ingredients: remixed.ingredients,
+      steps: remixed.steps,
+    };
+  }
+
   async function requestChefChatReply(userMessage: string): Promise<string> {
     const recipeContext = {
       title: recipe?.title ?? "Recipe in progress",
@@ -213,7 +330,22 @@ export function VersionDetailClient({
     throw new Error("Chef chat returned an empty response.");
   }
 
-  async function createVersionFromSuggestion(suggestion: SuggestedChange, versionLabelText: string) {
+  function buildDeterministicChefReply(userMessage: string) {
+    return generateLocalChefReply(
+      `${recipe?.title ?? "recipe"} ${userMessage}`,
+      ingredients.map((item) => item.name)
+    );
+  }
+
+  async function createVersionFromSuggestion(
+    suggestion: SuggestedChange,
+    versionLabelText: string,
+    metadata?: {
+      source?: "ai" | "fallback";
+      action?: "quick_action" | "apply_suggestion" | "remix";
+      instruction?: string;
+    }
+  ) {
     if (!version) return false;
 
     const { data: versions, error: versionsError } = await supabase
@@ -267,6 +399,32 @@ export function VersionDetailClient({
     setPhotosWithUrls([]);
     assistant.setSuggestedChange(null);
     assistant.setCustomInstruction("");
+    trackEventInBackground("version_created", {
+      recipeId,
+      versionId: nextVersionRow.id,
+      versionNumber: nextVersionRow.version_number,
+      title: recipe?.title ?? null,
+      versionLabel: versionLabelText,
+      source: metadata?.source ?? "ai",
+      instruction: metadata?.instruction ?? suggestion.instruction,
+      action: metadata?.action ?? null,
+    });
+    if (metadata?.action === "remix") {
+      trackEventInBackground("recipe_remixed", {
+        recipeId,
+        versionId: nextVersionRow.id,
+        recipeTitle: recipe?.title ?? null,
+        instruction: suggestion.instruction,
+      });
+    } else {
+      trackEventInBackground("recipe_improved", {
+        recipeId,
+        versionId: nextVersionRow.id,
+        recipeTitle: recipe?.title ?? null,
+        instruction: metadata?.instruction ?? suggestion.instruction,
+        source: metadata?.source ?? "ai",
+      });
+    }
     startTransition(() => {
       router.push(`/recipes/${recipeId}/versions/${nextVersionRow.id}`);
     });
@@ -287,11 +445,26 @@ export function VersionDetailClient({
 
     const suggestion = await requestAiSuggestion(instruction);
     if (!suggestion) {
-      assistant.setAiError("AI improvement failed. Please try again.");
+      const fallbackSuggestion = buildDeterministicSuggestion(instruction);
+      if (!fallbackSuggestion) {
+        assistant.setAiError("AI improvement failed. Please try again.");
+        assistant.setIsGeneratingVersion(false);
+        return;
+      }
+      await createVersionFromSuggestion(fallbackSuggestion, buildVersionLabelFromInstruction(instruction), {
+        source: "fallback",
+        action: "quick_action",
+        instruction,
+      });
+      assistant.setAiError("Built with deterministic fallback while AI was unavailable.");
       assistant.setIsGeneratingVersion(false);
       return;
     }
-    await createVersionFromSuggestion(suggestion, buildVersionLabelFromInstruction(instruction));
+    await createVersionFromSuggestion(suggestion, buildVersionLabelFromInstruction(instruction), {
+      source: "ai",
+      action: "quick_action",
+      instruction,
+    });
     assistant.setIsGeneratingVersion(false);
   }
 
@@ -300,6 +473,13 @@ export function VersionDetailClient({
     if (!instruction || assistant.isAskingAi || assistant.isGeneratingVersion) return;
     assistant.setIsAskingAi(true);
     assistant.setAiError(null);
+    trackEventInBackground("chef_chat_prompt", {
+      prompt: instruction,
+      source: "recipe-detail",
+      recipeId,
+      recipeTitle: recipe?.title ?? null,
+      messageCount: assistant.aiConversation.length,
+    });
     const userMessage: ConversationMessage = {
       id: `${Date.now()}-user`,
       role: "user",
@@ -318,14 +498,31 @@ export function VersionDetailClient({
       assistant.setAiConversation((current) => [...current, assistantMessage]);
       const suggestion = await requestAiSuggestion(instruction);
       if (!suggestion) {
-        assistant.setSuggestedChange(null);
-        assistant.setAiError("Conversation updated. Could not create an apply-ready change from that message.");
+        const fallbackSuggestion = buildDeterministicSuggestion(instruction);
+        if (!fallbackSuggestion) {
+          assistant.setSuggestedChange(null);
+          assistant.setAiError("Conversation updated. Could not create an apply-ready change from that message.");
+        } else {
+          assistant.setSuggestedChange(fallbackSuggestion);
+          assistant.setAiError("Conversation updated with deterministic fallback change.");
+        }
       } else {
         assistant.setSuggestedChange(suggestion);
       }
       assistant.setCustomInstruction("");
     } catch (error) {
-      assistant.setAiError(error instanceof Error ? error.message : "Chef AI request failed.");
+      const fallbackReply = buildDeterministicChefReply(instruction);
+      const assistantMessage: ConversationMessage = {
+        id: `${Date.now()}-assistant`,
+        role: "assistant",
+        text: fallbackReply,
+        createdAt: new Date().toISOString(),
+      };
+      assistant.setAiConversation((current) => [...current, assistantMessage]);
+      const fallbackSuggestion = buildDeterministicSuggestion(instruction);
+      assistant.setSuggestedChange(fallbackSuggestion);
+      assistant.setAiError("Chef AI unavailable. Using deterministic fallback guidance.");
+      assistant.setCustomInstruction("");
     } finally {
       assistant.setIsAskingAi(false);
     }
@@ -337,8 +534,32 @@ export function VersionDetailClient({
     assistant.setAiError(null);
     await createVersionFromSuggestion(
       assistant.suggestedChange,
-      buildVersionLabelFromInstruction(assistant.suggestedChange.instruction)
+      buildVersionLabelFromInstruction(assistant.suggestedChange.instruction),
+      {
+        source: assistant.aiError?.toLowerCase().includes("fallback") ? "fallback" : "ai",
+        action: "apply_suggestion",
+        instruction: assistant.suggestedChange.instruction,
+      }
     );
+    assistant.setIsGeneratingVersion(false);
+  }
+
+  async function handleRemixLeftovers() {
+    if (assistant.isGeneratingVersion || assistant.isAskingAi) return;
+    assistant.setIsGeneratingVersion(true);
+    assistant.setAiError(null);
+    const suggestion = buildDeterministicRemixSuggestion();
+    if (!suggestion) {
+      assistant.setAiError("Could not build a remix version.");
+      assistant.setIsGeneratingVersion(false);
+      return;
+    }
+    await createVersionFromSuggestion(suggestion, "Remix Version", {
+      source: "fallback",
+      action: "remix",
+      instruction: suggestion.instruction,
+    });
+    assistant.setAiError("Created with deterministic leftover remix logic.");
     assistant.setIsGeneratingVersion(false);
   }
 
@@ -596,6 +817,7 @@ export function VersionDetailClient({
             isGeneratingVersion={assistant.isGeneratingVersion}
             aiError={assistant.aiError}
             onQuickAction={(instruction) => void handleQuickAction(instruction)}
+            onRemixLeftovers={() => void handleRemixLeftovers()}
             onInstructionChange={assistant.setCustomInstruction}
             onAskSubmit={() => void handleAskAiSubmit()}
             onApplySuggestedChange={() => void handleApplySuggestedChange()}
