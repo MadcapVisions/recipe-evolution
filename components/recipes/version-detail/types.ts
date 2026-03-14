@@ -1,13 +1,13 @@
 "use client";
 
-export type StepItem = {
-  text: string;
-  timer_seconds?: number;
-};
+import {
+  readCanonicalIngredients,
+  readCanonicalSteps,
+  type CanonicalIngredient as IngredientItem,
+  type CanonicalStep as StepItem,
+} from "@/lib/recipes/canonicalRecipe";
 
-export type IngredientItem = {
-  name: string;
-};
+export type { IngredientItem, StepItem };
 
 export type RecipeRow = {
   id: string;
@@ -39,8 +39,8 @@ export type VersionRow = {
   prep_time_min: number | null;
   cook_time_min: number | null;
   difficulty: string | null;
-  ingredients_json: unknown;
-  steps_json: unknown;
+  canonical_ingredients: unknown;
+  canonical_steps: unknown;
   created_at: string;
 };
 
@@ -67,48 +67,8 @@ export type SuggestedChange = {
   steps: Array<{ text: string }>;
 };
 
-export const normalizeSteps = (value: unknown): StepItem[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-      const maybeText = (item as Record<string, unknown>).text;
-      const maybeTimer = (item as Record<string, unknown>).timer_seconds;
-      if (typeof maybeText !== "string" || maybeText.trim().length === 0) {
-        return null;
-      }
-      const parsed: StepItem = { text: maybeText.trim() };
-      if (typeof maybeTimer === "number") {
-        parsed.timer_seconds = maybeTimer;
-      }
-      return parsed;
-    })
-    .filter((item): item is StepItem => item !== null);
-};
-
-export const normalizeIngredients = (value: unknown): IngredientItem[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-      const maybeName = (item as Record<string, unknown>).name;
-      if (typeof maybeName !== "string" || maybeName.trim().length === 0) {
-        return null;
-      }
-      return { name: maybeName.trim() };
-    })
-    .filter((item): item is IngredientItem => item !== null);
-};
+export const normalizeSteps = readCanonicalSteps;
+export const normalizeIngredients = readCanonicalIngredients;
 
 export const versionLabel = (version: { version_label: string | null; version_number: number }) =>
   version.version_label?.trim().length ? version.version_label : "Original Recipe";

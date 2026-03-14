@@ -1,43 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { structureRecipeFromText } from "@/lib/client/aiStructureRecipe";
-import { createRecipeWithVersion, LimitExceededError } from "@/lib/client/recipeMutations";
+import { createRecipeFromDraft, LimitExceededError } from "@/lib/client/recipeMutations";
+import { parseIngredientLines, parseStepLines } from "@/lib/recipes/recipeDraft";
+import { buildCanonicalEnrichment } from "@/lib/recipes/canonicalEnrichment";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { Button } from "@/components/Button";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
 type PreferredUnits = "metric" | "imperial";
-
-type StructuredIngredient = {
-  name: string;
-  quantity: number | null;
-  unit: string | null;
-  prep: string | null;
-  optional: boolean;
-  group: string | null;
-};
-
-type StructuredStep = {
-  text: string;
-  timer_seconds: number | null;
-  temperature_c: number | null;
-  temperature_f: number | null;
-  equipment: string[] | null;
-};
-
-type StructuredRecipe = {
-  title: string;
-  description: string | null;
-  servings: number | null;
-  prep_time_min: number | null;
-  cook_time_min: number | null;
-  difficulty: string | null;
-  tags: string[];
-  ingredients_json: StructuredIngredient[];
-  steps_json: StructuredStep[];
-};
 
 type AiMeta = {
   purpose: "structure";
@@ -47,46 +20,7 @@ type AiMeta = {
   created_at: string;
 };
 
-type NewRecipeFromTextFormProps = {
-  ownerId: string;
-};
-
-const ingredientToLine = (ingredient: StructuredIngredient) => {
-  const parts = [
-    ingredient.quantity != null ? String(ingredient.quantity) : null,
-    ingredient.unit,
-    ingredient.name,
-  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-
-  return parts.join(" ");
-};
-
-const parseIngredientLine = (line: string): StructuredIngredient => {
-  const trimmed = line.trim();
-  const withQuantity = trimmed.match(/^(\d+(?:\.\d+)?)\s+([^\d\s]+)\s+(.+)$/);
-
-  if (withQuantity) {
-    return {
-      name: withQuantity[3].trim(),
-      quantity: Number(withQuantity[1]),
-      unit: withQuantity[2].trim(),
-      prep: null,
-      optional: false,
-      group: null,
-    };
-  }
-
-  return {
-    name: trimmed,
-    quantity: null,
-    unit: null,
-    prep: null,
-    optional: false,
-    group: null,
-  };
-};
-
-export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
+export function NewRecipeFromTextForm() {
   const router = useRouter();
   const [rawText, setRawText] = useState("");
   const [preferredUnits, setPreferredUnits] = useState<PreferredUnits>("metric");
@@ -94,7 +28,7 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiMeta, setAiMeta] = useState<AiMeta | null>(null);
-  const [structured, setStructured] = useState<StructuredRecipe | null>(null);
+  const [structured, setStructured] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -149,6 +83,7 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
     const parsed = Number(trimmed);
     return Number.isFinite(parsed) ? parsed : null;
   };
+  const currentStep = structured ? 2 : 1;
 
   const handleStructure = async () => {
     if (!canStructure) {
@@ -177,30 +112,7 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
         input_hash: meta.input_hash,
       });
 
-      setStructured({
-        title: result.title,
-        description: result.description,
-        servings: null,
-        prep_time_min: null,
-        cook_time_min: null,
-        difficulty: null,
-        tags: [],
-        ingredients_json: result.ingredients.map((item) => ({
-          name: item.name,
-          quantity: null,
-          unit: null,
-          prep: null,
-          optional: false,
-          group: null,
-        })),
-        steps_json: result.steps.map((item) => ({
-          text: item.text,
-          timer_seconds: null,
-          temperature_c: null,
-          temperature_f: null,
-          equipment: null,
-        })),
-      });
+      setStructured(true);
       setAiMeta(meta);
 
       setTitle(result.title ?? "");
@@ -221,36 +133,13 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
     setStructuring(false);
   };
 
-  const parsedIngredients = useMemo(
-    () =>
-      ingredientsInput
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map(parseIngredientLine),
-    [ingredientsInput]
-  );
-
-  const parsedSteps = useMemo(
-    () =>
-      stepsInput
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((text) => ({
-          text,
-          timer_seconds: null,
-          temperature_c: null,
-          temperature_f: null,
-          equipment: null,
-        })),
-    [stepsInput]
-  );
-
   const handleSave = async () => {
     if (!structured || !aiMeta) {
       return;
     }
+
+    const parsedIngredients = parseIngredientLines(ingredientsInput);
+    const parsedSteps = parseStepLines(stepsInput);
 
     if (!title.trim() || parsedIngredients.length === 0 || parsedSteps.length === 0) {
       setError("Title, ingredients, and steps are required.");
@@ -271,22 +160,25 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
       cached: aiMeta.cached,
       input_hash: aiMeta.input_hash,
       created_at: aiMeta.created_at,
+      canonical_enrichment: buildCanonicalEnrichment({
+        ingredientNames: parsedIngredients.map((item) => item.name),
+        stepTexts: parsedSteps.map((item) => item.text),
+        preferredUnits,
+      }),
     };
 
     try {
-      const created = await createRecipeWithVersion({
-        ownerId,
-        title,
-        description,
-        tags,
-        version: {
-          versionNumber: 1,
+      const created = await createRecipeFromDraft({
+        draft: {
+          title: title.trim(),
+          description: description.trim() || null,
+          tags,
           prep_time_min: parseNullableNumber(prepTimeInput),
           cook_time_min: parseNullableNumber(cookTimeInput),
           servings: parseNullableNumber(servingsInput),
-          difficulty: difficultyInput,
-          ingredients_json: parsedIngredients,
-          steps_json: parsedSteps,
+          difficulty: difficultyInput.trim() || null,
+          ingredients: parsedIngredients,
+          steps: parsedSteps,
           change_log: "Structured from pasted recipe text",
           ai_metadata_json,
         },
@@ -310,15 +202,51 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
 
   return (
     <div className="page-shell">
-      <section className="saas-card space-y-3 p-5">
-        <h2 className="text-lg font-semibold">Paste recipe text</h2>
+      <section className="app-panel p-5">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[
+            { step: 1, title: "Paste recipe" },
+            { step: 2, title: "Review and save" },
+          ].map((item) => {
+            const active = item.step === currentStep;
+            const complete = item.step < currentStep;
+            return (
+              <div
+                key={item.step}
+                className={`rounded-[22px] px-4 py-3 ${
+                  active
+                    ? "bg-[rgba(82,124,116,0.1)] ring-1 ring-[rgba(82,124,116,0.22)]"
+                    : complete
+                      ? "bg-[rgba(141,169,187,0.1)]"
+                      : "bg-[rgba(255,252,246,0.72)] ring-1 ring-[rgba(79,54,33,0.08)]"
+                }`}
+              >
+                <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                  {complete ? "Done" : `Step ${item.step}`}
+                </p>
+                <p className="mt-2 text-[16px] font-semibold text-[color:var(--text)]">{item.title}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="saas-card space-y-4 p-5">
+        <div className="space-y-2">
+          <p className="app-kicker">Step 1</p>
+          <h2 className="text-lg font-semibold text-[color:var(--text)]">Paste recipe text</h2>
+          <p className="text-[15px] leading-6 text-[color:var(--muted)]">
+            Paste from notes, a website, or a document. Chef will turn it into editable recipe fields.
+          </p>
+        </div>
         <textarea
           value={rawText}
           onChange={(event) => setRawText(event.target.value)}
           className="min-h-40 w-full"
           placeholder="Paste a recipe from notes, website, or cookbook..."
         />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-[15px] font-medium text-[color:var(--text)]">Preferred units</p>
           <Button
             onClick={() => setPreferredUnits("metric")}
             variant={preferredUnits === "metric" ? "primary" : "secondary"}
@@ -348,8 +276,14 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
       </section>
 
       {structured ? (
-        <section className="saas-card space-y-3 p-5">
-          <h2 className="text-lg font-semibold">Review structured recipe</h2>
+        <section className="saas-card space-y-4 p-5">
+          <div className="space-y-2">
+            <p className="app-kicker">Step 2</p>
+            <h2 className="text-lg font-semibold text-[color:var(--text)]">Review and save</h2>
+            <p className="text-[15px] leading-6 text-[color:var(--muted)]">
+              Make any edits you want, then save the imported recipe into your library.
+            </p>
+          </div>
           <div className="space-y-1">
             <label htmlFor="title" className="text-sm font-medium">
               Title
@@ -463,7 +397,7 @@ export function NewRecipeFromTextForm({ ownerId }: NewRecipeFromTextFormProps) {
             disabled={saving}
             className="min-h-12 w-full"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving..." : "Save Recipe"}
           </Button>
         </section>
       ) : null}

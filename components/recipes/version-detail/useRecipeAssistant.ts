@@ -11,6 +11,7 @@ export function useRecipeAssistant(recipeId: string) {
   const cooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [customInstruction, setCustomInstruction] = useState("");
   const [aiConversation, setAiConversation] = useState<ConversationMessage[]>([]);
+  const [conversationKey, setConversationKey] = useState("");
   const [suggestedChange, setSuggestedChange] = useState<SuggestedChange | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -24,9 +25,22 @@ export function useRecipeAssistant(recipeId: string) {
 
   useEffect(() => {
     const key = `recipe-ai-conversation-${recipeId}`;
+    const conversationKeyStorage = `recipe-ai-conversation-key-${recipeId}`;
     const raw = window.localStorage.getItem(key);
     const suggestionKey = `recipe-ai-suggestion-${recipeId}`;
     const rawSuggestion = window.localStorage.getItem(suggestionKey);
+    const storedConversationKey = window.localStorage.getItem(conversationKeyStorage);
+
+    if (storedConversationKey?.trim()) {
+      setConversationKey(storedConversationKey);
+    } else {
+      const nextConversationKey =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `recipe-${recipeId}-${Date.now()}`;
+      window.localStorage.setItem(conversationKeyStorage, nextConversationKey);
+      setConversationKey(nextConversationKey);
+    }
 
     if (!raw) {
       setAiConversation([]);
@@ -78,6 +92,14 @@ export function useRecipeAssistant(recipeId: string) {
   }, [recipeId, aiConversation]);
 
   useEffect(() => {
+    if (!conversationKey) {
+      return;
+    }
+    const key = `recipe-ai-conversation-key-${recipeId}`;
+    window.localStorage.setItem(key, conversationKey);
+  }, [recipeId, conversationKey]);
+
+  useEffect(() => {
     const key = `recipe-ai-suggestion-${recipeId}`;
     if (!suggestedChange) {
       window.localStorage.removeItem(key);
@@ -104,6 +126,7 @@ export function useRecipeAssistant(recipeId: string) {
     setCustomInstruction,
     aiConversation,
     setAiConversation,
+    conversationKey,
     suggestedChange,
     setSuggestedChange,
     conversationEndRef,

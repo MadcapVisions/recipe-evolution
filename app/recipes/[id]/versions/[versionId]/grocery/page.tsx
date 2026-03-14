@@ -1,17 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { GroceryListClient } from "@/components/grocery/GroceryListClient";
+import { readCanonicalIngredients } from "@/lib/recipes/canonicalRecipe";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { Button } from "@/components/Button";
 
 type GroceryPageProps = {
   params: Promise<{ id: string; versionId: string }>;
-};
-
-type Ingredient = {
-  name?: string;
-  quantity?: number | null;
-  unit?: string | null;
-  prep?: string | null;
 };
 
 type GroceryItem = {
@@ -22,14 +16,6 @@ type GroceryItem = {
   unit: string | null;
   prep: string | null;
   checked: boolean;
-};
-
-const normalizeIngredients = (value: unknown): Ingredient[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter((item): item is Ingredient => typeof item === "object" && item !== null);
 };
 
 export default async function GroceryPage({ params }: GroceryPageProps) {
@@ -44,12 +30,12 @@ export default async function GroceryPage({ params }: GroceryPageProps) {
     redirect("/sign-in");
   }
 
-  const [{ data: recipe, error: recipeError }, { data: version, error: versionError }, { data: list, error: listError }] =
+  const [{ data: recipe, error: recipeError }, { data: version, error: versionError }, { data: list, error: listError }, { data: preferences }] =
     await Promise.all([
       supabase.from("recipes").select("id, title").eq("id", id).maybeSingle(),
       supabase
         .from("recipe_versions")
-        .select("id, recipe_id, version_number, ingredients_json")
+        .select("id, recipe_id, version_number, servings, ingredients_json")
         .eq("id", versionId)
         .eq("recipe_id", id)
         .maybeSingle(),
@@ -58,6 +44,11 @@ export default async function GroceryPage({ params }: GroceryPageProps) {
         .select("id, items_json")
         .eq("owner_id", user.id)
         .eq("version_id", versionId)
+        .maybeSingle(),
+      supabase
+        .from("user_preferences")
+        .select("pantry_staples, pantry_confident_staples")
+        .eq("owner_id", user.id)
         .maybeSingle(),
     ]);
 
@@ -75,14 +66,17 @@ export default async function GroceryPage({ params }: GroceryPageProps) {
         <p className="text-sm text-slate-500">{recipe.title}</p>
         <h1 className="page-title">Grocery List</h1>
         <p className="text-sm text-slate-600">Version {version.version_number}</p>
+        <p className="text-sm text-slate-600">Serves {typeof version.servings === "number" ? version.servings : "-"}</p>
       </div>
 
       <GroceryListClient
-        ownerId={user.id}
+        recipeId={id}
         versionId={versionId}
+        baseServings={version.servings}
+        pantryStaples={[...(preferences?.pantry_staples ?? []), ...(preferences?.pantry_confident_staples ?? [])]}
         existingListId={list?.id ?? null}
         existingItems={(list?.items_json as GroceryItem[] | null) ?? null}
-        ingredients={normalizeIngredients(version.ingredients_json)}
+        ingredients={readCanonicalIngredients(version.ingredients_json)}
       />
 
       <Button href={`/recipes/${id}/versions/${versionId}`} variant="secondary" className="min-h-11 w-fit">

@@ -3,12 +3,14 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { ChefAiPanel, MetricsPanel, NutritionPanel } from "@/components/recipes/version-detail/AiPanels";
+import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/components/recipes/version-detail/AiPanels";
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
 import { RecipeActionMenu, RecipeSidebar, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
 import { useRecipeAssistant } from "@/components/recipes/version-detail/useRecipeAssistant";
 import { useRecipeSidebarState } from "@/components/recipes/version-detail/useRecipeSidebarState";
 import { generateLocalChefReply, generateLocalImprovedRecipe, generateLocalRemixRecipe } from "@/lib/localRecipeGenerator";
+import { createRecipeVersionViaApi, mapVersionToCanonicalVersion } from "@/lib/client/recipeMutations";
+import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 import {
@@ -25,6 +27,9 @@ import {
 } from "@/components/recipes/version-detail/types";
 import type { RecipeSidebarData } from "@/lib/recipeSidebarData";
 import type { VersionDetailData } from "@/lib/versionDetailData";
+import { buildPrepPlan } from "@/lib/recipes/prepPlan";
+import { scaleCanonicalIngredientLine } from "@/lib/recipes/servings";
+import { useTargetServings } from "@/lib/recipes/targetServings";
 
 function mapInstructionToImproveGoal(instruction: string): "high protein" | "vegetarian" | "faster" | "spicier" | null {
   const lower = instruction.toLowerCase();
@@ -46,35 +51,36 @@ export function VersionDetailClient({
 }) {
   const router = useRouter();
   const [recipe, setRecipe] = useState<RecipeRow | null>(initialData.recipe);
-  const [sidebarLoading, setSidebarLoading] = useState(true);
   const [sidebarData, setSidebarData] = useState<RecipeSidebarData>({
-    userRecipes: [],
-    hiddenRecipeIds: [],
-    archivedRecipeIds: [],
+    recentRecipes: initialData.sidebarRecentRecipes,
+    favoriteRecipes: [],
   });
   const [timelineVersions, setTimelineVersions] = useState<TimelineVersion[]>(initialData.timelineVersions);
+  const [timelineHasMore, setTimelineHasMore] = useState(initialData.timelineHasMore);
+  const [timelineLoadingMore, setTimelineLoadingMore] = useState(false);
   const [version, setVersion] = useState<VersionRow | null>(initialData.version);
   const [userId] = useState<string | null>(initialData.userId);
-  const [photosWithUrls, setPhotosWithUrls] = useState<Array<{ id: string; signedUrl: string; storagePath: string }>>(initialData.photosWithUrls);
+  const [photosWithUrls, setPhotosWithUrls] = useState<Array<{ id: string; signedUrl: string; storagePath: string }>>(initialData.initialPhotosWithUrls);
+  const [galleryLoading, setGalleryLoading] = useState(true);
+  const [completedPrepIds, setCompletedPrepIds] = useState<string[]>([]);
   const assistant = useRecipeAssistant(recipeId);
   const sidebar = useRecipeSidebarState({
-    userRecipes: sidebarData.userRecipes,
-    hiddenRecipeIds: sidebarData.hiddenRecipeIds,
-    archivedRecipeIds: sidebarData.archivedRecipeIds,
+    quickRecipes: [...sidebarData.recentRecipes, ...sidebarData.favoriteRecipes].filter(
+      (recipeItem, index, list) => list.findIndex((candidate) => candidate.id === recipeItem.id) === index
+    ),
   });
 
-  const ingredients = useMemo(() => normalizeIngredients(version?.ingredients_json), [version]);
-  const steps = useMemo(() => normalizeSteps(version?.steps_json), [version]);
+  const ingredients = useMemo(() => normalizeIngredients(version?.canonical_ingredients), [version]);
+  const steps = useMemo(() => normalizeSteps(version?.canonical_steps), [version]);
   const prepMinutes = typeof version?.prep_time_min === "number" && version.prep_time_min > 0 ? version.prep_time_min : 15;
   const cookMinutes = typeof version?.cook_time_min === "number" && version.cook_time_min > 0 ? version.cook_time_min : 25;
   const totalMinutes = prepMinutes + cookMinutes;
   const servings = typeof version?.servings === "number" ? version.servings : 4;
-  const difficulty = version?.difficulty?.trim() || "Easy";
-  const recentRecipeItems = useMemo(() => sidebarData.userRecipes.slice(0, 4), [sidebarData.userRecipes]);
-  const favoriteRecipeItems = useMemo(
-    () => sidebarData.userRecipes.filter((recipeItem) => recipeItem.is_favorite).slice(0, 4),
-    [sidebarData.userRecipes]
+  const { targetServings: displayServings, setTargetServings, baseServings, canScale: canAdjustServings } = useTargetServings(
+    version?.id ?? versionId,
+    version?.servings ?? null
   );
+  const difficulty = version?.difficulty?.trim() || "Easy";
   const nutrition = useMemo(() => {
     const ingredientCount = Math.max(ingredients.length, 1);
     return {
@@ -84,15 +90,79 @@ export function VersionDetailClient({
       protein: ingredientCount * 3,
     };
   }, [ingredients.length]);
+  const prepPlan = useMemo(
+    () =>
+      buildPrepPlan({
+        ingredientNames: ingredients.map((item) => item.name),
+        stepTexts: steps.map((item) => item.text),
+      }),
+    [ingredients, steps]
+  );
+  const displayIngredients = useMemo(
+    () =>
+      canAdjustServings && baseServings
+        ? ingredients.map((item) => ({ ...item, name: scaleCanonicalIngredientLine(item.name, baseServings, displayServings) }))
+        : ingredients,
+    [baseServings, canAdjustServings, displayServings, ingredients]
+  );
   const topPhotoUrl = photosWithUrls[0]?.signedUrl ?? null;
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadSidebar = async () => {
-      setSidebarLoading(true);
+    const loadPrepProgress = async () => {
+      const response = await fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as { completedChecklistIds?: string[] };
+      if (!cancelled && response.ok) {
+        setCompletedPrepIds(payload.completedChecklistIds ?? []);
+      }
+    };
+
+    void loadPrepProgress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recipeId, versionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFavorites = async () => {
+      const response = await fetch("/api/recipes/sidebar?section=favorites", {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as RecipeSidebarData["favoriteRecipes"];
+      if (cancelled) {
+        return;
+      }
+
+      setSidebarData((current) => ({ ...current, favoriteRecipes: payload }));
+    };
+
+    void loadFavorites();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadGalleryPhotos = async () => {
+      setGalleryLoading(true);
       try {
-        const response = await fetch("/api/recipes/sidebar", {
+        const response = await fetch(`/api/recipes/${recipeId}/versions/${versionId}/photos`, {
           credentials: "include",
           cache: "no-store",
         });
@@ -101,25 +171,26 @@ export function VersionDetailClient({
           return;
         }
 
-        const payload = (await response.json()) as RecipeSidebarData;
-        if (cancelled) {
-          return;
-        }
+        const payload = (await response.json()) as {
+          photos?: Array<{ id: string; signedUrl: string; storagePath: string }>;
+        };
 
-        setSidebarData(payload);
+        if (!cancelled && Array.isArray(payload.photos)) {
+          setPhotosWithUrls(payload.photos);
+        }
       } finally {
         if (!cancelled) {
-          setSidebarLoading(false);
+          setGalleryLoading(false);
         }
       }
     };
 
-    void loadSidebar();
+    void loadGalleryPhotos();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [recipeId, versionId]);
 
   useEffect(() => {
     let message: string | null = null;
@@ -171,6 +242,51 @@ export function VersionDetailClient({
     sidebar.setVersionMenuAnchor(null);
   };
 
+  function normalizeSuggestedChange(
+    instruction: string,
+    improved: {
+      recipe?: {
+        ingredients?: Array<{ name: string }>;
+        steps?: Array<{ text: string }>;
+        servings?: number | null;
+        prep_time_min?: number | null;
+        cook_time_min?: number | null;
+        difficulty?: string | null;
+      };
+      explanation?: string;
+      ingredients?: Array<{ name: string }>;
+      steps?: Array<{ text: string }>;
+      servings?: number | null;
+      prep_time_min?: number | null;
+      cook_time_min?: number | null;
+      difficulty?: string | null;
+    }
+  ): SuggestedChange | null {
+    if (!version) {
+      return null;
+    }
+
+    const recipePayload = improved.recipe ?? improved;
+
+    if (!Array.isArray(recipePayload.ingredients) || !Array.isArray(recipePayload.steps)) {
+      return null;
+    }
+
+    return {
+      instruction,
+      explanation: improved.explanation ?? null,
+      servings: typeof recipePayload.servings === "number" ? recipePayload.servings : version.servings,
+      prep_time_min: typeof recipePayload.prep_time_min === "number" ? recipePayload.prep_time_min : version.prep_time_min,
+      cook_time_min: typeof recipePayload.cook_time_min === "number" ? recipePayload.cook_time_min : version.cook_time_min,
+      difficulty:
+        typeof recipePayload.difficulty === "string" && recipePayload.difficulty.trim().length > 0
+          ? recipePayload.difficulty
+          : version.difficulty,
+      ingredients: recipePayload.ingredients,
+      steps: recipePayload.steps,
+    };
+  }
+
   async function requestAiSuggestion(instruction: string): Promise<SuggestedChange | null> {
     if (!recipe || !version) {
       return null;
@@ -198,6 +314,7 @@ export function VersionDetailClient({
     const data = (await response.json()) as {
       error?: boolean;
       message?: string;
+      result?: AiRecipeResult;
       recipe?: {
         ingredients?: Array<{ name: string }>;
         steps?: Array<{ text: string }>;
@@ -213,7 +330,7 @@ export function VersionDetailClient({
       return null;
     }
 
-    const improved = (data?.recipe ?? data) as {
+    return normalizeSuggestedChange(instruction, (data.result ?? data?.recipe ?? data) as AiRecipeResult & {
       ingredients?: Array<{ name: string }>;
       steps?: Array<{ text: string }>;
       explanation?: string;
@@ -221,25 +338,7 @@ export function VersionDetailClient({
       prep_time_min?: number;
       cook_time_min?: number;
       difficulty?: string;
-    };
-
-    if (!Array.isArray(improved?.ingredients) || !Array.isArray(improved?.steps)) {
-      return null;
-    }
-
-    return {
-      instruction,
-      explanation: improved.explanation ?? null,
-      servings: typeof improved.servings === "number" ? improved.servings : version.servings,
-      prep_time_min: typeof improved.prep_time_min === "number" ? improved.prep_time_min : version.prep_time_min,
-      cook_time_min: typeof improved.cook_time_min === "number" ? improved.cook_time_min : version.cook_time_min,
-      difficulty:
-        typeof improved.difficulty === "string" && improved.difficulty.trim().length > 0
-          ? improved.difficulty
-          : version.difficulty,
-      ingredients: improved.ingredients,
-      steps: improved.steps,
-    };
+    });
   }
 
   function buildDeterministicSuggestion(instruction: string): SuggestedChange | null {
@@ -307,7 +406,10 @@ export function VersionDetailClient({
     };
   }
 
-  async function requestChefChatReply(userMessage: string): Promise<string> {
+  async function requestChefChatResponse(userMessage: string): Promise<{
+    reply: string;
+    suggestion: SuggestedChange | null;
+  }> {
     const recipeContext = {
       title: recipe?.title ?? "Recipe in progress",
       ingredients: ingredients.map((item) => item.name),
@@ -317,17 +419,50 @@ export function VersionDetailClient({
     const response = await fetch("/api/ai/chef-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userMessage, recipeContext }),
+      body: JSON.stringify({
+        userMessage,
+        recipeContext,
+        conversationKey: assistant.conversationKey,
+        includeSuggestion: true,
+        recipeId,
+        versionId,
+        recipe: {
+          title: recipe?.title ?? "Recipe in progress",
+          servings: version?.servings ?? null,
+          prep_time_min: version?.prep_time_min ?? null,
+          cook_time_min: version?.cook_time_min ?? null,
+          difficulty: version?.difficulty ?? null,
+          ingredients,
+          steps,
+        },
+      }),
     });
 
-    const data = (await response.json()) as { reply?: string; error?: boolean; message?: string };
+    const data = (await response.json()) as {
+      reply?: string;
+      suggestion?: (AiRecipeResult & {
+        ingredients?: Array<{ name: string }>;
+        steps?: Array<{ text: string }>;
+        explanation?: string;
+        servings?: number;
+        prep_time_min?: number;
+        cook_time_min?: number;
+        difficulty?: string;
+      }) | null;
+      error?: boolean;
+      message?: string;
+    };
     if (!response.ok || data.error) {
       throw new Error(data.message || "Chef chat request failed.");
     }
-    if (typeof data.reply === "string" && data.reply.trim().length > 0) {
-      return data.reply.trim();
+    if (typeof data.reply !== "string" || data.reply.trim().length === 0) {
+      throw new Error("Chef chat returned an empty response.");
     }
-    throw new Error("Chef chat returned an empty response.");
+
+    return {
+      reply: data.reply.trim(),
+      suggestion: data.suggestion ? normalizeSuggestedChange(userMessage, data.suggestion) : null,
+    };
   }
 
   function buildDeterministicChefReply(userMessage: string) {
@@ -348,44 +483,24 @@ export function VersionDetailClient({
   ) {
     if (!version) return false;
 
-    const { data: versions, error: versionsError } = await supabase
-      .from("recipe_versions")
-      .select("version_number")
-      .eq("recipe_id", recipeId)
-      .order("version_number", { ascending: false })
-      .limit(1);
-
-    if (versionsError) {
-      assistant.setAiError("AI improvement failed. Please try again.");
-      return false;
-    }
-
-    const nextVersion = (versions?.[0]?.version_number || 0) + 1;
-    const { data: insertedVersion, error: insertError } = await supabase
-      .from("recipe_versions")
-      .insert({
-        recipe_id: recipeId,
-        version_number: nextVersion,
+    let insertedVersion: VersionRow;
+    try {
+      insertedVersion = mapVersionToCanonicalVersion(await createRecipeVersionViaApi(recipeId, {
         version_label: versionLabelText,
         change_summary: suggestion.explanation ?? null,
         servings: suggestion.servings,
         prep_time_min: suggestion.prep_time_min,
         cook_time_min: suggestion.cook_time_min,
         difficulty: suggestion.difficulty,
-        ingredients_json: suggestion.ingredients,
-        steps_json: suggestion.steps,
-      })
-      .select(
-        "id, recipe_id, version_number, version_label, change_summary, servings, prep_time_min, cook_time_min, difficulty, ingredients_json, steps_json, created_at"
-      )
-      .single();
-
-    if (insertError || !insertedVersion) {
-      assistant.setAiError(insertError?.message || "AI improvement failed. Please try again.");
+        ingredients: suggestion.ingredients,
+        steps: suggestion.steps,
+      }) ) as VersionRow;
+    } catch (error) {
+      assistant.setAiError(error instanceof Error ? error.message : "AI improvement failed. Please try again.");
       return false;
     }
 
-    const nextVersionRow = insertedVersion as VersionRow;
+    const nextVersionRow = insertedVersion;
     setVersion(nextVersionRow);
     setTimelineVersions((current) => [
       {
@@ -397,6 +512,7 @@ export function VersionDetailClient({
       ...current,
     ]);
     setPhotosWithUrls([]);
+    setGalleryLoading(true);
     assistant.setSuggestedChange(null);
     assistant.setCustomInstruction("");
     trackEventInBackground("version_created", {
@@ -488,15 +604,15 @@ export function VersionDetailClient({
     };
     assistant.setAiConversation((current) => [...current, userMessage]);
     try {
-      const chefReply = await requestChefChatReply(instruction);
+      const aiResponse = await requestChefChatResponse(instruction);
       const assistantMessage: ConversationMessage = {
         id: `${Date.now()}-assistant`,
         role: "assistant",
-        text: chefReply,
+        text: aiResponse.reply,
         createdAt: new Date().toISOString(),
       };
       assistant.setAiConversation((current) => [...current, assistantMessage]);
-      const suggestion = await requestAiSuggestion(instruction);
+      const suggestion = aiResponse.suggestion;
       if (!suggestion) {
         const fallbackSuggestion = buildDeterministicSuggestion(instruction);
         if (!fallbackSuggestion) {
@@ -570,20 +686,21 @@ export function VersionDetailClient({
     closeRecipeMenu();
     sidebar.setSidebarActionError(null);
     try {
-      const { error } = await supabase.from("recipes").delete().eq("id", targetRecipeId);
-      if (error) {
+      const response = await fetch(`/api/recipes/${targetRecipeId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
         sidebar.setSidebarActionError("Could not delete recipe. Please try again.");
         return;
       }
       const nextSidebarData = {
         ...sidebarData,
-        userRecipes: sidebarData.userRecipes.filter((item) => item.id !== targetRecipeId),
-        hiddenRecipeIds: sidebarData.hiddenRecipeIds.filter((idValue) => idValue !== targetRecipeId),
-        archivedRecipeIds: sidebarData.archivedRecipeIds.filter((idValue) => idValue !== targetRecipeId),
+        recentRecipes: sidebarData.recentRecipes.filter((item) => item.id !== targetRecipeId),
+        favoriteRecipes: sidebarData.favoriteRecipes.filter((item) => item.id !== targetRecipeId),
       };
       setSidebarData(nextSidebarData);
       if (targetRecipeId === recipeId) {
-        const fallback = nextSidebarData.userRecipes[0];
+        const fallback = nextSidebarData.recentRecipes[0] ?? nextSidebarData.favoriteRecipes[0];
         startTransition(() => {
           router.push(fallback ? `/recipes/${fallback.id}` : "/dashboard");
         });
@@ -594,23 +711,22 @@ export function VersionDetailClient({
   }
 
   async function setRecipeVisibility(targetRecipeId: string, state: "hidden" | "archived" | null) {
-    if (!userId) {
-      sidebar.setSidebarActionError("Please sign in again.");
-      return false;
-    }
     if (state === null) {
-      const { error } = await supabase.from("recipe_visibility_states").delete().eq("owner_id", userId).eq("recipe_id", targetRecipeId);
-      if (error) {
+      const response = await fetch(`/api/recipes/${targetRecipeId}/visibility`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
         sidebar.setSidebarActionError("Could not update recipe visibility.");
         return false;
       }
       return true;
     }
-    const { error } = await supabase.from("recipe_visibility_states").upsert(
-      { owner_id: userId, recipe_id: targetRecipeId, state },
-      { onConflict: "owner_id,recipe_id" }
-    );
-    if (error) {
+    const response = await fetch(`/api/recipes/${targetRecipeId}/visibility`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+    if (!response.ok) {
       sidebar.setSidebarActionError("Could not update recipe visibility.");
       return false;
     }
@@ -623,10 +739,8 @@ export function VersionDetailClient({
     if (!(await setRecipeVisibility(targetRecipeId, "hidden"))) return;
     setSidebarData((current) => ({
       ...current,
-      hiddenRecipeIds: current.hiddenRecipeIds.includes(targetRecipeId)
-        ? current.hiddenRecipeIds
-        : [...current.hiddenRecipeIds, targetRecipeId],
-      archivedRecipeIds: current.archivedRecipeIds.filter((idValue) => idValue !== targetRecipeId),
+      recentRecipes: current.recentRecipes.filter((item) => item.id !== targetRecipeId),
+      favoriteRecipes: current.favoriteRecipes.filter((item) => item.id !== targetRecipeId),
     }));
   }
 
@@ -636,30 +750,8 @@ export function VersionDetailClient({
     if (!(await setRecipeVisibility(targetRecipeId, "archived"))) return;
     setSidebarData((current) => ({
       ...current,
-      archivedRecipeIds: current.archivedRecipeIds.includes(targetRecipeId)
-        ? current.archivedRecipeIds
-        : [...current.archivedRecipeIds, targetRecipeId],
-      hiddenRecipeIds: current.hiddenRecipeIds.filter((idValue) => idValue !== targetRecipeId),
-    }));
-  }
-
-  async function unhideRecipe(targetRecipeId: string) {
-    closeRecipeMenu();
-    sidebar.setSidebarActionError(null);
-    if (!(await setRecipeVisibility(targetRecipeId, null))) return;
-    setSidebarData((current) => ({
-      ...current,
-      hiddenRecipeIds: current.hiddenRecipeIds.filter((idValue) => idValue !== targetRecipeId),
-    }));
-  }
-
-  async function unarchiveRecipe(targetRecipeId: string) {
-    closeRecipeMenu();
-    sidebar.setSidebarActionError(null);
-    if (!(await setRecipeVisibility(targetRecipeId, null))) return;
-    setSidebarData((current) => ({
-      ...current,
-      archivedRecipeIds: current.archivedRecipeIds.filter((idValue) => idValue !== targetRecipeId),
+      recentRecipes: current.recentRecipes.filter((item) => item.id !== targetRecipeId),
+      favoriteRecipes: current.favoriteRecipes.filter((item) => item.id !== targetRecipeId),
     }));
   }
 
@@ -682,8 +774,12 @@ export function VersionDetailClient({
     const next = window.prompt("Rename version", current)?.trim();
     if (!next || next === current) return;
     sidebar.setSidebarActionError(null);
-    const { error } = await supabase.from("recipe_versions").update({ version_label: next }).eq("id", targetVersionId);
-    if (error) {
+    const response = await fetch(`/api/recipes/${recipeId}/versions/${targetVersionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version_label: next }),
+    });
+    if (!response.ok) {
       sidebar.setSidebarActionError("Could not rename version.");
       return;
     }
@@ -698,8 +794,12 @@ export function VersionDetailClient({
     if (!recipe) return;
     sidebar.setSidebarActionError(null);
     const nextBestId = recipe.best_version_id === targetVersionId ? null : targetVersionId;
-    const { error } = await supabase.from("recipes").update({ best_version_id: nextBestId }).eq("id", recipe.id);
-    if (error) {
+    const response = await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ best_version_id: nextBestId }),
+    });
+    if (!response.ok) {
       sidebar.setSidebarActionError("Could not favorite version.");
       return;
     }
@@ -712,17 +812,20 @@ export function VersionDetailClient({
     if (!recipe) return;
     if (!window.confirm("Delete this version? This cannot be undone.")) return;
     sidebar.setSidebarActionError(null);
-    const { error } = await supabase.from("recipe_versions").delete().eq("id", targetVersionId);
-    if (error) {
-      sidebar.setSidebarActionError("Could not delete version.");
+    const response = await fetch(`/api/recipes/${recipeId}/versions/${targetVersionId}`, {
+      method: "DELETE",
+    });
+    const payload = (await response.json()) as { message?: string };
+    if (!response.ok) {
+      sidebar.setSidebarActionError(payload.message ?? "Could not delete version.");
       return;
     }
     const nextTimeline = timelineVersions.filter((item) => item.id !== targetVersionId);
     setTimelineVersions(nextTimeline);
+    setTimelineHasMore(initialData.timelineHasMore || nextTimeline.length > 0);
     const nextBestId = recipe.best_version_id === targetVersionId ? null : recipe.best_version_id ?? null;
     if (nextBestId !== recipe.best_version_id) {
-      const { error: bestError } = await supabase.from("recipes").update({ best_version_id: null }).eq("id", recipe.id);
-      if (!bestError) setRecipe((currentRecipe) => (currentRecipe ? { ...currentRecipe, best_version_id: null } : currentRecipe));
+      setRecipe((currentRecipe) => (currentRecipe ? { ...currentRecipe, best_version_id: null } : currentRecipe));
     }
     if (version?.id === targetVersionId) {
       const fallback = nextTimeline[0];
@@ -733,8 +836,49 @@ export function VersionDetailClient({
     closeVersionMenu();
   }
 
+  async function loadMoreVersions() {
+    if (timelineLoadingMore || !timelineHasMore || !version) {
+      return;
+    }
+
+    setTimelineLoadingMore(true);
+    sidebar.setSidebarActionError(null);
+
+    try {
+      const params = new URLSearchParams({
+        currentVersionId: version.id,
+        offset: String(timelineVersions.length),
+        limit: "8",
+      });
+      const response = await fetch(`/api/recipes/${recipeId}/versions?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as {
+        versions?: TimelineVersion[];
+        hasMore?: boolean;
+        error?: boolean;
+        message?: string;
+      };
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message ?? "Could not load more versions.");
+      }
+
+      setTimelineVersions((current) => {
+        const existingIds = new Set(current.map((item) => item.id));
+        return current.concat((payload.versions ?? []).filter((item) => !existingIds.has(item.id)));
+      });
+      setTimelineHasMore(Boolean(payload.hasMore));
+    } catch (error) {
+      sidebar.setSidebarActionError(error instanceof Error ? error.message : "Could not load more versions.");
+    } finally {
+      setTimelineLoadingMore(false);
+    }
+  }
+
   const activeMenuRecipe = sidebar.openMenuRecipeId
-    ? sidebarData.userRecipes.find((item) => item.id === sidebar.openMenuRecipeId) ?? null
+    ? [...sidebarData.recentRecipes, ...sidebarData.favoriteRecipes].find((item) => item.id === sidebar.openMenuRecipeId) ?? null
     : null;
   const activeVersionMenu = sidebar.openVersionMenuId ? timelineVersions.find((timelineVersion) => timelineVersion.id === sidebar.openVersionMenuId) ?? null : null;
 
@@ -751,14 +895,11 @@ export function VersionDetailClient({
       <RecipeActionMenu
         activeRecipe={activeMenuRecipe}
         menuAnchor={sidebar.menuAnchor}
-        recipeListView={sidebar.recipeListView}
         deletingRecipeId={sidebar.deletingRecipeId}
         onClose={closeRecipeMenu}
         onDelete={(targetRecipeId, title) => void deleteRecipe(targetRecipeId, title)}
         onHide={(targetRecipeId) => void hideRecipe(targetRecipeId)}
         onArchive={(targetRecipeId) => void archiveRecipe(targetRecipeId)}
-        onUnhide={(targetRecipeId) => void unhideRecipe(targetRecipeId)}
-        onUnarchive={(targetRecipeId) => void unarchiveRecipe(targetRecipeId)}
       />
       <VersionActionMenu
         activeVersion={activeVersionMenu}
@@ -772,21 +913,19 @@ export function VersionDetailClient({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
         <RecipeSidebar
-          loading={sidebarLoading}
           currentRecipeId={recipeId}
           currentVersion={version!}
           recipe={recipe!}
-          categorizedRecipes={sidebar.categorizedRecipes}
           recipeSearch={sidebar.recipeSearch}
-          recipeListView={sidebar.recipeListView}
+          searchResults={sidebar.searchResults}
           timelineVersions={timelineVersions}
-          recentRecipeItems={recentRecipeItems}
-          favoriteRecipeItems={favoriteRecipeItems}
+          timelineHasMore={timelineHasMore}
+          timelineLoadingMore={timelineLoadingMore}
           sidebarActionError={sidebar.sidebarActionError}
           onRecipeSearchChange={sidebar.setRecipeSearch}
-          onRecipeListViewChange={sidebar.setRecipeListView}
           onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
           onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
+          onLoadMoreVersions={() => void loadMoreVersions()}
           onOpenRecipeMenu={(targetRecipeId, rect) => {
             sidebar.setMenuAnchor(openMenuAtRect(rect));
             sidebar.setOpenMenuRecipeId(targetRecipeId);
@@ -800,12 +939,16 @@ export function VersionDetailClient({
         <VersionMainPanels
           recipe={recipe!}
           version={version!}
-          ingredients={ingredients}
+          ingredients={displayIngredients}
+          displayServings={displayServings}
+          canAdjustServings={canAdjustServings}
+          onSetTargetServings={setTargetServings}
           steps={steps}
           topPhotoUrl={topPhotoUrl}
           userId={userId}
           photosWithUrls={photosWithUrls}
           onShare={() => void shareVersion()}
+          galleryLoading={galleryLoading}
         />
 
         <aside className="sticky top-28 self-start space-y-4">
@@ -823,7 +966,20 @@ export function VersionDetailClient({
             onApplySuggestedChange={() => void handleApplySuggestedChange()}
             conversationEndRef={assistant.conversationEndRef}
           />
-          <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={servings} />
+          <PrepPlanPanel
+            prepPlan={prepPlan}
+            completedChecklistIds={completedPrepIds}
+            onToggleChecklistItem={(itemId) => {
+              const completed = !completedPrepIds.includes(itemId);
+              setCompletedPrepIds((current) => (completed ? [...current, itemId] : current.filter((id) => id !== itemId)));
+              void fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ checklist_item_id: itemId, completed }),
+              });
+            }}
+          />
+          <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
           <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
         </aside>
       </div>

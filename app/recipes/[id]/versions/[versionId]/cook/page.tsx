@@ -1,61 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { CookingModeClient } from "@/components/cook/CookingModeClient";
+import { readCanonicalIngredients, readCanonicalSteps } from "@/lib/recipes/canonicalRecipe";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 type CookPageProps = {
   params: Promise<{ id: string; versionId: string }>;
-};
-
-type StepItem = {
-  text: string;
-  timer_seconds?: number;
-};
-
-type IngredientItem = {
-  name: string;
-};
-
-const normalizeSteps = (value: unknown): StepItem[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-      const maybeText = (item as Record<string, unknown>).text;
-      const maybeTimer = (item as Record<string, unknown>).timer_seconds;
-      if (typeof maybeText !== "string" || maybeText.trim().length === 0) {
-        return null;
-      }
-      const parsed: StepItem = { text: maybeText };
-      if (typeof maybeTimer === "number") {
-        parsed.timer_seconds = maybeTimer;
-      }
-      return parsed;
-    })
-    .filter((item): item is StepItem => item !== null);
-};
-
-const normalizeIngredients = (value: unknown): IngredientItem[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-      const maybeName = (item as Record<string, unknown>).name;
-      if (typeof maybeName !== "string" || maybeName.trim().length === 0) {
-        return null;
-      }
-      return { name: maybeName.trim() };
-    })
-    .filter((item): item is IngredientItem => item !== null);
 };
 
 export default async function CookPage({ params }: CookPageProps) {
@@ -99,8 +48,8 @@ export default async function CookPage({ params }: CookPageProps) {
       servings={version.servings}
       prepTimeMin={version.prep_time_min}
       cookTimeMin={version.cook_time_min}
-      ingredientNames={normalizeIngredients(version.ingredients_json).map((item) => item.name)}
-      initialSteps={normalizeSteps(version.steps_json)}
+      ingredientNames={readCanonicalIngredients(version.ingredients_json).map((item) => item.name)}
+      initialSteps={readCanonicalSteps(version.steps_json)}
     />
   );
 }

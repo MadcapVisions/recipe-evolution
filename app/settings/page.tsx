@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountSettingsForm } from "@/components/settings/AccountSettingsForm";
 import { PreferencesForm } from "@/components/preferences/PreferencesForm";
@@ -18,7 +17,7 @@ export default async function SettingsPage() {
   const { data: preferences } = await supabase
     .from("user_preferences")
     .select(
-      "preferred_units, cooking_skill_level, common_diet_tags, disliked_ingredients, favorite_cuisines, favorite_proteins, preferred_flavors, pantry_staples, spice_tolerance, health_goals, taste_notes"
+      "preferred_units, cooking_skill_level, common_diet_tags, disliked_ingredients, favorite_cuisines, favorite_proteins, preferred_flavors, pantry_staples, pantry_confident_staples, spice_tolerance, health_goals, taste_notes"
     )
     .eq("owner_id", user.id)
     .maybeSingle();
@@ -43,7 +42,7 @@ export default async function SettingsPage() {
           <p className="app-kicker">Settings</p>
           <h1 className="page-title">Personal settings</h1>
           <p className="max-w-3xl text-[16px] leading-7 text-[color:var(--muted)]">
-            Manage your account, password, meal preferences, and service details from one place.
+            Manage your account and the meal preferences Chef should use by default.
           </p>
         </div>
       </div>
@@ -92,18 +91,6 @@ export default async function SettingsPage() {
             >
               Taste profile
             </a>
-            <a
-              href="#billing"
-              className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.72)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(141,169,187,0.35)]"
-            >
-              Billing
-            </a>
-            <a
-              href="#support"
-              className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.72)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(141,169,187,0.35)]"
-            >
-              Support
-            </a>
           </nav>
         </aside>
 
@@ -140,71 +127,11 @@ export default async function SettingsPage() {
               initialFavoriteProteins={preferences?.favorite_proteins ?? []}
               initialPreferredFlavors={preferences?.preferred_flavors ?? []}
               initialPantryStaples={preferences?.pantry_staples ?? []}
+              initialPantryConfidentStaples={preferences?.pantry_confident_staples ?? []}
               initialSpiceTolerance={preferences?.spice_tolerance ?? ""}
               initialHealthGoals={preferences?.health_goals ?? []}
               initialTasteNotes={preferences?.taste_notes ?? ""}
             />
-          </section>
-
-          <section id="billing" className="scroll-mt-32 saas-card space-y-4 p-5">
-            <div className="space-y-2">
-              <p className="app-kicker">Subscription</p>
-              <h2 className="text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Plan and billing</h2>
-              <p className="text-[15px] leading-6 text-[color:var(--muted)]">
-                This is where users will manage payment details and understand what plan they are on.
-              </p>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)]">
-              <div className="rounded-[24px] bg-[rgba(141,169,187,0.08)] p-4">
-                <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Current plan</p>
-                <p className="mt-2 text-[28px] font-semibold text-[color:var(--text)]">Free</p>
-                <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
-                  Billing and subscription controls will appear here once paid plans are enabled.
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.72)] p-4">
-                <p className="text-[15px] font-semibold text-[color:var(--text)]">What will live here</p>
-                <ul className="mt-3 space-y-2 text-[15px] leading-6 text-[color:var(--muted)]">
-                  <li>Manage subscription</li>
-                  <li>View billing history</li>
-                  <li>Update payment method</li>
-                </ul>
-                <div className="mt-4">
-                  <Link
-                    href="/pricing"
-                    className="inline-flex min-h-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] px-5 py-2.5 text-[15px] font-semibold text-white shadow-[0_16px_28px_rgba(82,124,116,0.18)] transition hover:brightness-[1.03]"
-                  >
-                    View pricing
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section id="support" className="scroll-mt-32 saas-card space-y-4 p-5">
-            <div className="space-y-2">
-              <p className="app-kicker">Help</p>
-              <h2 className="text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Customer service</h2>
-              <p className="text-[15px] leading-6 text-[color:var(--muted)]">
-                Keep support and service information in one predictable place.
-              </p>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-[24px] bg-[rgba(142,168,141,0.1)] p-4">
-                <p className="text-[15px] font-semibold text-[color:var(--text)]">Support tools are the next service layer.</p>
-                <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
-                  This area is reserved for billing help, account support, FAQs, and direct customer service once support tooling is connected.
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.72)] p-4">
-                <p className="text-[15px] font-semibold text-[color:var(--text)]">Coming soon</p>
-                <ul className="mt-3 space-y-2 text-[15px] leading-6 text-[color:var(--muted)]">
-                  <li>Account issue support</li>
-                  <li>Billing questions</li>
-                  <li>Recipe and product feedback</li>
-                </ul>
-              </div>
-            </div>
           </section>
         </div>
       </div>

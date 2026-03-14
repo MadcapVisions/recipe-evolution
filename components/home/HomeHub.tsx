@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { HomeHeroPanel } from "@/components/home/HomeHeroPanel";
@@ -11,8 +11,7 @@ import { useHomeHubAi } from "@/components/home/useHomeHubAi";
 import type { HomeHubProps } from "@/components/home/types";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
-export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps) {
-  const [recipesState, setRecipesState] = useState(recentRecipes);
+export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: HomeHubProps) {
   const {
     MAX_IDEA_COUNT,
     promptInput,
@@ -35,11 +34,13 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
     smartStatus,
     heroChatMessages,
     heroChatReadyToApply,
+    activeChatRecipeIndex,
     heroChatFrameRef,
     heroChatViewportRef,
     handleHeroInputKeyDown,
     handleAskChefInHero,
     handleApplyHeroChatIdeas,
+    handleCreateRecipeFromReply,
     handleGenerateMoreIdeas,
     handleSelectIdea,
     generateRecipeFromIdea,
@@ -49,20 +50,20 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
     toggleSmartCookTime,
     handleGenerateSmartMeals,
     handleSelectSmartIdea,
-  } = useHomeHubAi();
+  } = useHomeHubAi(userTasteProfile);
 
-  const favoriteRecipes = recipesState
-    .filter((recipe) => recipe.is_favorite)
-    .sort((a, b) => {
-      const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-      const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-      return bTime - aTime;
-    })
-    .slice(0, 6);
-
-  useEffect(() => {
-    setRecipesState(recentRecipes);
-  }, [recentRecipes]);
+  const favoriteRecipes = useMemo(
+    () =>
+      recentRecipes
+        .filter((recipe) => recipe.is_favorite)
+        .sort((a, b) => {
+          const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, 6),
+    [recentRecipes]
+  );
 
   useEffect(() => {
     const activeStatus = smartStatus || status;
@@ -100,23 +101,22 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
 
   return (
     <div className="mx-auto w-full max-w-[1380px] space-y-8">
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.9fr)_minmax(360px,1fr)] xl:items-stretch">
-        <div className="h-full">
-          <HomeHeroPanel
-            heroChatMessages={heroChatMessages}
-            promptInput={promptInput}
-            loading={loading}
-            heroChatReadyToApply={heroChatReadyToApply}
-            error={error}
-            onPromptInputChange={setPromptInput}
-            onPromptInputKeyDown={handleHeroInputKeyDown}
-            onAskChef={() => void handleAskChefInHero()}
-            onApplySuggestions={handleApplyHeroChatIdeas}
-            heroChatFrameRef={heroChatFrameRef}
-            heroChatViewportRef={heroChatViewportRef}
-          />
-
-        </div>
+      <section className="space-y-6">
+        <HomeHeroPanel
+          heroChatMessages={heroChatMessages}
+          promptInput={promptInput}
+          loading={loading}
+          heroChatReadyToApply={heroChatReadyToApply}
+          activeChatRecipeIndex={activeChatRecipeIndex}
+          error={error}
+          onPromptInputChange={setPromptInput}
+          onPromptInputKeyDown={handleHeroInputKeyDown}
+          onAskChef={() => void handleAskChefInHero()}
+          onApplySuggestions={() => void handleApplyHeroChatIdeas()}
+          onCreateRecipeFromReply={(replyIndex) => void handleCreateRecipeFromReply(replyIndex)}
+          heroChatFrameRef={heroChatFrameRef}
+          heroChatViewportRef={heroChatViewportRef}
+        />
 
         <SmartMealBuilder
           smartProteins={smartProteins}
@@ -134,6 +134,17 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
       </section>
 
       <section className="space-y-6">
+        <section className="app-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="app-kicker">Meal planning</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Plan multiple recipes together.</h2>
+            <p className="mt-2 text-[16px] text-[color:var(--muted)]">Best after you already have recipes you want to combine.</p>
+          </div>
+          <Link href="/planner" className="app-chip app-chip-active justify-center self-start sm:self-auto">
+            Open Planner
+          </Link>
+        </section>
+
         <RecipeIdeasPanel
           ideas={ideas}
           generatingRecipe={generatingRecipe}
@@ -172,7 +183,7 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <p className="app-kicker">Your library</p>
+              <p className="app-kicker">Library</p>
               <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Recent recipes</h2>
             </div>
           </div>
@@ -204,6 +215,9 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
                   <p className="mt-2 text-sm text-[color:var(--muted)]">
                     Last updated {recipe.updated_at ? new Date(recipe.updated_at).toLocaleDateString() : "-"}
                   </p>
+                  <p className="mt-1 text-sm text-[color:var(--muted)]">
+                    Serves {typeof recipe.servings === "number" ? recipe.servings : "-"}
+                  </p>
                   <p className="mt-1 text-sm text-[color:var(--muted)]">Versions: {recipe.version_count}</p>
                 </div>
               </Link>
@@ -215,9 +229,9 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="app-kicker">Snapshot</p>
-              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Your cooking stats</h2>
+              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Collection overview</h2>
             </div>
-            <p className="max-w-md text-sm leading-6 text-[color:var(--muted)]">A quick view of momentum in your recipe collection and AI-assisted iterations.</p>
+            <p className="max-w-md text-sm leading-6 text-[color:var(--muted)]">A lightweight summary of what you already have, kept below the main creation flow.</p>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="flex h-32 flex-col justify-between rounded-[24px] bg-[rgba(188,92,47,0.1)] p-5 text-left">
@@ -227,7 +241,7 @@ export function HomeHub({ recentRecipes, versionTimelineByRecipe }: HomeHubProps
             <div className="flex h-32 flex-col justify-between rounded-[24px] bg-[rgba(111,135,103,0.12)] p-5 text-left">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Versions generated</p>
               <p className="font-display text-5xl font-semibold leading-none text-[color:var(--text)]">
-                {Object.values(versionTimelineByRecipe).reduce((sum, versions) => sum + versions.length, 0)}
+                {totalVersionCount}
               </p>
             </div>
             <div className="flex h-32 flex-col justify-between rounded-[24px] bg-[rgba(221,182,90,0.14)] p-5 text-left">

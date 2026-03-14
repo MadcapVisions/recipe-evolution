@@ -1,38 +1,10 @@
 import { notFound } from "next/navigation";
 import { LiveSessionClient } from "@/components/cook/LiveSessionClient";
+import { readCanonicalSteps } from "@/lib/recipes/canonicalRecipe";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 type LiveSessionPageProps = {
   params: Promise<{ share_slug: string }>;
-};
-
-type StepItem = {
-  text: string;
-  timer_seconds?: number;
-};
-
-const normalizeSteps = (value: unknown): StepItem[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (typeof item !== "object" || item === null) {
-        return null;
-      }
-      const maybeText = (item as Record<string, unknown>).text;
-      const maybeTimer = (item as Record<string, unknown>).timer_seconds;
-      if (typeof maybeText !== "string" || maybeText.trim().length === 0) {
-        return null;
-      }
-      const parsed: StepItem = { text: maybeText };
-      if (typeof maybeTimer === "number") {
-        parsed.timer_seconds = maybeTimer;
-      }
-      return parsed;
-    })
-    .filter((item): item is StepItem => item !== null);
 };
 
 export default async function LiveSessionPage({ params }: LiveSessionPageProps) {
@@ -70,7 +42,7 @@ export default async function LiveSessionPage({ params }: LiveSessionPageProps) 
       isOwner={user?.id === cookSession.owner_id}
       initialStepIndex={cookSession.current_step_index}
       initialIsActive={cookSession.is_active}
-      steps={normalizeSteps(version.steps_json)}
+      steps={readCanonicalSteps(version.steps_json)}
     />
   );
 }

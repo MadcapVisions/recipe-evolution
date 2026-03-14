@@ -40,6 +40,64 @@ type CookSessionRealtimeRow = {
   is_active?: boolean;
 };
 
+function formatTimerLabel(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function LiveTimerPanel({
+  durationSeconds,
+  stepKey,
+}: {
+  durationSeconds: number;
+  stepKey: string;
+}) {
+  const [remainingSeconds, setRemainingSeconds] = useState(durationSeconds);
+  const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    setRemainingSeconds(durationSeconds);
+    setIsRunning(false);
+  }, [durationSeconds, stepKey]);
+
+  useEffect(() => {
+    if (!isRunning) return;
+    const interval = window.setInterval(() => {
+      setRemainingSeconds((current) => {
+        if (current <= 1) {
+          window.clearInterval(interval);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isRunning]);
+
+  return (
+    <div className="rounded-[22px] border border-indigo-200 bg-indigo-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">Shared timer</p>
+      <p className="mt-2 text-3xl font-semibold text-indigo-950">{formatTimerLabel(remainingSeconds)}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button onClick={() => setIsRunning((current) => !current)} variant={isRunning ? "secondary" : "primary"} className="min-h-11">
+          {isRunning ? "Pause" : "Start"}
+        </Button>
+        <Button
+          onClick={() => {
+            setRemainingSeconds(durationSeconds);
+            setIsRunning(false);
+          }}
+          variant="secondary"
+          className="min-h-11"
+        >
+          Reset
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function LiveSessionClient({
   sessionId,
   shareSlug,
@@ -168,14 +226,22 @@ export function LiveSessionClient({
   }
 
   return (
-    <div className="saas-card flex min-h-[80vh] flex-col justify-between p-6">
-      <div className="space-y-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Live Session</p>
-        <p className="text-sm text-slate-600">Share code: {shareSlug}</p>
-        <p className="text-sm font-medium text-slate-500">
-          Step {safeIndex + 1} of {totalSteps}
-        </p>
-        <div className="rounded-xl bg-gradient-to-r from-indigo-50 to-slate-50 p-6">
+    <div className="saas-card p-6">
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Live Session</p>
+            <p className="mt-2 text-sm text-slate-600">Share code: {shareSlug}</p>
+            <p className="mt-3 text-sm font-medium text-slate-500">
+              Step {safeIndex + 1} of {totalSteps}
+            </p>
+          </div>
+          <div className="rounded-full bg-[rgba(141,169,187,0.12)] px-3 py-1 text-sm font-medium text-slate-700">
+            {isOwner ? "Host controls" : "Read-only viewer"}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] bg-gradient-to-r from-indigo-50 to-slate-50 p-6">
           <p className="text-3xl font-semibold leading-snug text-slate-900">
             {parsedStep.instruction || currentStep?.text || "No steps available."}
           </p>
@@ -192,14 +258,45 @@ export function LiveSessionClient({
             </div>
           ) : null}
         </div>
-        {typeof currentStep?.timer_seconds === "number" ? (
-          <p className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-base text-indigo-700">
-            Timer: {currentStep.timer_seconds} seconds
-          </p>
-        ) : null}
-      </div>
 
-      <div className="space-y-3">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="rounded-[24px] border bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">Session flow</p>
+            <div className="mt-3 space-y-2">
+              {steps.map((step, index) => {
+                const parsed = parseTechniqueStep(step.text);
+                const active = index === safeIndex;
+                return (
+                  <button
+                    key={`${index}-${step.text}`}
+                    type="button"
+                    onClick={() => void updateStep(index)}
+                    disabled={!isOwner || !isActive}
+                    className={`w-full rounded-[18px] border px-3 py-3 text-left transition ${
+                      active ? "border-[rgba(82,124,116,0.22)] bg-[rgba(82,124,116,0.08)]" : "bg-white"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Step {index + 1}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-900">{parsed.instruction || step.text}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {typeof currentStep?.timer_seconds === "number" ? (
+              <LiveTimerPanel durationSeconds={currentStep.timer_seconds} stepKey={`${safeIndex}-${currentStep.timer_seconds}`} />
+            ) : null}
+            {steps[safeIndex + 1] ? (
+              <div className="rounded-[22px] border bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Up next</p>
+                <p className="mt-2 text-sm leading-6 text-slate-900">{parseTechniqueStep(steps[safeIndex + 1].text).instruction || steps[safeIndex + 1].text}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
         {isOwner ? (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -222,14 +319,14 @@ export function LiveSessionClient({
             <Button
               onClick={endSession}
               variant="danger"
-              className="min-h-14 w-full text-base"
+              className="min-h-12 w-full text-base"
             >
               End Session
             </Button>
           </>
         ) : (
-          <p className="rounded-md border bg-slate-50 p-3 text-sm text-slate-700">
-            Read-only mode. The cook controls step changes.
+          <p className="rounded-[20px] border bg-slate-50 p-3 text-sm text-slate-700">
+            Read-only mode. The cook controls step changes and shared timing.
           </p>
         )}
         {error ? <p className="text-sm text-red-700">{error}</p> : null}

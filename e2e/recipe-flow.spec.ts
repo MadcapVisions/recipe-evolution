@@ -14,7 +14,7 @@ test.describe("authenticated recipe flow", () => {
     await cleanupRecipesByTitlePrefix(titlePrefix);
   });
 
-  test("user can create a recipe, add the first version, and view recipe detail", async ({ page }) => {
+  test("user can create a recipe with its initial version and view recipe detail", async ({ page }) => {
     const uniqueSuffix = Date.now().toString();
     const title = `${titlePrefix} ${uniqueSuffix}`;
     const ingredientOne = `1 lb chicken thighs ${uniqueSuffix}`;
@@ -30,11 +30,6 @@ test.describe("authenticated recipe flow", () => {
     await page.getByLabel("Title").fill(title);
     await page.getByLabel("Description").fill("Playwright recipe coverage");
     await page.getByLabel("Tags (comma separated)").fill("e2e,playwright");
-    await page.getByRole("button", { name: "Create Recipe" }).click();
-
-    await expect(page).toHaveURL(/\/recipes\/.+\/versions\/new$/);
-    await expect(page.getByRole("heading", { name: `New Version: ${title}` })).toBeVisible();
-
     await page.getByLabel("Servings").fill("4");
     await page.getByLabel("Difficulty").fill("Easy");
     await page.getByLabel("Prep time (min)").fill("15");
@@ -42,7 +37,7 @@ test.describe("authenticated recipe flow", () => {
     await page.getByLabel("Ingredients (one per line)").fill(`${ingredientOne}\n${ingredientTwo}`);
     await page.getByLabel("Steps (one per line)").fill(`${stepOne}\n${stepTwo}`);
     await page.getByLabel("Notes").fill("Created by Playwright");
-    await page.getByRole("button", { name: "Create Version" }).click();
+    await page.getByRole("button", { name: "Create Recipe" }).click();
 
     await expect(page).toHaveURL(/\/recipes\/.+\/versions\/.+$/);
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();

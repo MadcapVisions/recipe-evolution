@@ -1,14 +1,10 @@
-type StructuredRecipeResponse = {
-  title: string;
-  description?: string | null;
-  ingredients: Array<{ name?: string }>;
-  steps: Array<{ text?: string }>;
-};
+import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 
 type StructuredRecipeLegacyResponse = {
   data?: {
     title?: string;
     description?: string | null;
+    // Backward-compatible read path for older route responses.
     ingredients_json?: Array<{ name?: string }>;
     steps_json?: Array<{ text?: string }>;
   };
@@ -39,17 +35,27 @@ async function extractRouteErrorMessage(response: Response): Promise<string> {
   return "Recipe parsing failed. Please edit manually.";
 }
 
-function normalizeStructuredResult(data: StructuredRecipeResponse | StructuredRecipeLegacyResponse | undefined): StructuredRecipeResult | null {
+function normalizeStructuredResult(
+  data: { result?: AiRecipeResult } | StructuredRecipeLegacyResponse | undefined
+): StructuredRecipeResult | null {
   if (!data) {
     return null;
   }
 
-  if ("title" in data && typeof data.title === "string" && Array.isArray(data.ingredients) && Array.isArray(data.steps)) {
+  if (
+    "result" in data &&
+    data.result &&
+    typeof data.result === "object" &&
+    data.result.recipe &&
+    Array.isArray(data.result.recipe.ingredients) &&
+    Array.isArray(data.result.recipe.steps)
+  ) {
     return {
-      title: data.title,
-      description: data.description ?? "",
-      ingredients: data.ingredients.map((item) => ({ name: item.name ?? "" })),
-      steps: data.steps.map((item) => ({ text: item.text ?? "" })),
+      title: data.result.recipe.title,
+      description: data.result.recipe.description ?? "",
+      ingredients: data.result.recipe.ingredients.map((item) => ({ name: item.name ?? "" })),
+      steps: data.result.recipe.steps.map((item) => ({ text: item.text ?? "" })),
+      meta: data.result.meta,
     };
   }
 

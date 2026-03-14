@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { structureRecipeFromRawText, StructureRecipeLimitError } from "@/lib/ai/structureRecipe";
 
-type StructureRecipeRequest = {
-  rawText?: string;
-  preferredUnits?: "metric" | "imperial";
-};
+const structureRecipeRequestSchema = z.object({
+  rawText: z.string().trim().min(1).max(20_000),
+  preferredUnits: z.enum(["metric", "imperial"]).optional(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -19,10 +20,10 @@ export async function POST(request: Request) {
       return access.errorResponse;
     }
 
-    const body = (await request.json()) as StructureRecipeRequest;
-    const rawText = typeof body.rawText === "string" ? body.rawText.trim() : "";
-
-    if (!rawText || rawText.length > 20_000) {
+    let body;
+    try {
+      body = structureRecipeRequestSchema.parse(await request.json());
+    } catch {
       return NextResponse.json(
         {
           error: true,
@@ -35,11 +36,11 @@ export async function POST(request: Request) {
     const result = await structureRecipeFromRawText({
       supabase: access.supabase,
       userId: access.userId,
-      rawText,
+      rawText: body.rawText,
       preferredUnits: body.preferredUnits === "imperial" ? "imperial" : "metric",
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({ result });
   } catch (error) {
     if (error instanceof StructureRecipeLimitError) {
       return NextResponse.json(

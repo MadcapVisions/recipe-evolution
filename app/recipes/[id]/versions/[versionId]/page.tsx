@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { VersionDetailClient } from "@/components/recipes/version-detail/VersionDetailClient";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { loadVersionDetailData } from "@/lib/versionDetailData";
+import { loadCachedVersionDetailData } from "@/lib/versionDetailData";
 
 type VersionDetailPageProps = {
   params: Promise<{ id: string; versionId: string }>;
@@ -18,7 +18,7 @@ export default async function VersionDetailPage({ params }: VersionDetailPagePro
     redirect("/sign-in");
   }
 
-  const data = await loadVersionDetailData(supabase, user.id, id, versionId);
+  const data = await loadCachedVersionDetailData(user.id, id, versionId);
 
   if (!data) {
     notFound();

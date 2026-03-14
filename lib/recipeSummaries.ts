@@ -10,6 +10,7 @@ export type RecipeSummary = {
   updated_at: string | null;
   is_favorite: boolean;
   version_count: number;
+  servings: number | null;
   cover_image_url: string | null;
 };
 
@@ -25,7 +26,7 @@ export async function loadRecipeSummaries(
   ownerId: string
 ): Promise<{
   recipeSummaries: RecipeSummary[];
-  versionTimelineByRecipe: Record<string, RecipeTimelineItem[]>;
+  totalVersionCount: number;
 }> {
   const { data: recipes, error } = await supabase
     .from("recipes")
@@ -40,8 +41,8 @@ export async function loadRecipeSummaries(
   const recipeIds = (recipes ?? []).map((recipe) => recipe.id);
   const { data: versions, error: versionsError } = recipeIds.length
     ? await supabase
-        .from("recipe_versions")
-        .select("id, recipe_id, version_number, version_label, created_at")
+      .from("recipe_versions")
+        .select("id, recipe_id, version_number, version_label, created_at, servings")
         .in("recipe_id", recipeIds)
         .order("version_number", { ascending: false })
     : {
@@ -51,6 +52,7 @@ export async function loadRecipeSummaries(
           version_number: number;
           version_label: string | null;
           created_at: string;
+          servings: number | null;
         }>,
         error: null,
       };
@@ -75,34 +77,37 @@ export async function loadRecipeSummaries(
     throw new Error(photosError.message);
   }
 
-  const versionCountByRecipe = (versions ?? []).reduce<Record<string, number>>((accumulator, version) => {
-    accumulator[version.recipe_id] = (accumulator[version.recipe_id] ?? 0) + 1;
-    return accumulator;
-  }, {});
+  const versionCountByRecipe: Record<string, number> = {};
+  const versionToRecipe: Record<string, string> = {};
+  const latestServingsByRecipe: Record<string, number | null> = {};
 
-  const versionToRecipe = (versions ?? []).reduce<Record<string, string>>((accumulator, version) => {
-    accumulator[version.id] = version.recipe_id;
-    return accumulator;
-  }, {});
-
-  const firstPhotoPathByRecipe = (photos ?? []).reduce<Record<string, string>>((accumulator, photo) => {
-    const recipeId = versionToRecipe[photo.version_id];
-    if (!recipeId || accumulator[recipeId]) {
-      return accumulator;
+  for (const version of versions ?? []) {
+    versionCountByRecipe[version.recipe_id] = (versionCountByRecipe[version.recipe_id] ?? 0) + 1;
+    versionToRecipe[version.id] = version.recipe_id;
+    if (!(version.recipe_id in latestServingsByRecipe)) {
+      latestServingsByRecipe[version.recipe_id] = typeof version.servings === "number" ? version.servings : null;
     }
-    accumulator[recipeId] = photo.storage_path;
-    return accumulator;
-  }, {});
+  }
+
+  const firstPhotoPathByRecipe: Record<string, string> = {};
+  for (const photo of photos ?? []) {
+    const recipeId = versionToRecipe[photo.version_id];
+    if (!recipeId || firstPhotoPathByRecipe[recipeId]) {
+      continue;
+    }
+    firstPhotoPathByRecipe[recipeId] = photo.storage_path;
+  }
 
   const coverPhotos = Object.entries(firstPhotoPathByRecipe).map(([recipeId, storagePath]) => ({
     id: recipeId,
     storage_path: storagePath,
   }));
-  const signedCoverPhotos = await signVersionPhotoUrls(supabase, coverPhotos);
+  const signedCoverPhotos = coverPhotos.length > 0 ? await signVersionPhotoUrls(supabase, coverPhotos) : [];
 
-  const coverUrlByRecipe = Object.fromEntries(
-    signedCoverPhotos.map((photo) => [photo.id, photo.signedUrl] as const)
-  );
+  const coverUrlByRecipe: Record<string, string> = {};
+  for (const photo of signedCoverPhotos) {
+    coverUrlByRecipe[photo.id] = photo.signedUrl;
+  }
 
   const recipeSummaries = (recipes ?? []).map((recipe) => ({
     id: recipe.id,
@@ -111,26 +116,11 @@ export async function loadRecipeSummaries(
     updated_at: recipe.updated_at,
     is_favorite: recipe.is_favorite ?? false,
     version_count: versionCountByRecipe[recipe.id] ?? 0,
+    servings: latestServingsByRecipe[recipe.id] ?? null,
     cover_image_url: coverUrlByRecipe[recipe.id] ?? null,
   }));
-
-  const versionTimelineByRecipe = (versions ?? []).reduce<Record<string, RecipeTimelineItem[]>>((accumulator, version) => {
-    if (!accumulator[version.recipe_id]) {
-      accumulator[version.recipe_id] = [];
-    }
-
-    accumulator[version.recipe_id].push({
-      id: version.id,
-      version_number: version.version_number,
-      version_label: version.version_label,
-      created_at: version.created_at,
-    });
-
-    return accumulator;
-  }, {});
-
   return {
     recipeSummaries,
-    versionTimelineByRecipe,
+    totalVersionCount: (versions ?? []).length,
   };
 }

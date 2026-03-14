@@ -25,6 +25,12 @@ type ProductEventRow = {
   metadata_json?: Record<string, unknown> | null;
 };
 
+type ConversationTurnRow = {
+  message?: string | null;
+  scope?: string | null;
+  role?: string | null;
+};
+
 function normalizeList(values: string[] | null | undefined) {
   return (values ?? []).map((value) => value.trim()).filter(Boolean);
 }
@@ -193,16 +199,26 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
     .eq("owner_id", ownerId)
     .order("created_at", { ascending: false })
     .limit(80);
+  const conversationQuery = supabase
+    .from("ai_conversation_turns")
+    .select("message, scope, role")
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: false })
+    .limit(80);
 
-  const [preferencesResult, recipesResult, eventsResult] = await Promise.all([
+  const [preferencesResult, recipesResult, eventsResult, conversationResult] = await Promise.all([
     preferencesQuery ?? Promise.resolve({ data: null, error: null }),
     recipesQuery ?? Promise.resolve({ data: [], error: null }),
     eventsQuery ?? Promise.resolve({ data: [], error: null }),
+    conversationQuery ?? Promise.resolve({ data: [], error: null }),
   ]);
 
   const preferences = (preferencesResult as any)?.data as ExplicitPreferencesRow | null;
   const recipes = Array.isArray((recipesResult as any)?.data) ? (recipesResult as any).data : [];
   const events = Array.isArray((eventsResult as any)?.data) ? ((eventsResult as any).data as ProductEventRow[]) : [];
+  const conversationTurns = Array.isArray((conversationResult as any)?.data)
+    ? ((conversationResult as any).data as ConversationTurnRow[])
+    : [];
 
   const recipeIds = recipes.map((recipe: any) => String(recipe?.id ?? "")).filter(Boolean);
   const versionsResult =
@@ -237,12 +253,22 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
     }
     return baseTexts;
   });
+  const conversationTextPool = conversationTurns.flatMap((turn) => {
+    const message = typeof turn.message === "string" ? turn.message.trim() : "";
+    if (!message) {
+      return [];
+    }
+    if (turn.role === "user") {
+      return repeatValues([message], 2);
+    }
+    return [message];
+  });
 
   const explicitSummary = summarizeExplicit(preferences);
   const inferred = summarizeInferred({
-    recipeTitles: [...titlePool, ...behaviorTextPool],
+    recipeTitles: [...titlePool, ...behaviorTextPool, ...conversationTextPool],
     recipeTags: tagPool,
-    ingredientNames: [...ingredientPool, ...behaviorTextPool],
+    ingredientNames: [...ingredientPool, ...behaviorTextPool, ...conversationTextPool],
   });
 
   const combinedSummary = [explicitSummary, inferred.summary].filter(Boolean).join(" ");

@@ -4,11 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  createRecipeVersion,
-  ensureRecipeOwnership,
-  requireAuthenticatedUserId,
-} from "@/lib/client/recipeMutations";
+import { createRecipeVersionViaApi } from "@/lib/client/recipeMutations";
+import { parseIngredientLines, parseStepLines } from "@/lib/recipes/recipeDraft";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import {
   RecipeVersionFormInput,
@@ -45,29 +42,17 @@ export function NewVersionForm({ recipeId }: NewVersionFormProps) {
   const onSubmit = async (values: RecipeVersionFormValues) => {
     setSubmitError(null);
 
-    const ingredients_json = values.ingredientsInput
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((name) => ({ name }));
-
-    const steps_json = values.stepsInput
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((text) => ({ text }));
+    const canonicalIngredients = parseIngredientLines(values.ingredientsInput);
+    const canonicalSteps = parseStepLines(values.stepsInput);
 
     try {
-      const userId = await requireAuthenticatedUserId();
-      await ensureRecipeOwnership(recipeId, userId);
-      const createdVersion = await createRecipeVersion({
-        recipeId,
+      const createdVersion = await createRecipeVersionViaApi(recipeId, {
         servings: values.servings ?? null,
         prep_time_min: values.prepTimeMin ?? null,
         cook_time_min: values.cookTimeMin ?? null,
         difficulty: values.difficulty,
-        ingredients_json,
-        steps_json,
+        ingredients: canonicalIngredients,
+        steps: canonicalSteps,
         notes: values.notes,
         change_log: "Manual update",
       });

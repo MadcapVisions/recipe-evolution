@@ -2,12 +2,21 @@
 
 Next.js 16 + Supabase app for recipe creation, versioning, AI-assisted cooking workflows, grocery lists, photos, and live cook sessions.
 
+Current architecture highlights:
+
+- all new recipes are created atomically with an initial version
+- AI-assisted creation flows share a common recipe draft shape
+- canonical recipe persistence is intentionally simple: ingredient names and step text
+- richer parsing such as quantities, units, prep notes, and timers is treated as optional derived enrichment
+- app-route AI endpoints handle auth, rate limits, caching, and provider fallback
+- HomeHub and recipe-detail chef conversations are persisted server-side
+
 ## Requirements
 
 - Node.js 20+
 - npm
 - Supabase project access
-- Supabase CLI if you want to apply migrations or deploy edge functions locally/remotely
+- Supabase CLI if you want to apply migrations
 
 ## Local Environment
 
@@ -89,39 +98,44 @@ Current migrations cover:
 - recipes and versions
 - photos and live sessions
 - grocery lists and AI cache
+- AI conversation persistence
 - product intelligence tables
 - recipe visibility states
 - AI rate limiting
 - AI rate limit cleanup and metrics
+- user taste profiles derived from preferences, behavior, and chat history
 
 Migration files live in [supabase/migrations](/Users/macbook12/Desktop/AIcook/recipe-evolution/supabase/migrations).
 
-## Supabase Edge Functions
+## AI Architecture
 
-This repo still includes these edge functions in [supabase/functions](/Users/macbook12/Desktop/AIcook/recipe-evolution/supabase/functions):
+Primary AI entry points are authenticated Next.js app routes:
 
-- `ai-structure-recipe`
-- `ai-improve-recipe`
-- `ai-refine-recipe`
-- `ai-generate-recipe`
+- [app/api/ai/home/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/home/route.ts)
+- [app/api/ai/chef-chat/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/chef-chat/route.ts)
+- [app/api/ai/improve-recipe/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/improve-recipe/route.ts)
+- [app/api/ai/structure-recipe/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/structure-recipe/route.ts)
 
-Current app usage:
+These routes currently provide:
 
-- text-import / structuring flows now use `/api/ai/structure-recipe`
-- HomeHub no longer depends on `ai-generate-recipe`; it now uses `/api/ai/home`
-- recipe improvement in the app uses `/api/ai/improve-recipe`
-- legacy direct-invoke UI components for `ai-improve-recipe` and `ai-refine-recipe` have been removed from the app
+- auth checks via Supabase server sessions
+- per-route AI rate limiting
+- provider fallback across OpenAI, Gemini, and Claude
+- normalized JSON parsing for structured AI payloads
+- AI response caching for structure, HomeHub ideas, HomeHub full recipes, and recipe improvements
+- server-side storage of HomeHub and recipe-detail conversation turns
+- a shared AI recipe-result envelope for structure, generation, and refinement flows
 
-Deploy functions when needed:
+Shared AI helpers live in:
 
-```bash
-supabase functions deploy ai-structure-recipe
-supabase functions deploy ai-improve-recipe
-supabase functions deploy ai-refine-recipe
-supabase functions deploy ai-generate-recipe
-```
+- [lib/ai/aiClient.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/lib/ai/aiClient.ts)
+- [lib/ai/jsonResponse.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/lib/ai/jsonResponse.ts)
+- [lib/ai/cache.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/lib/ai/cache.ts)
+- [lib/ai/conversationStore.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/lib/ai/conversationStore.ts)
 
-Function config lives in [supabase/config.toml](/Users/macbook12/Desktop/AIcook/recipe-evolution/supabase/config.toml).
+## Supabase Config
+
+Project-level Supabase config lives in [supabase/config.toml](/Users/macbook12/Desktop/AIcook/recipe-evolution/supabase/config.toml).
 
 ## Verification
 
@@ -157,22 +171,15 @@ The e2e script:
 
 Current e2e coverage includes:
 
+- AI text import flow
+- HomeHub chef-chat to recipe creation flow
+- recipe-detail chef-chat to apply-ready version flow
 - signed-out redirect behavior
 - sign-in / sign-up screen rendering
 - sign out + protected-route recovery
 - authenticated recipe creation + first version creation
 - recipe detail rendering after save
 - hidden/archive persistence on `/recipes`
-
-## App AI Routes
-
-App-route AI endpoints currently in use:
-
-- [app/api/ai/home/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/home/route.ts)
-- [app/api/ai/chef-chat/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/chef-chat/route.ts)
-- [app/api/ai/improve-recipe/route.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/app/api/ai/improve-recipe/route.ts)
-
-These routes are authenticated and use Supabase-backed rate limiting.
 
 Rate-limit operations added in the database:
 
@@ -184,5 +191,10 @@ Rate-limit operations added in the database:
 ## Notes
 
 - Server-side auth guards now use `supabase.auth.getUser()` instead of `getSession()`.
-- HomeHub AI calls now go through the authenticated app route layer rather than directly through `supabase.functions.invoke("ai-generate-recipe")`.
+- recipe creation now goes through an atomic recipe-plus-initial-version flow.
+- version sequencing now happens through the server API instead of client-side version-number calculation.
+- the app treats persisted recipe content as canonical ingredient lines and canonical step lines, not rich first-class culinary objects.
+- grocery and cooking experiences derive optional details such as quantities, prep notes, and timers from canonical text when needed.
+- HomeHub AI calls now go through the authenticated app route layer instead of the retired edge-function path.
+- persisted AI chat turns now feed back into user taste-profile inference.
 - If local scans are noisy, delete the stale `.next_backup_1773153870` directory in the project root.

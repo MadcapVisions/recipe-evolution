@@ -35,6 +35,18 @@ export default async function RootLayout({
     resolvedName.length > 0
       ? resolvedName.charAt(0).toUpperCase()
       : user?.email?.trim().charAt(0).toUpperCase() ?? "U";
+  const navLinks = user
+    ? [
+        { href: "/dashboard", label: "Dashboard" },
+        { href: "/recipes", label: "Library" },
+        { href: "/planner", label: "Planner" },
+        { href: "/import", label: "Import from Text" },
+        { href: "/settings", label: "Settings" },
+      ]
+    : [
+        { href: "/", label: "Home" },
+        { href: "/pricing", label: "Pricing" },
+      ];
 
   return (
     <html lang="en">
@@ -71,38 +83,15 @@ export default async function RootLayout({
 
             <div className="mt-3 overflow-x-auto lg:mt-0 lg:ml-auto lg:overflow-visible">
               <div className="flex min-w-max items-center gap-1.5 text-[15px] font-semibold text-[color:var(--muted)] sm:gap-2 sm:text-base lg:min-w-0">
-                <a
-                  href="/"
-                  className="rounded-full px-3 py-2 transition hover:bg-white/60 hover:text-[color:var(--text)] lg:px-4"
-                >
-                  Home
-                </a>
-                <a
-                  href="/dashboard"
-                  className="rounded-full px-3 py-2 transition hover:bg-white/60 hover:text-[color:var(--text)] lg:px-4"
-                >
-                  Dashboard
-                </a>
-                <a
-                  href="/recipes"
-                  className="rounded-full px-3 py-2 transition hover:bg-white/60 hover:text-[color:var(--text)] lg:px-4"
-                >
-                  All Recipes
-                </a>
-                <a
-                  href="/import"
-                  className="rounded-full px-3 py-2 transition hover:bg-white/60 hover:text-[color:var(--text)] lg:px-4"
-                >
-                  Import Recipe
-                </a>
-                {!user ? (
+                {navLinks.map((link) => (
                   <a
-                    href="/pricing"
+                    key={link.href}
+                    href={link.href}
                     className="rounded-full px-3 py-2 transition hover:bg-white/60 hover:text-[color:var(--text)] lg:px-4"
                   >
-                    Pricing
+                    {link.label}
                   </a>
-                ) : null}
+                ))}
               </div>
             </div>
 
@@ -121,7 +110,7 @@ export default async function RootLayout({
             </div>
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-32 sm:px-6 sm:pt-34 lg:px-10 lg:pb-8 lg:pt-26">
+        <main className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-36 sm:px-6 sm:pt-36 lg:px-10 lg:pb-8 lg:pt-26">
           <div className="app-shell p-4 sm:p-6 lg:p-7">{children}</div>
         </main>
       </body>

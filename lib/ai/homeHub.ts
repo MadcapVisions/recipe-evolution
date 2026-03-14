@@ -1,14 +1,19 @@
 import { callAI } from "./aiClient";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
-import { parseRecipeResponse } from "./schema/parseRecipeResponse";
+import { callAIForJson } from "./jsonResponse";
+import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
+import type { AIMessage } from "./chatPromptBuilder";
+import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatIngredientLine } from "../recipes/recipeDraft";
 
-export type HomeIdea = {
+type HomeIdea = {
   title: string;
   description: string;
   cook_time_min: number | null;
 };
 
-export type HomeGeneratedRecipe = {
+type HomeGeneratedRecipe = {
   title: string;
   description: string | null;
   servings: number | null;
@@ -27,12 +32,19 @@ type IdeaInput = {
   ingredients?: string[];
   excludeTitles?: string[];
   batchIndex?: number;
+  conversationHistory?: AIMessage[];
+  requestedCount?: number;
   filters?: {
     cuisine?: string;
     protein?: string;
     mealType?: string;
     cookingTime?: string;
   };
+};
+
+type AiCacheContext = {
+  supabase: SupabaseClient;
+  userId: string;
 };
 
 const STOP_WORDS = new Set([
@@ -78,6 +90,21 @@ const STOP_WORDS = new Set([
   "suggestion",
   "about",
   "anything",
+  "interested",
+  "build",
+  "built",
+  "user",
+  "users",
+  "version",
+  "versions",
+  "special",
+  "create",
+  "created",
+  "give",
+  "some",
+  "can",
+  "you",
+  "me",
 ]);
 
 const toTitleCase = (value: string) =>
@@ -86,6 +113,15 @@ const toTitleCase = (value: string) =>
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+
+const FORBIDDEN_TITLE_TERMS = new Set(["build", "built", "user", "interested", "idea", "recipe", "version", "special", "chef"]);
+
+function formatConversation(conversationHistory: AIMessage[] | undefined) {
+  return (conversationHistory ?? [])
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.content.trim()}`)
+    .join("\n");
+}
 
 function extractSeedLabel(input: { prompt?: string; ingredients?: string[]; ideaTitle?: string }): string {
   const ingredientSeed = (input.ingredients ?? [])
@@ -113,8 +149,56 @@ function extractSeedLabel(input: { prompt?: string; ingredients?: string[]; idea
   return toTitleCase(tokens.join(" "));
 }
 
+function sanitizeIdeaTitle(rawTitle: string) {
+  return toTitleCase(
+    rawTitle
+      .replace(/[^\w\s&/-]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((word) => !FORBIDDEN_TITLE_TERMS.has(word.toLowerCase()))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+function deriveIdeaTitle(rawTitle: string, description: string, input: IdeaInput) {
+  const sanitized = sanitizeIdeaTitle(rawTitle);
+  if (sanitized && sanitized.split(/\s+/).length >= 2) {
+    return sanitized;
+  }
+
+  const combined = `${description} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`.toLowerCase();
+  const titlePatterns = [
+    { tokens: ["eggplant", "aubergine", "vinete"], title: "Roasted Eggplant Dip" },
+    { tokens: ["baba ghanoush"], title: "Baba Ghanoush" },
+    { tokens: ["dip"], title: "Smoky Roasted Dip" },
+    { tokens: ["pasta", "linguine", "fettuccine", "noodle"], title: "Savory Pasta" },
+    { tokens: ["rice bowl", "bowl"], title: "Flavorful Rice Bowl" },
+    { tokens: ["soup", "stew"], title: "Hearty Soup" },
+    { tokens: ["taco", "tacos"], title: "Bright Tacos" },
+    { tokens: ["salad"], title: "Fresh Salad" },
+    { tokens: ["skillet"], title: "Weeknight Skillet" },
+  ];
+
+  for (const pattern of titlePatterns) {
+    if (pattern.tokens.some((token) => combined.includes(token))) {
+      return pattern.title;
+    }
+  }
+
+  return extractSeedLabel({
+    prompt: input.prompt || formatConversation(input.conversationHistory),
+    ingredients: input.ingredients,
+    ideaTitle: rawTitle || description,
+  });
+}
+
 function buildFallbackIdeas(input: IdeaInput, count = 6): HomeIdea[] {
-  const seed = extractSeedLabel(input).slice(0, 40);
+  const seed = extractSeedLabel({
+    prompt: input.prompt || formatConversation(input.conversationHistory),
+    ingredients: input.ingredients,
+  }).slice(0, 40);
   const excluded = new Set((input.excludeTitles ?? []).map((title) => title.toLowerCase()));
   const batch = Math.max(input.batchIndex ?? 1, 1);
   const styles = ["Smoky", "Zesty", "Herby", "Garlic Butter", "Crispy", "Creamy", "Spicy", "Roasted"];
@@ -145,7 +229,7 @@ function buildFallbackIdeas(input: IdeaInput, count = 6): HomeIdea[] {
   return out;
 }
 
-function normalizeIdeas(value: unknown): HomeIdea[] {
+function normalizeIdeas(value: unknown, input: IdeaInput): HomeIdea[] {
   const rawIdeas =
     typeof value === "object" && value !== null && Array.isArray((value as { ideas?: unknown[] }).ideas)
       ? (value as { ideas: unknown[] }).ideas
@@ -160,7 +244,7 @@ function normalizeIdeas(value: unknown): HomeIdea[] {
       const title = item.trim();
       if (title) {
         ideas.push({
-          title,
+          title: deriveIdeaTitle(title, "", input),
           description: "A practical, flavor-forward recipe idea shaped around your request.",
           cook_time_min: 30,
         });
@@ -179,7 +263,7 @@ function normalizeIdeas(value: unknown): HomeIdea[] {
     }
 
     ideas.push({
-      title,
+      title: deriveIdeaTitle(title, typeof raw.description === "string" ? raw.description : "", input),
       description:
         typeof raw.description === "string" && raw.description.trim().length > 0
           ? raw.description.trim()
@@ -204,7 +288,15 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
             return { name: item.trim() };
           }
           if (item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string") {
-            return { name: (item as { name: string }).name.trim() };
+            const ingredient = item as { name: string; quantity?: number; unit?: string | null; prep?: string | null };
+            return {
+              name: formatIngredientLine({
+                name: ingredient.name,
+                quantity: typeof ingredient.quantity === "number" ? ingredient.quantity : null,
+                unit: typeof ingredient.unit === "string" ? ingredient.unit : null,
+                prep: typeof ingredient.prep === "string" ? ingredient.prep : null,
+              }) || ingredient.name.trim(),
+            };
           }
           return null;
         })
@@ -242,16 +334,65 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
   };
 }
 
+function recipeMatchesConversation(recipe: HomeGeneratedRecipe, input: { ideaTitle: string; prompt?: string; ingredients?: string[]; conversationHistory?: AIMessage[] }) {
+  const context = `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)} ${(input.ingredients ?? []).join(" ")}`.toLowerCase();
+  const recipeText = `${recipe.title} ${recipe.description ?? ""} ${recipe.ingredients.map((item) => item.name).join(" ")} ${recipe.steps.map((item) => item.text).join(" ")}`.toLowerCase();
+
+  const requiredSignals: Array<{ trigger: string[]; mustMatch: string[] }> = [
+    { trigger: ["eggplant", "aubergine", "vinete"], mustMatch: ["eggplant", "aubergine", "vinete"] },
+    { trigger: ["dip", "spread", "salata de vinete", "salată de vinete"], mustMatch: ["dip", "spread", "vinete", "eggplant"] },
+    { trigger: ["romanian"], mustMatch: ["romanian", "vinete", "sunflower oil"] },
+    { trigger: ["chicken"], mustMatch: ["chicken"] },
+    { trigger: ["salmon"], mustMatch: ["salmon"] },
+    { trigger: ["shrimp"], mustMatch: ["shrimp"] },
+    { trigger: ["tofu"], mustMatch: ["tofu"] },
+  ];
+  const requiredFormats: Array<{ trigger: string[]; mustMatch: string[] }> = [
+    { trigger: ["dip", "spread", "salata de vinete", "salată de vinete"], mustMatch: ["dip", "spread", "mash", "serve cool", "serve at room temperature"] },
+    { trigger: ["soup", "stew"], mustMatch: ["soup", "stew", "broth", "simmer"] },
+    { trigger: ["salad"], mustMatch: ["salad", "greens", "vinaigrette"] },
+    { trigger: ["taco", "tacos"], mustMatch: ["taco", "tortilla"] },
+    { trigger: ["pasta", "noodle"], mustMatch: ["pasta", "noodle"] },
+    { trigger: ["bowl", "rice bowl"], mustMatch: ["bowl"] },
+  ];
+
+  for (const rule of requiredSignals) {
+    if (rule.trigger.some((token) => context.includes(token))) {
+      if (!rule.mustMatch.some((token) => recipeText.includes(token))) {
+        return false;
+      }
+    }
+  }
+
+  for (const rule of requiredFormats) {
+    if (rule.trigger.some((token) => context.includes(token))) {
+      if (!rule.mustMatch.some((token) => recipeText.includes(token))) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 function buildIdeasPrompt(input: IdeaInput) {
+  const requestedCount = Math.max(1, Math.min(input.requestedCount ?? 2, 2));
+  const conversation = formatConversation(input.conversationHistory);
+  const excludeTitles = JSON.stringify(input.excludeTitles ?? []);
+
   if (input.mode === "ingredients_ideas") {
     return `User ingredients: ${JSON.stringify(input.ingredients ?? [])}
-Already shown idea titles (must NOT repeat any): ${JSON.stringify(input.excludeTitles ?? [])}
+Chef conversation (highest priority if present):
+${conversation || "No chef conversation provided."}
+Already shown idea titles (must NOT repeat any): ${excludeTitles}
 Current batch index: ${input.batchIndex ?? 1}
-Generate exactly 6 recipe ideas the user can cook with these ingredients.
+Generate exactly ${requestedCount} recipe ideas the user can cook with these ingredients.
 Rules:
-- All titles must be unique and appealing.
-- Vary cooking style across the 6 ideas.
-- Each description must be 2-3 full sentences explaining flavor profile, texture, and overall style.
+- Chef conversation is priority 1. User taste profile is priority 2.
+- Titles must name the actual dish the user would recognize on a menu.
+- Never use words like Build, User, Interested, Idea, Version, Chef Special, or generic format labels without a real dish name.
+- Keep the suggestions tightly aligned to the ingredients and conversation.
+- Each description must explain flavor profile, texture, and what makes the dish distinct.
 Return ONLY valid JSON:
 {
   "ideas": [
@@ -261,8 +402,11 @@ Return ONLY valid JSON:
   }
 
   if (input.mode === "filtered_ideas") {
-    return `Generate exactly 5 recipe ideas from these filters:
+    return `Generate exactly ${requestedCount} recipe ideas from these filters:
 ${JSON.stringify(input.filters ?? {}, null, 2)}
+Rules:
+- Titles must name actual dishes, not generic meal formats.
+- User taste profile is priority 2 after the explicit filter choices.
 Return ONLY valid JSON:
 {
   "ideas": [
@@ -272,13 +416,17 @@ Return ONLY valid JSON:
   }
 
   return `User craving prompt: ${input.prompt ?? ""}
-Already shown idea titles (must NOT repeat any): ${JSON.stringify(input.excludeTitles ?? [])}
+Chef conversation (highest priority if present):
+${conversation || "No chef conversation provided."}
+Already shown idea titles (must NOT repeat any): ${excludeTitles}
 Current batch index: ${input.batchIndex ?? 1}
-Generate exactly 6 recipe ideas.
+Generate exactly ${requestedCount} recipe ideas.
 Rules:
-- All titles must be unique and appealing.
-- Vary cooking style across the 6 ideas.
-- Each description must be 2-3 full sentences explaining flavor profile, texture, and overall style.
+- Chef conversation is priority 1. User taste profile is priority 2.
+- If the conversation clearly settles on one cuisine, dish family, or flavor direction, stay inside that lane.
+- Titles must name the actual dish the user would expect to cook.
+- Never use words like Build, User, Interested, Idea, Version, Chef Special, or generic format labels without a real dish name.
+- Each description must explain flavor profile, texture, and what makes the dish distinct.
 Return ONLY valid JSON:
 {
   "ideas": [
@@ -287,11 +435,57 @@ Return ONLY valid JSON:
 }`;
 }
 
-export async function generateHomeIdeas(input: IdeaInput, userTasteSummary?: string): Promise<HomeIdea[]> {
+function isHomeIdeaList(value: unknown): value is HomeIdea[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        typeof (item as { title?: unknown }).title === "string" &&
+        typeof (item as { description?: unknown }).description === "string" &&
+        (typeof (item as { cook_time_min?: unknown }).cook_time_min === "number" ||
+          (item as { cook_time_min?: unknown }).cook_time_min === null)
+    )
+  );
+}
+
+function isGeneratedRecipe(value: unknown): value is HomeGeneratedRecipe {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as { title?: unknown }).title === "string" &&
+    Array.isArray((value as { ingredients?: unknown[] }).ingredients) &&
+    Array.isArray((value as { steps?: unknown[] }).steps)
+  );
+}
+
+export async function generateHomeIdeasWithCache(
+  input: IdeaInput,
+  userTasteSummary?: string,
+  cacheContext?: AiCacheContext
+): Promise<HomeIdea[]> {
+  const inputHash = cacheContext
+    ? hashAiCacheInput({
+        input,
+        userTasteSummary: userTasteSummary?.trim() || null,
+      })
+    : null;
+
+  if (cacheContext && inputHash) {
+    const cached = await readAiCache<unknown>(cacheContext.supabase, cacheContext.userId, "home_ideas", inputHash);
+    if (cached && isHomeIdeaList(cached.response_json)) {
+      return cached.response_json;
+    }
+  }
+
   const messages = [
     {
       role: "system" as const,
       content: `You are a recipe ideation assistant. Return only valid JSON. Keep titles distinct and natural. Keep ideas practical for a home cook.
+Priority order:
+1. Chef conversation and the user's most recent confirmed direction
+2. User taste summary
 User taste summary: ${userTasteSummary?.trim() || "No user taste summary available."}`,
     },
     {
@@ -301,12 +495,24 @@ User taste summary: ${userTasteSummary?.trim() || "No user taste summary availab
   ];
 
   try {
-    const raw = await callAI(messages, TOKEN_LIMITS.recipeGeneration);
-    const parsed = parseRecipeResponse(raw);
-    const ideas = normalizeIdeas(parsed);
-    return ideas.length > 0 ? ideas : buildFallbackIdeas(input, input.mode === "filtered_ideas" ? 5 : 6);
+    const result = await callAIForJson(messages, TOKEN_LIMITS.recipeGeneration);
+    const { parsed } = result;
+    const ideas = normalizeIdeas(parsed, input);
+    const fallbackCount = input.requestedCount ?? (input.mode === "filtered_ideas" ? 5 : 6);
+    const resolved = ideas.length > 0 ? ideas : buildFallbackIdeas(input, fallbackCount);
+    if (cacheContext && inputHash) {
+      await writeAiCache(
+        cacheContext.supabase,
+        cacheContext.userId,
+        "home_ideas",
+        inputHash,
+        result.model ?? result.provider,
+        resolved
+      );
+    }
+    return resolved;
   } catch {
-    return buildFallbackIdeas(input, input.mode === "filtered_ideas" ? 5 : 6);
+    return buildFallbackIdeas(input, input.requestedCount ?? (input.mode === "filtered_ideas" ? 5 : 6));
   }
 }
 
@@ -314,11 +520,49 @@ export async function generateHomeRecipe(input: {
   ideaTitle: string;
   prompt?: string;
   ingredients?: string[];
-}, userTasteSummary?: string): Promise<HomeGeneratedRecipe> {
+  conversationHistory?: AIMessage[];
+}, userTasteSummary?: string, cacheContext?: AiCacheContext): Promise<AiRecipeResult> {
+  const inputHash = cacheContext
+    ? hashAiCacheInput({
+        input,
+        userTasteSummary: userTasteSummary?.trim() || null,
+      })
+    : null;
+
+  if (cacheContext && inputHash) {
+    const cached = await readAiCache<unknown>(cacheContext.supabase, cacheContext.userId, "home_recipe", inputHash);
+    if (cached) {
+      const parsedCached = parseAiRecipeResult(cached.response_json);
+      if (parsedCached) {
+        return parsedCached;
+      }
+      if (isGeneratedRecipe(cached.response_json)) {
+        return createAiRecipeResult({
+          purpose: "home_recipe",
+          source: "cache",
+          model: cached.model,
+          cached: true,
+          inputHash,
+          createdAt: null,
+          recipe: {
+            ...cached.response_json,
+            tags: null,
+            notes: null,
+            change_log: null,
+            ai_metadata_json: null,
+          },
+        });
+      }
+    }
+  }
+
   const messages = [
     {
       role: "system" as const,
       content: `You are a professional recipe developer.
+Priority order:
+1. Chef conversation and the user's most recent confirmed direction
+2. User taste summary
 User taste summary: ${userTasteSummary?.trim() || "No user taste summary available."}
 Return ONLY valid JSON:
 {
@@ -328,11 +572,15 @@ Return ONLY valid JSON:
   "prep_time_min": number|null,
   "cook_time_min": number|null,
   "difficulty": string|null,
-  "ingredients": [{ "name": string }],
+  "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],
   "steps": [{ "text": string }]
 }
 Rules:
-- Keep ingredients concise.
+- The recipe must follow the chef conversation closely.
+- If the user narrowed to one exact dish, make that dish. Do not drift to adjacent ideas.
+- The title must be a clean, dish-specific recipe name a home cook would understand.
+- Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
+- If an ingredient would normally appear without a unit, still include a count, like 1 onion or 2 eggs.
 - Keep steps practical and home-cook friendly.
 - Produce a complete recipe, not notes.`,
     },
@@ -341,17 +589,51 @@ Rules:
       content: `Generate a full recipe for this selected idea:
 Idea: ${input.ideaTitle}
 Prompt context: ${input.prompt ?? ""}
+Conversation context:
+${formatConversation(input.conversationHistory) || "No chef conversation available."}
 Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     },
   ];
 
-  const raw = await callAI(messages, TOKEN_LIMITS.recipeGeneration);
-  const parsed = parseRecipeResponse(raw);
+  const result = await callAIForJson(messages, TOKEN_LIMITS.recipeGeneration);
+  const { parsed } = result;
   const recipe = normalizeRecipe(parsed, input.ideaTitle);
 
   if (!recipe) {
     throw new Error("AI returned invalid recipe payload.");
   }
 
-  return recipe;
+  if (!recipeMatchesConversation(recipe, input)) {
+    throw new Error("AI recipe drifted from the chef conversation.");
+  }
+
+  const aiRecipeResult = createAiRecipeResult({
+    purpose: "home_recipe",
+    source: "ai",
+    provider: result.provider,
+    model: result.model ?? result.provider,
+    cached: false,
+    inputHash,
+    createdAt: new Date().toISOString(),
+    recipe: {
+      ...recipe,
+      tags: null,
+      notes: null,
+      change_log: null,
+      ai_metadata_json: null,
+    },
+  });
+
+  if (cacheContext && inputHash) {
+    await writeAiCache(
+      cacheContext.supabase,
+      cacheContext.userId,
+      "home_recipe",
+      inputHash,
+      result.model ?? result.provider,
+      aiRecipeResult
+    );
+  }
+
+  return aiRecipeResult;
 }

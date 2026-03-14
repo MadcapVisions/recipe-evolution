@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react";
 import type { ConversationMessage, SuggestedChange } from "@/components/recipes/version-detail/types";
+import type { PrepPlan } from "@/lib/recipes/prepPlan";
 
 function quickChip(active = false) {
   return active
@@ -155,7 +156,7 @@ export function MetricsPanel({
         <MetricCard label="Prep Time" value={`${prepMinutes} min`} tone="bg-[rgba(141,169,187,0.1)]" />
         <MetricCard label="Cook Time" value={`${cookMinutes} min`} tone="bg-[rgba(142,168,141,0.12)]" />
         <MetricCard label="Difficulty" value={difficulty} tone="bg-[rgba(82,124,116,0.08)]" />
-        <MetricCard label="Servings" value={`${servings}`} tone="bg-[rgba(255,255,255,0.7)]" />
+        <MetricCard label="Servings" value={servings > 0 ? `${servings}` : "-"} tone="bg-[rgba(255,255,255,0.7)]" />
       </div>
     </section>
   );
@@ -182,6 +183,108 @@ export function NutritionPanel({
         <p className="mt-2 text-[28px] font-semibold text-[color:var(--text)]">{totalMinutes} min</p>
       </div>
     </section>
+  );
+}
+
+export function PrepPlanPanel({
+  prepPlan,
+  completedChecklistIds = [],
+  onToggleChecklistItem,
+}: {
+  prepPlan: PrepPlan;
+  completedChecklistIds?: string[];
+  onToggleChecklistItem?: (itemId: string) => void;
+}) {
+  return (
+    <section className="app-panel p-5">
+      <p className="app-kicker">Prep plan</p>
+      <div className="mt-4 space-y-4">
+        {prepPlan.checklist.length > 0 ? (
+          <div>
+            <p className="text-[14px] font-semibold text-[color:var(--text)]">Checklist</p>
+            <ul className="mt-2 space-y-2">
+              {prepPlan.checklist.map((item) => {
+                const checked = completedChecklistIds.includes(item.id);
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => onToggleChecklistItem?.(item.id)}
+                      className={`w-full rounded-[18px] px-3 py-2 text-left text-sm transition ${
+                        checked ? "bg-[rgba(142,168,141,0.18)] text-[color:var(--muted)]" : "bg-[rgba(141,169,187,0.08)] text-[color:var(--text)]"
+                      }`}
+                    >
+                      <span className="mr-2 font-semibold">{checked ? "Done" : "Tap"}</span>
+                      {item.title}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+        <PrepPlanGroup title="Start here" items={prepPlan.firstMoves} empty="No suggested first moves detected." />
+        <PrepPlanGroup title="Before you start" items={prepPlan.prepTasks} empty="No prep tasks detected." />
+        <PrepPlanGroup title="Make-ahead cues" items={prepPlan.makeAheadTasks} empty="No make-ahead cues detected." />
+        <PrepPlanGroup title="Good cooking windows" items={prepPlan.cookingWindows} empty="No long waiting windows detected." />
+        <PrepPlanHighlights highlights={prepPlan.stepHighlights} />
+      </div>
+    </section>
+  );
+}
+
+function PrepPlanHighlights({
+  highlights,
+}: {
+  highlights: PrepPlan["stepHighlights"];
+}) {
+  if (highlights.length === 0) {
+    return <p className="text-sm text-[color:var(--muted)]">No ingredient-to-step callouts detected.</p>;
+  }
+
+  return (
+    <div>
+      <p className="text-[14px] font-semibold text-[color:var(--text)]">Ingredient callouts</p>
+      <ul className="mt-2 space-y-2">
+        {highlights.map((highlight) => (
+          <li key={highlight.step} className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-3 py-2 text-sm text-[color:var(--text)]">
+            <span className="font-medium">{highlight.ingredients.join(", ")}</span>: {highlight.step}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PrepPlanGroup({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: string[];
+  empty: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <div>
+        <p className="text-[14px] font-semibold text-[color:var(--text)]">{title}</p>
+        <p className="mt-2 text-sm text-[color:var(--muted)]">{empty}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="text-[14px] font-semibold text-[color:var(--text)]">{title}</p>
+      <ul className="mt-2 space-y-2">
+        {items.map((item) => (
+          <li key={item} className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-3 py-2 text-sm leading-6 text-[color:var(--text)]">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

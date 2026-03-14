@@ -13,12 +13,12 @@ export default async function NewRecipePage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl page-shell">
+    <div className="mx-auto max-w-2xl page-shell">
       <div className="space-y-3">
         <p className="app-kicker">Create</p>
         <h1 className="page-title">New recipe</h1>
       </div>
-      <NewRecipeForm ownerId={user.id} />
+      <NewRecipeForm />
     </div>
   );
 }

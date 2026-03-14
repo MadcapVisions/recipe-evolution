@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ingredientLineHasAmount } from "@/lib/recipes/recipeDraft";
 
 const toOptionalInt = (value: unknown) => {
   if (value === "" || value == null) {
@@ -25,11 +26,32 @@ export const recipeVersionSchema = z.object({
   ingredientsInput: z
     .string()
     .trim()
-    .min(1, "At least one ingredient is required"),
+    .min(1, "At least one ingredient is required")
+    .refine(
+      (value) =>
+        value
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+          .every((line) => ingredientLineHasAmount(line)),
+      "Every ingredient needs a quantity, like '2 tbsp olive oil' or '1 onion'."
+    ),
   stepsInput: z.string().trim().min(1, "At least one step is required"),
   notes: z.string().trim().optional(),
+});
+
+export const createRecipeWithVersionSchema = recipeSchema.extend({
+  servings: recipeVersionSchema.shape.servings,
+  prepTimeMin: recipeVersionSchema.shape.prepTimeMin,
+  cookTimeMin: recipeVersionSchema.shape.cookTimeMin,
+  difficulty: recipeVersionSchema.shape.difficulty,
+  ingredientsInput: recipeVersionSchema.shape.ingredientsInput,
+  stepsInput: recipeVersionSchema.shape.stepsInput,
+  notes: recipeVersionSchema.shape.notes,
 });
 
 export type RecipeFormValues = z.infer<typeof recipeSchema>;
 export type RecipeVersionFormValues = z.infer<typeof recipeVersionSchema>;
 export type RecipeVersionFormInput = z.input<typeof recipeVersionSchema>;
+export type CreateRecipeWithVersionValues = z.infer<typeof createRecipeWithVersionSchema>;
+export type CreateRecipeWithVersionInput = z.input<typeof createRecipeWithVersionSchema>;

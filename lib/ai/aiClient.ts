@@ -14,6 +14,7 @@ type ProviderCallContext = {
 export type AICallResult = {
   text: string;
   provider: AIProvider;
+  model?: string;
   finishReason?: string | null;
 };
 
@@ -202,6 +203,7 @@ async function callOpenAI(messages: AIMessage[], options: AICallOptions, context
     return {
       text: response.choices[0]?.message?.content ?? "",
       provider: "openai",
+      model: OPENAI_MODEL,
       finishReason: response.choices[0]?.finish_reason ?? null,
     };
   } catch (error) {
@@ -290,6 +292,7 @@ async function callGemini(messages: AIMessage[], options: AICallOptions, context
   return {
     text,
     provider: "gemini",
+    model: GEMINI_MODEL,
     finishReason,
   };
 }
@@ -334,6 +337,7 @@ async function callClaude(messages: AIMessage[], options: AICallOptions, context
   return {
     text: data.content?.[0]?.text ?? "",
     provider: "claude",
+    model: CLAUDE_MODEL,
     finishReason: data.stop_reason ?? null,
   };
 }

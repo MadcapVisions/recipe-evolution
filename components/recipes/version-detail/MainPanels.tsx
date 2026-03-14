@@ -4,26 +4,35 @@ import Image from "next/image";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { Button } from "@/components/Button";
+import { ServingsControl } from "@/components/ServingsControl";
 import { versionLabel, type IngredientItem, type RecipeRow, type StepItem, type VersionRow } from "@/components/recipes/version-detail/types";
 
 export function VersionMainPanels({
   recipe,
   version,
   ingredients,
+  displayServings,
+  canAdjustServings,
+  onSetTargetServings,
   steps,
   topPhotoUrl,
   userId,
   onShare,
   photosWithUrls,
+  galleryLoading,
 }: {
   recipe: RecipeRow;
   version: VersionRow;
   ingredients: IngredientItem[];
+  displayServings: number;
+  canAdjustServings: boolean;
+  onSetTargetServings: (value: number) => void;
   steps: StepItem[];
   topPhotoUrl: string | null;
   userId: string | null;
   onShare: () => void;
   photosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
+  galleryLoading: boolean;
 }) {
   return (
     <section className="space-y-5">
@@ -40,19 +49,28 @@ export function VersionMainPanels({
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="app-kicker">Recipe detail</p>
-              <h1 className="mt-3 text-[42px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)]">{recipe.title}</h1>
+              <h1 className="mt-3 text-[32px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] sm:text-[42px]">{recipe.title}</h1>
               <p className="mt-3 text-[16px] text-[color:var(--muted)]">{versionLabel(version)}</p>
+              <p className="mt-1 text-[16px] text-[color:var(--muted)]">
+                Serves {typeof version.servings === "number" ? displayServings : "-"}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
               <Button href={`/recipes/${recipe.id}/versions/${version.id}/cook`}>Start Cooking</Button>
+              <Button href={`/recipes/${recipe.id}/versions/${version.id}/grocery`} variant="secondary">
+                Shopping List
+              </Button>
+              <Button href={`/planner?version=${version.id}`} variant="secondary">
+                Add to Plan
+              </Button>
               <Button href={`/recipes/${recipe.id}/versions/new`} variant="secondary">
-                Edit
+                Create New Version
               </Button>
               <Button onClick={onShare} variant="secondary">
                 Share
               </Button>
               <Button href={`/recipes/${recipe.id}`} variant="secondary">
-                More
+                View Recipe History
               </Button>
             </div>
           </div>
@@ -63,11 +81,18 @@ export function VersionMainPanels({
               {version.change_summary?.trim().length ? version.change_summary : "No changes yet. This is the original recipe."}
             </p>
           </div>
+
+          <ServingsControl
+            label="Cook for"
+            baseServings={canAdjustServings ? version.servings : null}
+            targetServings={displayServings}
+            onChange={onSetTargetServings}
+          />
         </div>
       </section>
 
       <section className="app-panel p-6">
-        <h2 className="text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Ingredients</h2>
+        <h2 className="text-[26px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Ingredients</h2>
         <ul className="mt-5 flex flex-col gap-3">
           {ingredients.map((ingredient, index) => (
             <li key={`${ingredient.name}-${index}`} className="flex items-start gap-4 rounded-[22px] bg-[rgba(141,169,187,0.06)] p-4 text-[16px] leading-7 text-[color:var(--text)]">
@@ -79,7 +104,7 @@ export function VersionMainPanels({
       </section>
 
       <section className="app-panel p-6">
-        <h2 className="text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Cooking Steps</h2>
+        <h2 className="text-[26px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Cooking Steps</h2>
         <div className="mt-5 flex flex-col gap-4">
           {steps.map((step, index) => (
             <div key={`${step.text}-${index}`} className="flex gap-4 rounded-[24px] bg-[rgba(141,169,187,0.06)] p-5">
@@ -96,12 +121,13 @@ export function VersionMainPanels({
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <p className="app-kicker">Photos</p>
-            <h2 className="mt-2 text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Cookbook gallery</h2>
+            <h2 className="mt-2 text-[26px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Cookbook gallery</h2>
           </div>
-          <div>{userId ? <PhotoUpload userId={userId} versionId={version.id} compact /> : null}</div>
+          <div>{userId ? <PhotoUpload recipeId={recipe.id} userId={userId} versionId={version.id} compact /> : null}</div>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <PhotoGallery photos={photosWithUrls} />
+          {galleryLoading ? <p className="text-sm text-[color:var(--muted)]">Loading photos...</p> : null}
+          <PhotoGallery recipeId={recipe.id} versionId={version.id} photos={photosWithUrls} />
         </div>
       </section>
     </section>

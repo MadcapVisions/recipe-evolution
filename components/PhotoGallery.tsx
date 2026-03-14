@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/Button";
 
 type PhotoItem = {
@@ -13,15 +12,12 @@ type PhotoItem = {
 };
 
 type PhotoGalleryProps = {
+  recipeId: string;
+  versionId: string;
   photos: PhotoItem[];
 };
 
-const toObjectPath = (storagePath: string) =>
-  storagePath.startsWith("version-photos/")
-    ? storagePath.replace(/^version-photos\//, "")
-    : storagePath;
-
-export function PhotoGallery({ photos }: PhotoGalleryProps) {
+export function PhotoGallery({ recipeId, versionId, photos }: PhotoGalleryProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,24 +26,16 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
     setDeletingId(photo.id);
     setError(null);
 
-    const objectPath = toObjectPath(photo.storagePath);
+    const response = await fetch(`/api/recipes/${recipeId}/versions/${versionId}/photos`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        photoId: photo.id,
+        storagePath: photo.storagePath,
+      }),
+    });
 
-    const { error: storageError } = await supabase.storage
-      .from("version-photos")
-      .remove([objectPath]);
-
-    if (storageError) {
-      setError("Delete failed. Try again.");
-      setDeletingId(null);
-      return;
-    }
-
-    const { error: dbError } = await supabase
-      .from("version_photos")
-      .delete()
-      .eq("id", photo.id);
-
-    if (dbError) {
+    if (!response.ok) {
       setError("Delete failed. Try again.");
       setDeletingId(null);
       return;

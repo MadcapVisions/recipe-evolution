@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 type PhotoUploadProps = {
+  recipeId: string;
   userId: string;
   versionId: string;
   compact?: boolean;
 };
 
-export function PhotoUpload({ userId, versionId, compact = false }: PhotoUploadProps) {
+export function PhotoUpload({ recipeId, userId, versionId, compact = false }: PhotoUploadProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,13 +56,15 @@ export function PhotoUpload({ userId, versionId, compact = false }: PhotoUploadP
       return;
     }
 
-    const { error: insertError } = await supabase.from("version_photos").insert({
-      version_id: versionId,
-      storage_path: storagePath,
+    const response = await fetch(`/api/recipes/${recipeId}/versions/${versionId}/photos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storagePath }),
     });
 
-    if (insertError) {
-      setError(formatUploadError(insertError.message));
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string };
+      setError(formatUploadError(payload.message ?? "Could not save photo."));
       setUploading(false);
       return;
     }

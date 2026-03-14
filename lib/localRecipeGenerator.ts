@@ -1,4 +1,4 @@
-import type { GeneratedRecipe, RecipeIdea } from "@/components/home/types";
+import type { GeneratedRecipe, RecipeIdea, UserTasteProfile } from "@/components/home/types";
 
 type MealType = "breakfast" | "lunch" | "dinner";
 type Cuisine = "italian" | "mexican" | "asian" | "comfort food" | "healthy";
@@ -18,6 +18,7 @@ type ParsedIntent = {
   preferences: Preference[];
   mealType: MealType;
   flavors: string[];
+  dishFamily: "dip" | "soup" | "salad" | "tacos" | "pasta" | "bowl" | "roasted" | null;
 };
 
 type SauceTemplate = {
@@ -154,6 +155,8 @@ const KNOWN = {
     "broccoli",
     "peppers",
     "bell peppers",
+    "eggplant",
+    "aubergine",
     "spinach",
     "carrots",
     "cucumber",
@@ -462,6 +465,10 @@ function unique(values: string[]) {
   return Array.from(new Set(values));
 }
 
+function normalizeTasteValues(values: string[] | null | undefined) {
+  return (values ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean);
+}
+
 function pickMatches(text: string, tokens: string[], items: string[]) {
   return unique(items.filter((item) => includesPhrase(text, item) || tokens.includes(item.split(" ")[0])));
 }
@@ -482,6 +489,22 @@ function parseIntent(prompt: string, providedIngredients: string[] = []): Parsed
   const text = `${prompt} ${providedIngredients.join(" ")}`.toLowerCase();
   const tokens = tokenize(text);
   const mealType: MealType = text.includes("breakfast") ? "breakfast" : text.includes("lunch") ? "lunch" : "dinner";
+  const dishFamily =
+    text.includes("dip") || text.includes("spread")
+      ? "dip"
+      : text.includes("soup") || text.includes("stew")
+        ? "soup"
+        : text.includes("salad")
+          ? "salad"
+          : text.includes("taco") || text.includes("wrap")
+            ? "tacos"
+            : text.includes("pasta") || text.includes("noodle")
+              ? "pasta"
+              : text.includes("bowl") || text.includes("rice bowl")
+                ? "bowl"
+                : text.includes("roasted") || text.includes("sheet pan")
+                  ? "roasted"
+                  : null;
 
   return {
     proteins: pickMatches(text, tokens, KNOWN.proteins),
@@ -495,6 +518,7 @@ function parseIntent(prompt: string, providedIngredients: string[] = []): Parsed
     preferences: pickTypedMatches(text, tokens, KNOWN.preferences),
     mealType,
     flavors: unique(KNOWN.flavors.filter((item) => includesPhrase(text, item))),
+    dishFamily,
   };
 }
 
@@ -543,6 +567,10 @@ function applyProteinSubstitutions(protein: string, intent: ParsedIntent) {
 function resolveStyle(intent: ParsedIntent, cuisine: CuisineProfile, pairing: PairingProfile | null) {
   const candidates = cuisine.styles;
 
+  if (intent.dishFamily === "salad" && candidates.includes("salad")) return "salad";
+  if (intent.dishFamily === "pasta" && candidates.includes("pasta")) return "pasta";
+  if (intent.dishFamily === "bowl" && candidates.includes("bowl")) return "bowl";
+  if (intent.dishFamily === "roasted" && candidates.includes("roasted")) return "roasted";
   if (intent.mealType === "breakfast") {
     if (candidates.includes("skillet")) return "skillet";
     if (candidates.includes("bowl")) return "bowl";
@@ -980,14 +1008,19 @@ function createBlueprint(intent: ParsedIntent, cuisine: CuisineProfile, style: R
   };
 }
 
-function buildCandidateBlueprints(intent: ParsedIntent) {
-  const primaryCuisine = detectCuisine(intent);
-  const cuisines = unique([primaryCuisine.key, ...intent.cuisines]).map((key) => CUISINE_PROFILES[key as Cuisine]);
+function buildCandidateBlueprints(intent: ParsedIntent, tasteProfile?: UserTasteProfile) {
+  const mergedIntent = mergeTasteProfile(intent, tasteProfile);
+  const primaryCuisine = detectCuisine(mergedIntent);
+  const cuisines = unique([primaryCuisine.key, ...mergedIntent.cuisines]).map((key) => CUISINE_PROFILES[key as Cuisine]);
   const candidates: RecipeBlueprint[] = [];
 
   cuisines.forEach((cuisine, cuisineIndex) => {
     cuisine.styles.forEach((style, styleIndex) => {
-      candidates.push(createBlueprint(intent, cuisine, style, cuisineIndex + styleIndex));
+      const blueprint = createBlueprint(mergedIntent, cuisine, style, cuisineIndex + styleIndex);
+      blueprint.score += scoreTasteProfile(blueprint, tasteProfile);
+      if (!hasDislikedIngredient(blueprint.ingredients, tasteProfile)) {
+        candidates.push(blueprint);
+      }
     });
   });
 
@@ -996,6 +1029,252 @@ function buildCandidateBlueprints(intent: ParsedIntent) {
 
 function inferIntentFromIdea(input: { ideaTitle: string; prompt?: string; ingredients?: string[] }) {
   return parseIntent(`${input.ideaTitle} ${input.prompt ?? ""}`, input.ingredients ?? []);
+}
+
+function mergeTasteProfile(intent: ParsedIntent, tasteProfile?: UserTasteProfile): ParsedIntent {
+  if (!tasteProfile) return intent;
+
+  const favoriteCuisines = normalizeTasteValues(tasteProfile.favoriteCuisines).filter((value): value is Cuisine =>
+    (KNOWN.cuisines as readonly string[]).includes(value)
+  );
+  const favoriteProteins = normalizeTasteValues(tasteProfile.favoriteProteins).filter((value) => KNOWN.proteins.includes(value));
+  const preferredFlavors = normalizeTasteValues(tasteProfile.preferredFlavors);
+  const dietTags = normalizeTasteValues(tasteProfile.commonDietTags);
+  const healthGoals = normalizeTasteValues(tasteProfile.healthGoals);
+
+  const mergedPreferences = unique([
+    ...intent.preferences,
+    ...dietTags.flatMap((value) => {
+      if (value.includes("vegetarian")) return ["vegetarian"];
+      if (value.includes("gluten")) return ["gluten free"];
+      if (value.includes("low carb")) return ["low carb"];
+      return [];
+    }),
+    ...healthGoals.flatMap((value) => {
+      if (value.includes("high protein")) return ["high protein"];
+      if (value.includes("low carb")) return ["low carb"];
+      return [];
+    }),
+    ...(tasteProfile.spiceTolerance?.toLowerCase().includes("high") || preferredFlavors.includes("spicy") ? ["spicy"] : []),
+  ]) as Preference[];
+
+  return {
+    ...intent,
+    cuisines: intent.cuisines.length > 0 ? intent.cuisines : favoriteCuisines,
+    proteins: intent.proteins.length > 0 ? intent.proteins : favoriteProteins,
+    flavors: intent.flavors.length > 0 ? intent.flavors : preferredFlavors,
+    preferences: mergedPreferences,
+  };
+}
+
+function hasDislikedIngredient(ingredients: Array<{ name: string }>, tasteProfile?: UserTasteProfile) {
+  const disliked = normalizeTasteValues(tasteProfile?.dislikedIngredients);
+  if (disliked.length === 0) return false;
+  const text = ingredients.map((item) => item.name.toLowerCase()).join(" ");
+  return disliked.some((item) => text.includes(item));
+}
+
+function scoreTasteProfile(blueprint: RecipeBlueprint, tasteProfile?: UserTasteProfile) {
+  if (!tasteProfile) return 0;
+
+  let score = 0;
+  const favoriteCuisines = normalizeTasteValues(tasteProfile.favoriteCuisines);
+  const favoriteProteins = normalizeTasteValues(tasteProfile.favoriteProteins);
+  const preferredFlavors = normalizeTasteValues(tasteProfile.preferredFlavors);
+  const pantryStaples = normalizeTasteValues(tasteProfile.pantryStaples);
+
+  if (favoriteCuisines.includes(blueprint.cuisine.key)) score += 14;
+  if (favoriteProteins.includes(blueprint.protein)) score += 10;
+  if (preferredFlavors.some((value) => blueprint.description.toLowerCase().includes(value) || blueprint.sauce.name.toLowerCase().includes(value))) score += 8;
+  if (pantryStaples.some((item) => blueprint.ingredients.some((ingredient) => ingredient.name.toLowerCase().includes(item)))) score += 5;
+  if (hasDislikedIngredient(blueprint.ingredients, tasteProfile)) score -= 100;
+
+  return score;
+}
+
+function isEggplantDipRequest(input: { ideaTitle: string; prompt?: string; ingredients?: string[] }) {
+  const text = `${input.ideaTitle} ${input.prompt ?? ""} ${(input.ingredients ?? []).join(" ")}`.toLowerCase();
+  const hasEggplant = text.includes("eggplant") || text.includes("aubergine") || text.includes("vinete");
+  const hasDip = text.includes("dip") || text.includes("spread") || text.includes("salata de vinete") || text.includes("salată de vinete");
+  return hasEggplant && hasDip;
+}
+
+function extractLeadIngredient(input: { ideaTitle: string; prompt?: string; ingredients?: string[] }) {
+  const intent = inferIntentFromIdea(input);
+  return (
+    intent.vegetables[0] ??
+    intent.proteins[0] ??
+    intent.carbs[0] ??
+    (input.ingredients ?? [])[0] ??
+    "vegetable"
+  );
+}
+
+function buildDishFamilyDraft(input: { ideaTitle: string; prompt?: string; ingredients?: string[] }, family: ParsedIntent["dishFamily"]): DeterministicRecipeDraft | null {
+  const lead = titleCase(extractLeadIngredient(input));
+  const text = `${input.ideaTitle} ${input.prompt ?? ""}`.toLowerCase();
+
+  if (family === "dip") {
+    const title = `${lead} Dip`;
+    return {
+      title,
+      description: `A focused, flavor-forward ${lead.toLowerCase()} dip built to match the conversation instead of drifting into another format.`,
+      servings: 4,
+      prep_time_min: 15,
+      cook_time_min: 35,
+      difficulty: "Easy",
+      ingredients: [
+        { name: `2 medium ${lead.toLowerCase()}` },
+        { name: "2-3 tbsp olive oil" },
+        { name: "1 small garlic clove or shallot, finely minced" },
+        { name: "1-2 tsp lemon juice" },
+        { name: "Salt to taste" },
+        { name: "Black pepper to taste" },
+      ],
+      steps: [
+        { text: `Cook or roast the ${lead.toLowerCase()} until very soft and any excess moisture can drain away.` },
+        { text: `Mash or finely chop by hand for texture, then fold in the oil, aromatics, lemon, salt, and pepper.` },
+        { text: "Taste and keep the seasoning restrained so the main ingredient stays in front." },
+        { text: "Serve cool or at room temperature with bread, crackers, or sliced vegetables." },
+      ],
+      remix_title: `${lead} Dip Toasts`,
+      remix_description: `Spread leftover ${title.toLowerCase()} on toast and finish with herbs or tomatoes.`,
+    };
+  }
+
+  if (family === "soup") {
+    const title = `${lead} Soup`;
+    return {
+      title,
+      description: `A clean, focused ${lead.toLowerCase()} soup that stays true to the requested dish family with layered aromatics and a clear finishing note.`,
+      servings: 4,
+      prep_time_min: 15,
+      cook_time_min: 35,
+      difficulty: "Easy",
+      ingredients: [
+        { name: `1 lb ${lead.toLowerCase()}` },
+        { name: "1 onion, diced" },
+        { name: "2 cloves garlic, minced" },
+        { name: "4 cups broth" },
+        { name: "2 tbsp olive oil or butter" },
+        { name: "Salt and black pepper" },
+      ],
+      steps: [
+        { text: "Cook the onion and garlic in oil until soft and fragrant." },
+        { text: `Add the ${lead.toLowerCase()} and cook briefly to build flavor.` },
+        { text: "Add broth and simmer until the vegetables are fully tender and the soup tastes cohesive." },
+        { text: "Blend or leave chunky depending on the requested style, then adjust seasoning and finish with herbs or acid." },
+      ],
+      remix_title: `${lead} Soup with Toasts`,
+      remix_description: `Reheat leftovers and serve with crisp toast or a spoon of yogurt for contrast.`,
+    };
+  }
+
+  if (family === "salad") {
+    const title = `${lead} Salad`;
+    return {
+      title,
+      description: `A crisp, direct ${lead.toLowerCase()} salad with enough acid and texture contrast to feel complete rather than generic.`,
+      servings: 4,
+      prep_time_min: 20,
+      cook_time_min: 10,
+      difficulty: "Easy",
+      ingredients: [
+        { name: `1 lb ${lead.toLowerCase()}` },
+        { name: "4-6 cups greens or chopped vegetables" },
+        { name: "1 tbsp olive oil" },
+        { name: "1-2 tsp lemon juice or vinegar" },
+        { name: "Fresh herbs" },
+        { name: "Salt and black pepper" },
+      ],
+      steps: [
+        { text: `Cook the ${lead.toLowerCase()} if needed, then let it cool slightly so the salad stays crisp.` },
+        { text: "Build the salad base with greens or chopped vegetables and a simple vinaigrette." },
+        { text: `Layer the ${lead.toLowerCase()} on top and finish with herbs and one crunchy element.` },
+        { text: "Adjust acid right before serving so the salad tastes bright and balanced." },
+      ],
+      remix_title: `${lead} Salad Wrap`,
+      remix_description: `Use leftover ${title.toLowerCase()} as a wrap filling with extra herbs and crunch.`,
+    };
+  }
+
+  if (family === "tacos") {
+    const title = `${lead} Tacos`;
+    return {
+      title,
+      description: `A direct taco version centered on ${lead.toLowerCase()}, with clear contrast between warm filling, bright acid, and one crunchy topping.`,
+      servings: 4,
+      prep_time_min: 15,
+      cook_time_min: 20,
+      difficulty: "Easy",
+      ingredients: [
+        { name: `1 lb ${lead.toLowerCase()}` },
+        { name: "8 small tortillas" },
+        { name: "1 onion or cabbage slaw" },
+        { name: "1 lime" },
+        { name: "Fresh herbs" },
+        { name: "Salt and pepper" },
+      ],
+      steps: [
+        { text: `Cook the ${lead.toLowerCase()} with aromatics until browned and well seasoned.` },
+        { text: "Warm the tortillas and prepare a simple crunchy topping like cabbage or onion." },
+        { text: "Build the tacos and finish with lime and herbs so they taste bright instead of flat." },
+      ],
+      remix_title: `${lead} Taco Bowl`,
+      remix_description: `Turn leftover taco filling into a bowl with rice or lettuce and extra lime.`,
+    };
+  }
+
+  return null;
+}
+
+function buildEggplantDipDraft(input: { ideaTitle: string; prompt?: string; ingredients?: string[] }): DeterministicRecipeDraft {
+  const text = `${input.ideaTitle} ${input.prompt ?? ""} ${(input.ingredients ?? []).join(" ")}`.toLowerCase();
+  const romanian = text.includes("romanian") || text.includes("vinete");
+  const delicate = text.includes("delicate") || text.includes("mild");
+  const evoo = text.includes("evoo") || text.includes("olive oil");
+  const oil = evoo ? "3 tbsp mild extra virgin olive oil" : romanian ? "3 tbsp sunflower oil" : "3 tbsp olive oil";
+  const onion = delicate ? "1 small shallot, very finely minced" : "2 tbsp very finely minced sweet onion";
+  const acid = delicate ? "1 tsp lemon juice (optional)" : "1-2 tsp lemon juice";
+  const herb = delicate ? "1 tbsp parsley, finely chopped (optional)" : "1 tbsp parsley, finely chopped";
+  const title = romanian
+    ? delicate
+      ? "Delicate Salată de Vinete"
+      : "Salată de Vinete"
+    : "Roasted Eggplant Dip";
+  const description = romanian
+    ? delicate
+      ? "A delicate Romanian-style roasted eggplant dip with mild EVOO, finely minced shallot, and just enough lemon to keep it fresh without overpowering the eggplant."
+      : "A classic Romanian roasted eggplant dip with silky texture, mild onion bite, and a clean finishing note from lemon."
+    : "A smoky roasted eggplant dip with a soft, spreadable texture and a bright, savory finish.";
+
+  return {
+    title,
+    description,
+    servings: 4,
+    prep_time_min: 15,
+    cook_time_min: 40,
+    difficulty: "Easy",
+    ingredients: [
+      { name: "2 medium eggplants" },
+      { name: oil },
+      { name: onion },
+      { name: acid },
+      { name: `${herb}` },
+      { name: "Salt to taste" },
+      { name: "Black pepper to taste" },
+      { name: "Warm bread or tomatoes, for serving" },
+    ],
+    steps: [
+      { text: "Heat the oven to 425°F. Roast the whole eggplants until fully collapsed and very soft, turning once, 35 to 45 minutes." },
+      { text: "Split the eggplants and let them drain in a colander for 10 to 15 minutes so excess bitter liquid runs off." },
+      { text: "Scoop out the flesh and finely chop or mash it by hand until soft and lightly textured, not completely pureed." },
+      { text: `Fold in the ${oil.toLowerCase()}, ${onion.toLowerCase()}, and ${acid.toLowerCase()}. Season with salt and pepper.` },
+      { text: `Finish with ${herb.toLowerCase()} if using, then chill slightly or serve at cool room temperature with bread or sliced tomatoes.` },
+    ],
+    remix_title: "Eggplant Dip Toasts",
+    remix_description: "Use leftovers as a spread for toast with sliced tomatoes, herbs, and a drizzle of oil.",
+  };
 }
 
 function buildImprovePrompt(basePrompt: string, goal: ImproveGoal) {
@@ -1040,9 +1319,9 @@ function buildRemixTitle(recipe: GeneratedRecipe) {
   return `Next-Day ${recipe.title}`;
 }
 
-export function generateLocalRecipeIdeas(prompt: string, providedIngredients: string[] = []): RecipeIdea[] {
+export function generateLocalRecipeIdeas(prompt: string, providedIngredients: string[] = [], tasteProfile?: UserTasteProfile): RecipeIdea[] {
   const intent = parseIntent(prompt, providedIngredients);
-  return buildCandidateBlueprints(intent)
+  return buildCandidateBlueprints(intent, tasteProfile)
     .slice(0, 3)
     .map((blueprint) => ({
       title: blueprint.title,
@@ -1051,9 +1330,9 @@ export function generateLocalRecipeIdeas(prompt: string, providedIngredients: st
     }));
 }
 
-export function generateLocalChefReply(prompt: string, providedIngredients: string[] = []): string {
+export function generateLocalChefReply(prompt: string, providedIngredients: string[] = [], tasteProfile?: UserTasteProfile): string {
   const intent = parseIntent(prompt, providedIngredients);
-  const blueprints = buildCandidateBlueprints(intent).slice(0, 3);
+  const blueprints = buildCandidateBlueprints(intent, tasteProfile).slice(0, 3);
   if (blueprints.length === 0) {
     return "A good first move is a simple skillet or bowl with strong seasoning, one bright finishing note, and one crunchy element for contrast.";
   }
@@ -1076,9 +1355,17 @@ export function generateLocalRecipeDraft(input: {
   ideaTitle: string;
   prompt?: string;
   ingredients?: string[];
-}): DeterministicRecipeDraft {
+}, tasteProfile?: UserTasteProfile): DeterministicRecipeDraft {
+  if (isEggplantDipRequest(input)) {
+    return buildEggplantDipDraft(input);
+  }
+
   const intent = inferIntentFromIdea(input);
-  const blueprint = buildCandidateBlueprints(intent)[0];
+  const familyDraft = buildDishFamilyDraft(input, intent.dishFamily);
+  if (familyDraft) {
+    return familyDraft;
+  }
+  const blueprint = buildCandidateBlueprints(intent, tasteProfile)[0];
   const title = input.ideaTitle.trim() || blueprint.title;
   const remixTitle = buildRemixTitle({ title, description: blueprint.description, servings: 4, prep_time_min: 10, cook_time_min: blueprint.cookTimeMin, difficulty: "Easy", ingredients: blueprint.ingredients, steps: blueprint.steps });
 

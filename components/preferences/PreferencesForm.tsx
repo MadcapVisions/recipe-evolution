@@ -14,6 +14,7 @@ type PreferencesFormProps = {
   initialFavoriteProteins: string[];
   initialPreferredFlavors: string[];
   initialPantryStaples: string[];
+  initialPantryConfidentStaples: string[];
   initialSpiceTolerance: string;
   initialHealthGoals: string[];
   initialTasteNotes: string;
@@ -29,6 +30,7 @@ export function PreferencesForm({
   initialFavoriteProteins,
   initialPreferredFlavors,
   initialPantryStaples,
+  initialPantryConfidentStaples,
   initialSpiceTolerance,
   initialHealthGoals,
   initialTasteNotes,
@@ -41,6 +43,7 @@ export function PreferencesForm({
   const [favoriteProteinsInput, setFavoriteProteinsInput] = useState(initialFavoriteProteins.join(", "));
   const [preferredFlavorsInput, setPreferredFlavorsInput] = useState(initialPreferredFlavors.join(", "));
   const [pantryStaplesInput, setPantryStaplesInput] = useState(initialPantryStaples.join(", "));
+  const [pantryConfidentInput, setPantryConfidentInput] = useState(initialPantryConfidentStaples.join(", "));
   const [spiceTolerance, setSpiceTolerance] = useState(initialSpiceTolerance);
   const [healthGoalsInput, setHealthGoalsInput] = useState(initialHealthGoals.join(", "));
   const [tasteNotes, setTasteNotes] = useState(initialTasteNotes);
@@ -65,6 +68,7 @@ export function PreferencesForm({
     const favoriteProteins = parseList(favoriteProteinsInput);
     const preferredFlavors = parseList(preferredFlavorsInput);
     const pantryStaples = parseList(pantryStaplesInput);
+    const pantryConfidentStaples = parseList(pantryConfidentInput);
     const healthGoals = parseList(healthGoalsInput);
 
     const { error: upsertError } = await supabase.from("user_preferences").upsert(
@@ -78,6 +82,7 @@ export function PreferencesForm({
         favorite_proteins: favoriteProteins.length > 0 ? favoriteProteins : null,
         preferred_flavors: preferredFlavors.length > 0 ? preferredFlavors : null,
         pantry_staples: pantryStaples.length > 0 ? pantryStaples : null,
+        pantry_confident_staples: pantryConfidentStaples.length > 0 ? pantryConfidentStaples : null,
         spice_tolerance: spiceTolerance.trim() || null,
         health_goals: healthGoals.length > 0 ? healthGoals : null,
         taste_notes: tasteNotes.trim() || null,
@@ -97,10 +102,9 @@ export function PreferencesForm({
 
   return (
     <div className="saas-card space-y-6 p-5">
-      <div className="settings-highlight p-4">
-        <p className="text-[15px] font-semibold text-[color:var(--text)]">How this works</p>
-        <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
-          These settings become your explicit baseline. Recipe Evolution combines them with your saved recipes, favorites, and accepted suggestions so responses get more personal over time.
+      <div className="rounded-[24px] bg-[rgba(141,169,187,0.08)] px-4 py-3">
+        <p className="text-[15px] leading-6 text-[color:var(--muted)]">
+          These are the defaults Chef uses before adapting to your saved recipes and behavior.
         </p>
       </div>
 
@@ -284,6 +288,19 @@ export function PreferencesForm({
           </div>
 
           <div className="space-y-1">
+            <label htmlFor="pantryConfidentStaples" className="text-[15px] font-medium text-[color:var(--text)]">
+              Always stocked
+            </label>
+            <input
+              id="pantryConfidentStaples"
+              value={pantryConfidentInput}
+              onChange={(event) => setPantryConfidentInput(event.target.value)}
+              className="settings-field min-h-12 w-full"
+              placeholder="olive oil, kosher salt, black pepper"
+            />
+          </div>
+
+          <div className="space-y-1 lg:col-span-2">
             <label htmlFor="tasteNotes" className="text-[15px] font-medium text-[color:var(--text)]">
               Notes for Chef
             </label>

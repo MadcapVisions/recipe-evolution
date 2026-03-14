@@ -31,7 +31,7 @@ test.describe("recipes browser", () => {
     await signInAsTestUser(page);
 
     await page.goto("/recipes");
-    await expect(page.getByRole("heading", { name: "All Recipes" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recipe library" })).toBeVisible();
 
     await page.locator("article").filter({ hasText: hiddenTitle }).first().getByRole("button", { name: "Hide" }).click();
     await expect(page.locator("article").filter({ hasText: hiddenTitle })).toHaveCount(0);

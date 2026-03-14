@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 
-type ImproveRecipeRequest = {
-  recipeId?: string;
-  versionId?: string;
-  instruction?: string;
-  recipe?: {
-    title?: string;
-    servings?: number | null;
-    prep_time_min?: number | null;
-    cook_time_min?: number | null;
-    difficulty?: string | null;
-    ingredients?: Array<{ name?: string }>;
-    steps?: Array<{ text?: string }>;
-  };
-};
+const improveRecipeRequestSchema = z.object({
+  recipeId: z.string().trim().min(1),
+  versionId: z.string().trim().min(1),
+  instruction: z.string().trim().min(1).max(2000),
+  recipe: z.object({
+    title: z.string().trim().min(1),
+    servings: z.number().nullable().optional(),
+    prep_time_min: z.number().nullable().optional(),
+    cook_time_min: z.number().nullable().optional(),
+    difficulty: z.string().nullable().optional(),
+    ingredients: z.array(z.object({ name: z.string().optional() })),
+    steps: z.array(z.object({ text: z.string().optional() })),
+  }),
+});
 
 export async function POST(request: Request) {
   try {
@@ -30,23 +31,14 @@ export async function POST(request: Request) {
       return access.errorResponse;
     }
 
-    const body = (await request.json()) as ImproveRecipeRequest;
-    const recipeId = body.recipeId?.trim();
-    const versionId = body.versionId?.trim();
-    const instruction = body.instruction?.trim();
-    const recipe = body.recipe;
-
-    if (!recipeId || !versionId) {
-      return NextResponse.json({ error: true, message: "recipeId and versionId are required" }, { status: 400 });
-    }
-
-    if (!instruction || instruction.length > 2000) {
-      return NextResponse.json({ error: true, message: "instruction is required" }, { status: 400 });
-    }
-
-    if (!recipe?.title || !Array.isArray(recipe.ingredients) || !Array.isArray(recipe.steps)) {
+    let body;
+    try {
+      body = improveRecipeRequestSchema.parse(await request.json());
+    } catch {
       return NextResponse.json({ error: true, message: "recipe context is required" }, { status: 400 });
     }
+
+    const { recipeId, versionId, instruction, recipe } = body;
 
     const [{ data: ownedRecipe, error: recipeError }, { data: ownedVersion, error: versionError }] = await Promise.all([
       access.supabase
@@ -83,9 +75,12 @@ export async function POST(request: Request) {
           .map((item) => ({ text: typeof item.text === "string" ? item.text.trim() : "" }))
           .filter((item) => item.text.length > 0),
       },
+    }, {
+      supabase: access.supabase as any,
+      userId: access.userId,
     });
 
-    return NextResponse.json({ recipe: result });
+    return NextResponse.json({ result });
   } catch (error) {
     console.error("Improve recipe route failed", error);
     return NextResponse.json(
