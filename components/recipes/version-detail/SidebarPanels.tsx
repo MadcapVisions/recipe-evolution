@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import type { ReactNode, Ref } from "react";
 import { Button } from "@/components/Button";
 import { versionLabel, type RecipeListItem, type RecipeRow, type TimelineVersion, type VersionRow } from "@/components/recipes/version-detail/types";
@@ -28,7 +29,7 @@ export function RecipeActionMenu({
   if (!activeRecipe || !menuAnchor) return null;
   const mobileLayout = typeof window !== "undefined" && window.innerWidth < 1280;
 
-  return (
+  const content = (
     <div className="fixed inset-0 z-[80] bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
       <div
         className={`w-full rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)] ${
@@ -48,6 +49,8 @@ export function RecipeActionMenu({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : content;
 }
 
 type VersionActionMenuProps = {
@@ -72,7 +75,7 @@ export function VersionActionMenu({
   if (!activeVersion || !versionMenuAnchor) return null;
   const mobileLayout = typeof window !== "undefined" && window.innerWidth < 1280;
 
-  return (
+  const content = (
     <div className="fixed inset-0 z-[80] bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
       <div
         className={`w-full rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)] ${
@@ -94,6 +97,8 @@ export function VersionActionMenu({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : content;
 }
 
 type RecipeNavigationSectionProps = {
@@ -134,6 +139,18 @@ export function RecipeNavigationSection({
   onRecipeNavigate,
   onOpenRecipeMenu,
 }: RecipeNavigationSectionProps) {
+  const goToCookbook = () => {
+    if (typeof window !== "undefined") {
+      window.location.assign("/recipes");
+    }
+  };
+
+  const goToAskChef = () => {
+    if (typeof window !== "undefined") {
+      window.location.assign("/dashboard");
+    }
+  };
+
   return (
     <section className="app-panel p-4 sm:p-5">
       <p className="app-kicker">Cookbook</p>
@@ -155,6 +172,15 @@ export function RecipeNavigationSection({
           return (
             <div
               key={userRecipe.id}
+              onClick={() => onRecipeNavigate(userRecipe.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onRecipeNavigate(userRecipe.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
               className={`rounded-[20px] border p-3 transition ${
                 isActive
                   ? "border-[rgba(82,124,116,0.2)] bg-[linear-gradient(135deg,rgba(79,125,115,0.12)_0%,rgba(255,251,245,0.98)_100%)] text-[color:var(--primary)]"
@@ -168,9 +194,9 @@ export function RecipeNavigationSection({
                       Current dish
                     </span>
                   ) : null}
-                  <button type="button" onClick={() => onRecipeNavigate(userRecipe.id)} className="mt-2 block w-full text-left text-[14px] font-medium sm:text-[15px]">
+                  <span className="mt-2 block w-full text-left text-[14px] font-medium sm:text-[15px]">
                     {userRecipe.title}
-                  </button>
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -191,10 +217,10 @@ export function RecipeNavigationSection({
       </div>
       {sidebarActionError ? <p className="mt-3 text-sm text-red-600">{sidebarActionError}</p> : null}
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button href="/recipes" variant="secondary" className="w-full justify-center">
+        <Button onClick={goToCookbook} variant="secondary" className="w-full justify-center">
           Cookbook
         </Button>
-        <Button href="/dashboard" variant="secondary" className="w-full justify-center">
+        <Button onClick={goToAskChef} variant="secondary" className="w-full justify-center">
           Ask Chef
         </Button>
       </div>
@@ -224,6 +250,15 @@ export function VersionRailSection({
           return (
             <div
               key={timelineVersion.id}
+              onClick={() => onVersionNavigate(timelineVersion.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onVersionNavigate(timelineVersion.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
               className={`rounded-[20px] p-3 transition ${
                 isActive
                   ? "border border-[rgba(82,124,116,0.18)] bg-[linear-gradient(135deg,rgba(79,125,115,0.12)_0%,rgba(255,251,245,0.98)_100%)]"
@@ -231,7 +266,7 @@ export function VersionRailSection({
               }`}
             >
               <div className="flex items-start gap-2">
-                <button type="button" onClick={() => onVersionNavigate(timelineVersion.id)} className="flex-1 text-left">
+                <div className="flex-1 text-left">
                   <div className="flex flex-wrap gap-2">
                     {isActive ? (
                       <span className="rounded-full bg-[rgba(79,125,115,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
@@ -252,7 +287,7 @@ export function VersionRailSection({
                       : "No change note saved for this version."}
                   </p>
                   <p className="mt-2 text-xs text-[color:var(--muted)]">{new Date(timelineVersion.created_at).toLocaleDateString()}</p>
-                </button>
+                </div>
                 <button
                   type="button"
                   onClick={(event) => {

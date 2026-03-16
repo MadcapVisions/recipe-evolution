@@ -45,12 +45,12 @@ export function ChefAiPanel({
   return (
     <section className="app-panel flex flex-col p-4 sm:p-5">
       <p className="app-kicker">Chef workshop</p>
-      <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[28px]">Refine this version with intent.</h2>
-      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use Chef to pressure-test the dish, explore targeted moves, and save the iteration that deserves to stick.</p>
+      <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[28px]">Ask the Chef</h2>
+      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use chat to explore changes, test ideas, and save a stronger version when one is worth keeping.</p>
 
       {!shouldPrioritizeChat ? (
         <div className="mt-5">
-          <p className="app-kicker">Development moves</p>
+          <p className="app-kicker">Quick actions</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {[
               { label: "Improve Flavor", instruction: "Improve the flavor profile" },
@@ -103,8 +103,6 @@ export function ChefAiPanel({
       )}
 
       <div className="mt-5 flex min-h-0 flex-1 flex-col">
-        <p className="text-[16px] font-semibold text-[color:var(--text)]">Ask the Chef</p>
-        <p className="mt-1 text-sm text-[color:var(--muted)]">Treat chat like a test kitchen bench: get guidance first, then save the change only if it improves the dish.</p>
         <div className="mt-3 flex min-h-[280px] max-h-[58vh] flex-1 flex-col gap-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] p-4 sm:min-h-[360px] sm:max-h-[62vh] sm:rounded-[26px]">
           {aiConversation.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
