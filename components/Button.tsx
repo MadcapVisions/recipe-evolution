@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { startTransition } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "danger";
@@ -37,19 +38,31 @@ const variantStyles: Record<ButtonVariant, string> = {
 const joinClasses = (...classes: Array<string | undefined>) => classes.filter(Boolean).join(" ");
 
 export function Button(props: ButtonProps) {
+  const router = useRouter();
   const variant = props.variant ?? "primary";
   const className = joinClasses(baseStyles, variantStyles[variant], props.className);
 
   if ("href" in props) {
     const { href, children, disabled } = props as LinkButtonProps;
     return (
-      <Link
-        href={disabled ? "#" : href}
+      <button
+        type="button"
+        disabled={disabled}
         aria-disabled={disabled ? "true" : undefined}
         className={joinClasses(className, disabled ? "pointer-events-none" : undefined)}
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
+
+          startTransition(() => {
+            router.push(href);
+            router.refresh();
+          });
+        }}
       >
         {children}
-      </Link>
+      </button>
     );
   }
 

@@ -28,7 +28,7 @@ export function RecipeActionMenu({
   if (!activeRecipe || !menuAnchor) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
       <div
         className="absolute w-full max-w-xs rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)]"
         style={{ top: menuAnchor.top, left: menuAnchor.left }}
@@ -69,7 +69,7 @@ export function VersionActionMenu({
   if (!activeVersion || !versionMenuAnchor) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
+    <div className="fixed inset-0 z-[80] bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
       <div
         className="absolute w-full max-w-xs rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)]"
         style={{ top: versionMenuAnchor.top, left: versionMenuAnchor.left }}
@@ -166,19 +166,10 @@ export function RecipeSidebar({
                   </div>
                   <button
                     type="button"
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onOpenRecipeMenu(userRecipe.id, event.currentTarget.getBoundingClientRect());
-                    }}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onOpenRecipeMenu(userRecipe.id, (event.currentTarget as HTMLElement).getBoundingClientRect());
-                    }}
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
+                      onOpenRecipeMenu(userRecipe.id, event.currentTarget.getBoundingClientRect());
                     }}
                     className="relative z-20 flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[rgba(141,169,187,0.14)] hover:text-[color:var(--text)]"
                     aria-label={`Open actions for ${userRecipe.title}`}
@@ -243,7 +234,7 @@ export function RecipeSidebar({
                   </button>
                   <button
                     type="button"
-                    onMouseDown={(event) => {
+                    onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
                       onOpenVersionMenu(timelineVersion.id, event.currentTarget.getBoundingClientRect());

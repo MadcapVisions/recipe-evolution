@@ -207,6 +207,18 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     }, durationMs);
   };
 
+  const goToCreatedRecipe = (recipeId: string, versionId: string) => {
+    const href = `/recipes/${recipeId}/versions/${versionId}`;
+
+    if (typeof window !== "undefined") {
+      window.location.assign(href);
+      return;
+    }
+
+    router.push(href);
+    router.refresh();
+  };
+
   const runIdeaGeneration = async ({
     mode,
     source,
@@ -276,7 +288,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
       const recipe = ((data.result as AiRecipeResult | undefined)?.recipe ?? data.recipe) as GeneratedRecipe;
       const created = await saveGeneratedRecipe(recipe, source);
-      router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
+      goToCreatedRecipe(created.recipeId, created.versionId);
     } catch (aiError) {
       const fallbackRecipe = generateLocalRecipeDraft(
         {
@@ -287,7 +299,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         userTasteProfile ?? undefined
       );
       const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
-      router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
+      goToCreatedRecipe(created.recipeId, created.versionId);
     } finally {
       setGeneratingRecipe(false);
       setSelectedIdeaTitle(null);
@@ -320,7 +332,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
       const recipe = ((data.result as AiRecipeResult | undefined)?.recipe ?? data.recipe) as GeneratedRecipe;
       const created = await saveGeneratedRecipe(recipe, source);
-      router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
+      goToCreatedRecipe(created.recipeId, created.versionId);
     } catch {
       const fallbackRecipe = generateLocalRecipeDraft(
         {
@@ -331,7 +343,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         userTasteProfile ?? undefined
       );
       const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
-      router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
+      goToCreatedRecipe(created.recipeId, created.versionId);
     } finally {
       setGeneratingRecipe(false);
       setSelectedIdeaTitle(null);

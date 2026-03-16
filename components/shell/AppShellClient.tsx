@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { startTransition, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AiStatusBadge } from "@/components/AiStatusBadge";
 import { UserMenu } from "@/components/UserMenu";
@@ -37,18 +37,26 @@ function AppNav({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const router = useRouter();
+
   return (
     <nav className="space-y-2" aria-label="Primary">
       {links.map((link) => {
         const active = pathname === link.href || (link.href !== "/" && pathname.startsWith(`${link.href}/`));
 
         return (
-          <Link
+          <button
             key={link.href}
-            href={link.href}
-            onClick={onNavigate}
+            type="button"
+            onClick={() => {
+              onNavigate?.();
+              startTransition(() => {
+                router.push(link.href);
+                router.refresh();
+              });
+            }}
             className={joinClasses(
-              "flex min-h-11 items-center rounded-[20px] px-4 py-3 text-sm font-semibold transition",
+              "flex min-h-11 w-full items-center rounded-[20px] px-4 py-3 text-left text-sm font-semibold transition",
               active
                 ? "bg-[rgba(74,106,96,0.14)] text-[color:var(--primary-strong)] shadow-[inset_3px_0_0_var(--primary)]"
                 : "text-[color:var(--muted)] hover:bg-white/80 hover:text-[color:var(--text)]"
@@ -56,7 +64,7 @@ function AppNav({
             aria-current={active ? "page" : undefined}
           >
             {link.label}
-          </Link>
+          </button>
         );
       })}
     </nav>

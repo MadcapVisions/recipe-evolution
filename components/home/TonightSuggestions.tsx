@@ -64,7 +64,7 @@ export function TonightSuggestions({
 
   const handleCook = async (title: string) => {
     setLocalError(null);
-    const candidate = byTitle.get(title);
+    const candidate = customIdeas?.find((idea) => idea.title === title) ?? byTitle.get(title);
     if (!candidate) {
       setLocalError("Could not load recipe idea.");
       return;

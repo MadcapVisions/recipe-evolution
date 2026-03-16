@@ -892,6 +892,28 @@ export function VersionDetailClient({
     return { top, left };
   };
 
+  const navigateToRecipe = (targetRecipeId: string) => {
+    const href = `/recipes/${targetRecipeId}`;
+
+    if (typeof window !== "undefined") {
+      window.location.assign(href);
+      return;
+    }
+
+    router.push(href);
+  };
+
+  const navigateToVersion = (targetVersionId: string) => {
+    const href = `/recipes/${recipeId}/versions/${targetVersionId}`;
+
+    if (typeof window !== "undefined") {
+      window.location.assign(href);
+      return;
+    }
+
+    router.push(href);
+  };
+
   return (
     <div className="space-y-6">
       <ShellContextPanel
@@ -911,8 +933,8 @@ export function VersionDetailClient({
           timelineLoadingMore={timelineLoadingMore}
           sidebarActionError={sidebar.sidebarActionError}
           onRecipeSearchChange={sidebar.setRecipeSearch}
-          onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
-          onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
+          onRecipeNavigate={navigateToRecipe}
+          onVersionNavigate={navigateToVersion}
           onLoadMoreVersions={() => void loadMoreVersions()}
           onOpenRecipeMenu={(targetRecipeId, rect) => {
             sidebar.setMenuAnchor(openMenuAtRect(rect));
@@ -996,8 +1018,8 @@ export function VersionDetailClient({
             timelineLoadingMore={timelineLoadingMore}
             sidebarActionError={sidebar.sidebarActionError}
             onRecipeSearchChange={sidebar.setRecipeSearch}
-            onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
-            onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
+            onRecipeNavigate={navigateToRecipe}
+            onVersionNavigate={navigateToVersion}
             onLoadMoreVersions={() => void loadMoreVersions()}
             onOpenRecipeMenu={(targetRecipeId, rect) => {
               sidebar.setMenuAnchor(openMenuAtRect(rect));
