@@ -8,6 +8,7 @@ import { createRecipeFromDraft } from "@/lib/client/recipeMutations";
 import type { RecipeDraft } from "@/lib/recipes/recipeDraft";
 import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
+import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import {
   buildSmartFallbackIdeas,
   cookTimeLabelToMinutes,
@@ -414,12 +415,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setLoading(true);
     setError(null);
     setStatus("Chef is refining...");
-    setPromptInput("");
-    trackEventInBackground("chef_chat_prompt", {
-      prompt: trimmedPrompt,
-      source: "home-hub",
-      messageCount: heroChatMessages.length,
-    });
 
     try {
       const recipeContext: RecipeContext =
@@ -430,6 +425,24 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
               steps: heroChatMessages.filter((message) => message.role === "ai").map((message) => message.text),
             }
           : null;
+
+      const topicGuard = guardCookingTopic({
+        message: trimmedPrompt,
+        recipeContext,
+      });
+
+      if (!topicGuard.allowed) {
+        setError(COOKING_SCOPE_MESSAGE);
+        setStatus(null);
+        return;
+      }
+
+      setPromptInput("");
+      trackEventInBackground("chef_chat_prompt", {
+        prompt: trimmedPrompt,
+        source: "home-hub",
+        messageCount: heroChatMessages.length,
+      });
 
       const data = (await invokeAi({
         mode: "chef_chat",

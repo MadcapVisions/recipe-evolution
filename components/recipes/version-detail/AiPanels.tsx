@@ -46,7 +46,7 @@ export function ChefAiPanel({
     <section className="app-panel flex flex-col p-4 sm:p-5">
       <p className="app-kicker">Chef workshop</p>
       <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[28px]">Ask the Chef</h2>
-      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use chat to explore changes, test ideas, and save a stronger version when one is worth keeping.</p>
+      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use chat for cooking changes only: flavor, technique, timing, substitutions, and recipe improvements worth saving.</p>
 
       {!shouldPrioritizeChat ? (
         <div className="mt-5">
@@ -119,7 +119,7 @@ export function ChefAiPanel({
           ))}
           {aiConversation.length === 0 && !isAskingAi ? (
             <div className="self-start rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-white px-4 py-3 text-[15px] text-[color:var(--muted)]">
-              Ask the chef anything about this version...
+              Ask about flavor, technique, substitutions, timing, or how to improve this version...
             </div>
           ) : null}
           {isAskingAi ? (
@@ -160,7 +160,7 @@ export function ChefAiPanel({
                 setComposerFocused(false);
               }
             }}
-            placeholder="Ask about flavor, technique, speed, substitutions..."
+            placeholder="Ask about flavor, technique, timing, substitutions..."
             className="min-w-0 flex-1 rounded-full bg-white px-4 py-3 text-[15px] sm:px-5 sm:text-[16px]"
           />
           <button

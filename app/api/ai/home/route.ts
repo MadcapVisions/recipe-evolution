@@ -7,6 +7,7 @@ import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { storeConversationTurns } from "@/lib/ai/conversationStore";
+import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -104,6 +105,20 @@ export async function POST(request: Request) {
       const userMessage = body.userMessage?.trim();
       if (!userMessage || userMessage.length > 4000) {
         return NextResponse.json({ error: true, message: "userMessage is required" }, { status: 400 });
+      }
+
+      const topicGuard = guardCookingTopic({
+        message: userMessage,
+        recipeContext: body.recipeContext ?? null,
+      });
+
+      if (!topicGuard.allowed) {
+        void trackServerEvent(access.supabase, access.userId, "ai_topic_guard_blocked", {
+          route: "home-hub",
+          mode: body.mode,
+          user_message_length: userMessage.length,
+        });
+        return NextResponse.json({ reply: COOKING_SCOPE_MESSAGE });
       }
 
       const conversationHistory = Array.isArray(body.conversationHistory)

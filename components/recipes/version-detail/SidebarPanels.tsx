@@ -27,15 +27,15 @@ export function RecipeActionMenu({
   onArchive,
 }: RecipeActionMenuProps) {
   if (!activeRecipe || !menuAnchor) return null;
-  const mobileLayout = typeof window !== "undefined" && window.innerWidth < 1280;
+  const sheetLayout = typeof window !== "undefined" && window.innerWidth < 640;
 
   const content = (
     <div className="fixed inset-0 z-[80] bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
       <div
-        className={`w-full rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)] ${
-          mobileLayout ? "absolute inset-x-4 bottom-4 max-w-none" : "absolute max-w-xs"
+        className={`rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)] ${
+          sheetLayout ? "absolute inset-x-4 bottom-4 w-auto max-w-none" : "absolute w-[min(260px,calc(100vw-24px))]"
         }`}
-        style={mobileLayout ? undefined : { top: menuAnchor.top, left: menuAnchor.left }}
+        style={sheetLayout ? undefined : { top: menuAnchor.top, left: menuAnchor.left }}
         onClick={(event) => event.stopPropagation()}
       >
         <MenuButton onClick={() => onHide(activeRecipe.id)}>Hide</MenuButton>
@@ -73,15 +73,15 @@ export function VersionActionMenu({
   onDelete,
 }: VersionActionMenuProps) {
   if (!activeVersion || !versionMenuAnchor) return null;
-  const mobileLayout = typeof window !== "undefined" && window.innerWidth < 1280;
+  const sheetLayout = typeof window !== "undefined" && window.innerWidth < 640;
 
   const content = (
     <div className="fixed inset-0 z-[80] bg-[rgba(35,49,45,0.12)]" onClick={onClose}>
       <div
-        className={`w-full rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)] ${
-          mobileLayout ? "absolute inset-x-4 bottom-4 max-w-none" : "absolute max-w-xs"
+        className={`rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)] ${
+          sheetLayout ? "absolute inset-x-4 bottom-4 w-auto max-w-none" : "absolute w-[min(260px,calc(100vw-24px))]"
         }`}
-        style={mobileLayout ? undefined : { top: versionMenuAnchor.top, left: versionMenuAnchor.left }}
+        style={sheetLayout ? undefined : { top: versionMenuAnchor.top, left: versionMenuAnchor.left }}
         onClick={(event) => event.stopPropagation()}
       >
         <MenuButton onClick={() => onRename(activeVersion.id, activeVersion.version_label)}>Rename</MenuButton>

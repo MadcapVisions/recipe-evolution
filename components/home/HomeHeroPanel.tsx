@@ -55,7 +55,7 @@ export function HomeHeroPanel({
                 Start with a direction. Save the version worth keeping.
               </h1>
               <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[18px] sm:leading-8">
-                Bring a craving, ingredient, or constraint. Chef helps you sharpen the dish before it becomes part of your cookbook.
+                Bring a craving, ingredient, or constraint. Chef stays focused on cooking, then helps you sharpen the dish before it becomes part of your cookbook.
               </p>
             </div>
 
@@ -100,7 +100,7 @@ export function HomeHeroPanel({
                 <p className="text-[14px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Start with a prompt like this</p>
                 <p className="text-[18px] font-semibold text-[color:var(--text)]">“I want a bright, quick dinner with chicken, lemon, and some crunch.”</p>
                 <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
-                  Ask for structure, technique, substitutions, or flavor balance before you turn it into a saved recipe.
+                  Ask for structure, technique, substitutions, timing, or flavor balance before you turn it into a saved recipe.
                 </p>
               </div>
             ) : (
@@ -138,7 +138,7 @@ export function HomeHeroPanel({
             value={promptInput}
             onChange={(event) => onPromptInputChange(event.target.value)}
             onKeyDown={onPromptInputKeyDown}
-            placeholder="Describe the dish, ingredient set, or constraint..."
+            placeholder="Describe a dish, ingredients, or a cooking constraint..."
             className="min-h-12 flex-1 rounded-full bg-white px-5 text-[16px]"
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

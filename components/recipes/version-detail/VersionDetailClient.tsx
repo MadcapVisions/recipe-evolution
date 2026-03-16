@@ -15,6 +15,7 @@ import { createRecipeVersionViaApi, mapVersionToCanonicalVersion } from "@/lib/c
 import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
+import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import {
   buildVersionLabelFromInstruction,
   normalizeIngredients,
@@ -600,6 +601,22 @@ export function VersionDetailClient({
   async function handleAskAiSubmit() {
     const instruction = assistant.customInstruction.trim();
     if (!instruction || assistant.isAskingAi || assistant.isGeneratingVersion) return;
+
+    const recipeContext = {
+      title: recipe?.title ?? "Recipe in progress",
+      ingredients: ingredients.map((item) => item.name),
+      steps: steps.map((item) => item.text),
+    };
+    const topicGuard = guardCookingTopic({
+      message: instruction,
+      recipeContext,
+    });
+
+    if (!topicGuard.allowed) {
+      assistant.setAiError(COOKING_SCOPE_MESSAGE);
+      return;
+    }
+
     assistant.setIsAskingAi(true);
     assistant.setAiError(null);
     trackEventInBackground("chef_chat_prompt", {
