@@ -12,6 +12,7 @@ import { buildPrepPlan, type PrepChecklistItem } from "@/lib/recipes/prepPlan";
 import { scaleCanonicalIngredientLine } from "@/lib/recipes/servings";
 import { useTargetServings } from "@/lib/recipes/targetServings";
 import { ServingsControl } from "@/components/ServingsControl";
+import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 
 type Step = {
   text: string;
@@ -546,8 +547,168 @@ export function CookingModeClient({
     );
   }
 
+  const contextPanelTitle = phase === "prep" ? "Prep tools" : phase === "cook" ? "Cooking tools" : "Finish tools";
+  const contextPanelDescription =
+    phase === "prep"
+      ? "Keep setup cues, checklist progress, and ingredient readiness close without shrinking the main prep flow."
+      : phase === "cook"
+        ? "Use this side panel for the full step rail, support notes, and fallback substitutions while you cook."
+        : "Use the finish panel for final tasting cues and service notes before you mark the cook complete.";
+
   return (
     <>
+      <ShellContextPanel title={contextPanelTitle} description={contextPanelDescription}>
+        <div className="space-y-4">
+          <section className="artifact-sheet p-4">
+            <p className="app-kicker">Cook session</p>
+            <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)]">{recipeTitle}</h2>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-[18px] bg-white px-3 py-3 text-center">
+                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Servings</p>
+                <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{canScale ? targetServings : servings ?? "-"}</p>
+              </div>
+              <div className="rounded-[18px] bg-white px-3 py-3 text-center">
+                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Prep</p>
+                <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{prepTimeMin ?? "-"} min</p>
+              </div>
+              <div className="rounded-[18px] bg-white px-3 py-3 text-center">
+                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Cook</p>
+                <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{cookTimeMin ?? "-"} min</p>
+              </div>
+            </div>
+          </section>
+
+          {phase === "prep" ? (
+            <>
+              <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-4">
+                <p className="text-sm font-semibold text-emerald-900">Setup progress</p>
+                <p className="mt-1 text-sm leading-6 text-emerald-800">
+                  {completedPrepIds.length}/{prepPlan.checklist.length} checklist items done and {checkedIngredients.length}/{scaledIngredientLines.length} ingredients ready.
+                </p>
+              </section>
+              <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Chef setup notes</p>
+                <div className="mt-4 space-y-3">
+                  {prepPlan.firstMoves.length > 0 ? (
+                    <div className="rounded-[22px] bg-white/88 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">First moves</p>
+                      <p className="mt-2 text-sm leading-6 text-emerald-950">{prepPlan.firstMoves.slice(0, 2).join(" ")}</p>
+                    </div>
+                  ) : null}
+                  {recommendedTechniques.length > 0 ? (
+                    <div className="rounded-[22px] bg-white/88 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Pro prep focus</p>
+                      <p className="mt-2 text-sm leading-6 text-emerald-950">Focus on {recommendedTechniques.slice(0, 2).join(" and ")} while you set up.</p>
+                    </div>
+                  ) : null}
+                  {prepPlan.cookingWindows.length > 0 ? (
+                    <div className="rounded-[22px] bg-white/88 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">While something cooks</p>
+                      <ul className="mt-2 space-y-2">
+                        {prepPlan.cookingWindows.slice(0, 1).map((item) => (
+                          <li key={item} className="text-sm leading-6 text-emerald-950">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            </>
+          ) : null}
+
+          {phase === "cook" ? (
+            <>
+              <section className="rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-4">
+                <p className="text-sm font-semibold text-emerald-900">Need to know right now</p>
+                <p className="mt-1 text-sm leading-6 text-emerald-800">Only the cues that help this specific step come out better.</p>
+                <div className="mt-4 space-y-3">
+                  {cookSupportNotes.length > 0 ? (
+                    cookSupportNotes.map((note) => (
+                      <div key={`${note.title}-${note.body}`} className="rounded-[22px] bg-white/88 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{note.title}</p>
+                        <p className="mt-2 text-sm leading-7 text-emerald-950">{note.body}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-[22px] bg-white/88 p-4 text-sm leading-6 text-emerald-950">
+                      No extra support notes are needed for this step. Focus on the instruction and timer.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {substitutionSuggestions.length > 0 && safeIndex === 0 ? (
+                <section className="rounded-[28px] border border-amber-200 bg-amber-50/80 p-4">
+                  <p className="text-sm font-semibold text-amber-900">Quick substitutions</p>
+                  <div className="mt-3 space-y-2">
+                    {substitutionSuggestions.slice(0, 2).map((entry) => (
+                      <p key={entry.ingredient} className="rounded-[18px] bg-white/85 px-3 py-2 text-sm leading-6 text-amber-950">
+                        <span className="font-semibold">{entry.ingredient}</span> → try {entry.options.join(", ")}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="artifact-sheet p-4">
+                <p className="text-sm font-semibold text-[color:var(--text)]">Full cooking flow</p>
+                <p className="mt-1 text-sm text-[color:var(--muted)]">Jump to any step without leaving cooking mode.</p>
+                <div className="mt-4 space-y-2">
+                  {initialSteps.map((step, index) => {
+                    const parsed = parseTechniqueStep(step.text);
+                    const active = index === safeIndex;
+
+                    return (
+                      <button
+                        key={`${index}-${step.text}`}
+                        type="button"
+                        onClick={() => setCurrentStepIndex(index)}
+                        className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
+                          active
+                            ? "border-[rgba(82,124,116,0.22)] bg-[rgba(82,124,116,0.08)]"
+                            : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(141,169,187,0.06)]"
+                        }`}
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Step {index + 1}</p>
+                        <p className="mt-2 text-sm leading-6 text-[color:var(--text)]">{parsed.instruction || step.text}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            </>
+          ) : null}
+
+          {phase === "finish" ? (
+            <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Serve with intention</p>
+              <div className="mt-4 space-y-3">
+                {prepPlan.makeAheadTasks.slice(0, 1).map((item) => (
+                  <div key={item} className="rounded-[22px] bg-white/88 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Finish cue</p>
+                    <p className="mt-2 text-sm leading-7 text-emerald-950">{item}</p>
+                  </div>
+                ))}
+                {currentStepHighlight?.ingredients.length ? (
+                  <div className="rounded-[22px] bg-white/88 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Taste check</p>
+                    <p className="mt-2 text-sm leading-7 text-emerald-950">
+                      Taste again with special attention to {currentStepHighlight.ingredients.join(", ")} before serving.
+                    </p>
+                  </div>
+                ) : null}
+                {flavorPairings.length > 0 ? (
+                  <div className="rounded-[22px] bg-white/88 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Final lift</p>
+                    <p className="mt-2 text-sm leading-7 text-emerald-950">A last touch of {flavorPairings.slice(0, 3).join(", ")} can sharpen the finish.</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </ShellContextPanel>
+
       <div className="rounded-[32px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] p-4 shadow-[0_16px_36px_rgba(52,70,63,0.08)] sm:p-6">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <div className="space-y-5">
@@ -585,89 +746,88 @@ export function CookingModeClient({
             </div>
 
             {phase === "prep" ? (
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
-                <section className="space-y-5">
-	                  <div className="rounded-[30px] border border-[rgba(57,75,70,0.08)] bg-[linear-gradient(135deg,rgba(223,247,235,0.74)_0%,rgba(255,255,255,0.94)_100%)] p-5 sm:p-6">
-	                    <p className="text-sm font-medium text-[color:var(--muted)]">Prep phase</p>
-	                    <h2 className="mt-3 text-[34px] font-semibold leading-[1.08] tracking-tight text-[color:var(--text)] sm:text-[42px]">Set yourself up before the heat starts.</h2>
-	                    <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
-	                      Great cooking starts with setup. Gather ingredients, do the prep that matters, and use the cues here to avoid avoidable mistakes.
-	                    </p>
-	                  </div>
+              <div className="space-y-5 xl:grid xl:grid-cols-[minmax(0,1.15fr)_360px] xl:gap-6 xl:space-y-0">
+                <div className="space-y-5">
+                <div className="rounded-[30px] border border-[rgba(57,75,70,0.08)] bg-[linear-gradient(135deg,rgba(223,247,235,0.74)_0%,rgba(255,255,255,0.94)_100%)] p-5 sm:p-6">
+                  <p className="text-sm font-medium text-[color:var(--muted)]">Prep phase</p>
+                  <h2 className="mt-3 text-[34px] font-semibold leading-[1.08] tracking-tight text-[color:var(--text)] sm:text-[42px]">Set yourself up before the heat starts.</h2>
+                  <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
+                    Great cooking starts with setup. Gather ingredients, do the prep that matters, and use the cues here to avoid avoidable mistakes.
+                  </p>
+                </div>
 
-	                  <div className="flex flex-wrap gap-3">
-	                    <Button onClick={() => setPhase("cook")} className="min-h-14 text-base">Begin Live Cooking</Button>
-	                    <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-14 text-base">Skip Setup</Button>
-	                  </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={() => setPhase("cook")} className="min-h-14 text-base">Begin Live Cooking</Button>
+                  <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-14 text-base">Skip Setup</Button>
+                </div>
 
-                  {scaledIngredientLines.length > 0 ? (
-                    <section className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.04)] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-[color:var(--text)]">Gather ingredients{canScale && servings ? ` for ${targetServings}` : ""}</p>
-                          <p className="mt-1 text-sm text-[color:var(--muted)]">Tap once each item is on the counter.</p>
-                        </div>
-                        <p className="text-sm text-[color:var(--muted)]">{checkedIngredients.length}/{scaledIngredientLines.length} ready</p>
-                      </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {scaledIngredientLines.map((line, index) => (
-                          <IngredientCheckCard
-                            key={`${index}-${line}`}
-                            item={line}
-                            checked={checkedIngredients.includes(line)}
-                            onToggle={() =>
-                              setCheckedIngredients((current) =>
-                                current.includes(line) ? current.filter((item) => item !== line) : [...current, line]
-                              )
-                            }
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-
-                  <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-4">
+                {scaledIngredientLines.length > 0 ? (
+                  <section className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.04)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-emerald-900">Prep checklist</p>
-                        <p className="mt-1 text-sm leading-6 text-emerald-800">Finish the setup work that should happen before the live cooking flow starts.</p>
+                        <p className="text-sm font-semibold text-[color:var(--text)]">Gather ingredients{canScale && servings ? ` for ${targetServings}` : ""}</p>
+                        <p className="mt-1 text-sm text-[color:var(--muted)]">Tap once each item is on the counter.</p>
                       </div>
-                      <p className="text-sm text-emerald-800">
-                        {completedPrepIds.length}/{prepPlan.checklist.length} done
-                      </p>
+                      <p className="text-sm text-[color:var(--muted)]">{checkedIngredients.length}/{scaledIngredientLines.length} ready</p>
                     </div>
-
-                    {prepChecklistItems.mise.length > 0 ? (
-                      <div className="mt-4 space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Mise en place</p>
-                        {prepChecklistItems.mise.map((item) => (
-                          <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {prepChecklistItems["make-ahead"].length > 0 ? (
-                      <div className="mt-4 space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Make ahead</p>
-                        {prepChecklistItems["make-ahead"].map((item) => (
-                          <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {prepChecklistItems["cook-window"].length > 0 ? (
-                      <div className="mt-4 space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Cook window</p>
-                        {prepChecklistItems["cook-window"].map((item) => (
-                          <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
-                        ))}
-                      </div>
-                    ) : null}
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {scaledIngredientLines.map((line, index) => (
+                        <IngredientCheckCard
+                          key={`${index}-${line}`}
+                          item={line}
+                          checked={checkedIngredients.includes(line)}
+                          onToggle={() =>
+                            setCheckedIngredients((current) =>
+                              current.includes(line) ? current.filter((item) => item !== line) : [...current, line]
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
                   </section>
+                ) : null}
 
+                <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-900">Prep checklist</p>
+                      <p className="mt-1 text-sm leading-6 text-emerald-800">Finish the setup work that should happen before the live cooking flow starts.</p>
+                    </div>
+                    <p className="text-sm text-emerald-800">
+                      {completedPrepIds.length}/{prepPlan.checklist.length} done
+                    </p>
+                  </div>
+
+                  {prepChecklistItems.mise.length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Mise en place</p>
+                      {prepChecklistItems.mise.map((item) => (
+                        <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {prepChecklistItems["make-ahead"].length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Make ahead</p>
+                      {prepChecklistItems["make-ahead"].map((item) => (
+                        <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {prepChecklistItems["cook-window"].length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Cook window</p>
+                      {prepChecklistItems["cook-window"].map((item) => (
+                        <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
+                      ))}
+                    </div>
+                  ) : null}
                 </section>
+                </div>
 
-                <aside className="space-y-4">
+                <aside className="hidden space-y-4 xl:block">
                   <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Chef setup notes</p>
                     <div className="mt-4 space-y-3">
@@ -700,8 +860,8 @@ export function CookingModeClient({
             ) : null}
 
             {phase === "cook" ? (
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-                <section className="space-y-4">
+              <div className="space-y-4 xl:grid xl:grid-cols-[minmax(0,1.2fr)_320px] xl:gap-5 xl:space-y-0">
+                <div className="space-y-4">
                   <div className="rounded-[30px] border border-[rgba(57,75,70,0.08)] bg-[linear-gradient(135deg,rgba(224,232,246,0.78)_0%,rgba(255,255,255,0.92)_100%)] p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -748,37 +908,9 @@ export function CookingModeClient({
                       </div>
                     ) : null}
                   </div>
+                </div>
 
-                  <details className="rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)] p-4">
-                    <summary className="cursor-pointer list-none">
-                      <p className="text-sm font-semibold text-[color:var(--text)]">Full cooking flow</p>
-                      <p className="mt-1 text-sm text-[color:var(--muted)]">Expand when you need the whole recipe sequence.</p>
-                    </summary>
-                    <div className="mt-4 space-y-2">
-                      {initialSteps.map((step, index) => {
-                        const parsed = parseTechniqueStep(step.text);
-                        const active = index === safeIndex;
-                        return (
-                          <button
-                            key={`${index}-${step.text}`}
-                            type="button"
-                            onClick={() => setCurrentStepIndex(index)}
-                            className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
-                              active
-                                ? "border-[rgba(82,124,116,0.22)] bg-[rgba(82,124,116,0.08)]"
-                                : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(141,169,187,0.06)]"
-                            }`}
-                          >
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Step {index + 1}</p>
-                            <p className="mt-2 text-sm leading-6 text-[color:var(--text)]">{parsed.instruction || step.text}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </details>
-                </section>
-
-                <aside className="space-y-4">
+                <aside className="hidden space-y-4 xl:block">
                   <section className="rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-4">
                     <p className="text-sm font-semibold text-emerald-900">Need to know right now</p>
                     <p className="mt-1 text-sm leading-6 text-emerald-800">Only the cues that help this specific step come out better.</p>
@@ -815,8 +947,8 @@ export function CookingModeClient({
             ) : null}
 
             {phase === "finish" ? (
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_360px]">
-                <section className="space-y-5">
+              <div className="space-y-5 xl:grid xl:grid-cols-[minmax(0,1.1fr)_360px] xl:gap-6 xl:space-y-0">
+                <div className="space-y-5">
                   <div className="rounded-[30px] border border-[rgba(170,138,87,0.16)] bg-[linear-gradient(135deg,rgba(247,239,220,0.92)_0%,rgba(255,250,241,0.98)_100%)] p-5 sm:p-6">
                     <p className="text-sm font-medium text-[color:var(--muted)]">Finish phase</p>
                     <h2 className="mt-3 text-[34px] font-semibold leading-[1.08] tracking-tight text-[color:var(--text)] sm:text-[42px]">Taste, adjust, and serve with confidence.</h2>
@@ -851,9 +983,9 @@ export function CookingModeClient({
                     </Button>
                     </div>
                   </div>
-                </section>
+                </div>
 
-                <aside className="space-y-4">
+                <aside className="hidden space-y-4 xl:block">
                   <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-5">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Serve with intention</p>
                     <div className="mt-4 space-y-3">

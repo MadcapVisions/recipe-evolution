@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/components/recipes/version-detail/AiPanels";
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
 import { RecipeActionMenu, RecipeSidebar, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
+import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useRecipeAssistant } from "@/components/recipes/version-detail/useRecipeAssistant";
 import { useRecipeSidebarState } from "@/components/recipes/version-detail/useRecipeSidebarState";
 import { generateLocalChefReply, generateLocalImprovedRecipe, generateLocalRemixRecipe } from "@/lib/localRecipeGenerator";
@@ -893,6 +894,66 @@ export function VersionDetailClient({
 
   return (
     <div className="space-y-6">
+      <ShellContextPanel
+        title="Recipe tools"
+        description="Use this panel for version navigation, metrics, prep cues, and Chef support while the main canvas stays focused on the current recipe."
+      >
+        <div className="space-y-4">
+          <RecipeSidebar
+            currentRecipeId={recipeId}
+            currentVersion={version!}
+            recipe={recipe!}
+            recipeSearch={sidebar.recipeSearch}
+            searchResults={sidebar.searchResults}
+            timelineVersions={timelineVersions}
+            timelineHasMore={timelineHasMore}
+            timelineLoadingMore={timelineLoadingMore}
+            sidebarActionError={sidebar.sidebarActionError}
+            onRecipeSearchChange={sidebar.setRecipeSearch}
+            onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
+            onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
+            onLoadMoreVersions={() => void loadMoreVersions()}
+            onOpenRecipeMenu={(targetRecipeId, rect) => {
+              sidebar.setMenuAnchor(openMenuAtRect(rect));
+              sidebar.setOpenMenuRecipeId(targetRecipeId);
+            }}
+            onOpenVersionMenu={(targetVersionId, rect) => {
+              sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
+              sidebar.setOpenVersionMenuId(targetVersionId);
+            }}
+          />
+          <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
+          <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
+          <PrepPlanPanel
+            prepPlan={prepPlan}
+            completedChecklistIds={completedPrepIds}
+            onToggleChecklistItem={(itemId) => {
+              const completed = !completedPrepIds.includes(itemId);
+              setCompletedPrepIds((current) => (completed ? [...current, itemId] : current.filter((id) => id !== itemId)));
+              void fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ checklist_item_id: itemId, completed }),
+              });
+            }}
+          />
+          <ChefAiPanel
+            aiConversation={assistant.aiConversation}
+            customInstruction={assistant.customInstruction}
+            suggestedChange={assistant.suggestedChange}
+            isAskingAi={assistant.isAskingAi}
+            isGeneratingVersion={assistant.isGeneratingVersion}
+            aiError={assistant.aiError}
+            onQuickAction={(instruction) => void handleQuickAction(instruction)}
+            onRemixLeftovers={() => void handleRemixLeftovers()}
+            onInstructionChange={assistant.setCustomInstruction}
+            onAskSubmit={() => void handleAskAiSubmit()}
+            onApplySuggestedChange={() => void handleApplySuggestedChange()}
+            conversationEndRef={assistant.conversationEndRef}
+          />
+        </div>
+      </ShellContextPanel>
+
       <RecipeActionMenu
         activeRecipe={activeMenuRecipe}
         menuAnchor={sidebar.menuAnchor}
@@ -912,8 +973,8 @@ export function VersionDetailClient({
         onDelete={(targetVersionId) => void deleteVersion(targetVersionId)}
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
-        <div className="order-3 xl:order-1">
+      <div className="xl:grid xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-6">
+        <div className="hidden xl:block">
           <RecipeSidebar
             currentRecipeId={recipeId}
             currentVersion={version!}
@@ -939,24 +1000,22 @@ export function VersionDetailClient({
           />
         </div>
 
-        <div className="order-1 xl:order-2">
-          <VersionMainPanels
-            recipe={recipe!}
-            version={version!}
-            ingredients={displayIngredients}
-            displayServings={displayServings}
-            canAdjustServings={canAdjustServings}
-            onSetTargetServings={setTargetServings}
-            steps={steps}
-            topPhotoUrl={topPhotoUrl}
-            userId={userId}
-            photosWithUrls={photosWithUrls}
-            onShare={() => void shareVersion()}
-            galleryLoading={galleryLoading}
-          />
-        </div>
+        <VersionMainPanels
+          recipe={recipe!}
+          version={version!}
+          ingredients={displayIngredients}
+          displayServings={displayServings}
+          canAdjustServings={canAdjustServings}
+          onSetTargetServings={setTargetServings}
+          steps={steps}
+          topPhotoUrl={topPhotoUrl}
+          userId={userId}
+          photosWithUrls={photosWithUrls}
+          onShare={() => void shareVersion()}
+          galleryLoading={galleryLoading}
+        />
 
-        <aside className="order-2 space-y-4 xl:order-3 xl:sticky xl:top-28 xl:self-start">
+        <aside className="hidden space-y-4 xl:block xl:sticky xl:top-28 xl:self-start">
           <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
           <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
           <PrepPlanPanel
