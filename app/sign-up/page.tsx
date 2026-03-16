@@ -54,10 +54,16 @@ export default function SignUpPage() {
     <div className="mx-auto max-w-xl page-shell">
       <div className="space-y-3">
         <p className="app-kicker">Account</p>
-        <h1 className="page-title">Create your account</h1>
-        <p className="text-[16px] leading-7 text-[color:var(--muted)]">Save recipes, generate versions, and keep your kitchen organized in one place.</p>
+        <h1 className="page-title">Build your personal cookbook</h1>
+        <p className="text-[16px] leading-7 text-[color:var(--muted)]">Claim the free Starter Shelf, save your first strong version, and keep your kitchen system in one place.</p>
       </div>
       <form onSubmit={handleSubmit} className="saas-card space-y-4 p-6">
+        <div className="rounded-[24px] bg-[rgba(79,125,115,0.08)] p-4">
+          <p className="app-kicker">Free starter offer</p>
+          <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">
+            Your account gives you a place to import a recipe or start from a rough idea, refine it with Chef, and save the version you actually want to keep. No card required.
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-1">
             <span className="text-[15px] font-medium text-[color:var(--text)]">First name</span>
@@ -105,7 +111,7 @@ export default function SignUpPage() {
           disabled={loading}
           className="w-full"
         >
-          {loading ? "Creating account..." : "Create account"}
+          {loading ? "Creating account..." : "Claim My Free Starter Shelf"}
         </Button>
       </form>
       {message ? <p className="text-green-700">{message}</p> : null}

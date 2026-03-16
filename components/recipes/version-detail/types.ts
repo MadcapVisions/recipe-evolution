@@ -26,6 +26,7 @@ export type TimelineVersion = {
   id: string;
   version_number: number;
   version_label: string | null;
+  change_summary?: string | null;
   created_at: string;
 };
 

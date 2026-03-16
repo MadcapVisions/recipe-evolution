@@ -102,16 +102,16 @@ export function PreferencesForm({
 
   return (
     <div className="saas-card space-y-6 p-5">
-      <div className="rounded-[24px] bg-[rgba(141,169,187,0.08)] px-4 py-3">
+      <div className="rounded-[24px] border border-[rgba(74,106,96,0.08)] bg-[rgba(74,106,96,0.05)] px-4 py-3">
         <p className="text-[15px] leading-6 text-[color:var(--muted)]">
-          These are the defaults Chef uses before adapting to your saved recipes and behavior.
+          These are the defaults Chef uses before adapting to your cookbook, saved versions, and behavior.
         </p>
       </div>
 
       <section className="settings-section space-y-4 p-4">
         <div className="space-y-1">
           <p className="app-kicker">Cooking defaults</p>
-          <h3 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)]">How you like to cook</h3>
+          <h3 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)]">How your kitchen usually works</h3>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -158,6 +158,9 @@ export function PreferencesForm({
         <div className="space-y-1">
           <p className="app-kicker">Taste profile</p>
           <h3 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)]">What you naturally reach for</h3>
+          <p className="text-[15px] leading-6 text-[color:var(--muted)]">
+            Give Chef the flavor instincts and ingredient patterns that already feel like you.
+          </p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -223,6 +226,9 @@ export function PreferencesForm({
         <div className="space-y-1">
           <p className="app-kicker">Constraints</p>
           <h3 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)]">Diet, health, and avoid lists</h3>
+          <p className="text-[15px] leading-6 text-[color:var(--muted)]">
+            Set the edges of the system so suggestions stay practical, comfortable, and aligned with your goals.
+          </p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -271,6 +277,9 @@ export function PreferencesForm({
         <div className="space-y-1">
           <p className="app-kicker">Kitchen context</p>
           <h3 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)]">What is usually in your kitchen</h3>
+          <p className="text-[15px] leading-6 text-[color:var(--muted)]">
+            Pantry context helps Chef make suggestions that fit the way you actually stock and cook.
+          </p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -320,12 +329,8 @@ export function PreferencesForm({
           {message ? <p className="text-sm text-green-700">{message}</p> : null}
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="min-h-12 w-full shadow-[0_16px_30px_rgba(188,92,47,0.22)] sm:w-auto"
-        >
-          {saving ? "Saving..." : "Save Preferences"}
+        <Button onClick={handleSave} disabled={saving} className="min-h-12 w-full sm:w-auto">
+          {saving ? "Saving..." : "Save Kitchen Profile"}
         </Button>
       </div>
     </div>

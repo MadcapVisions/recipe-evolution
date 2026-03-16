@@ -13,8 +13,8 @@ export default async function MyRecipesPage() {
 
   return (
     <div className="page-shell">
-      <h1 className="page-title">My Recipes</h1>
-      <p className="saas-card p-4 text-slate-600">Your authenticated recipe list can go here.</p>
+      <h1 className="page-title">My Cookbook</h1>
+      <p className="saas-card p-4 text-slate-600">Your saved dishes and working versions can live here.</p>
     </div>
   );
 }

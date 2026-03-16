@@ -35,10 +35,16 @@ export default function SignInPage() {
     <div className="mx-auto max-w-xl page-shell">
       <div className="space-y-3">
         <p className="app-kicker">Account</p>
-        <h1 className="page-title">Sign in</h1>
-        <p className="text-[16px] leading-7 text-[color:var(--muted)]">Access your recipes, saved versions, and kitchen preferences.</p>
+        <h1 className="page-title">Return to your cookbook</h1>
+        <p className="text-[16px] leading-7 text-[color:var(--muted)]">Access your dishes, saved versions, planning workflows, and taste preferences.</p>
       </div>
       <form onSubmit={handleSubmit} className="saas-card space-y-4 p-6">
+        <div className="rounded-[24px] bg-[rgba(201,123,66,0.08)] p-4">
+          <p className="app-kicker">What is waiting</p>
+          <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">
+            Pick up where you left off, revisit the latest version of a dish, or develop the next iteration with Chef.
+          </p>
+        </div>
         <label className="block space-y-1">
           <span className="text-[15px] font-medium text-[color:var(--text)]">Email</span>
           <input
@@ -64,7 +70,7 @@ export default function SignInPage() {
           disabled={loading}
           className="w-full"
         >
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Signing in..." : "Open My Cookbook"}
         </Button>
       </form>
       {error ? <p className="text-red-700">{error}</p> : null}

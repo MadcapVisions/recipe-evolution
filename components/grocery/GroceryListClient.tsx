@@ -283,16 +283,16 @@ export function GroceryListClient({
     <div className="space-y-4">
       <ServingsControl label="Shop for" baseServings={effectiveBaseServings} targetServings={targetServings} onChange={setTargetServings} />
 
-      <div className="rounded-lg border bg-slate-50 p-3">
+      <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-slate-900">Shopping plan</p>
-            <p className="text-sm text-slate-600">
+            <p className="app-kicker">Shopping plan</p>
+            <p className="mt-2 text-sm text-[color:var(--muted)]">
               {groceryPlan.groupedItems.length} aisle section{groceryPlan.groupedItems.length === 1 ? "" : "s"}
               {groceryPlan.pantryItems.length > 0 ? `, ${groceryPlan.pantryItems.length} pantry staple${groceryPlan.pantryItems.length === 1 ? "" : "s"}` : ""}
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-[color:var(--muted)]">
             <input type="checkbox" checked={hidePantryItems} onChange={(event) => setHidePantryItems(event.target.checked)} />
             Hide pantry staples
           </label>
@@ -305,7 +305,7 @@ export function GroceryListClient({
           variant="secondary"
           className="min-h-12"
         >
-          Copy List
+          Copy Plan
         </Button>
         <Button
           onClick={shareList}

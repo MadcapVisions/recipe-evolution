@@ -110,19 +110,21 @@ export function MealPlannerClient({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <aside className="app-panel p-5">
-        <p className="app-kicker">Planner</p>
-        <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[32px]">Build a meal plan</h1>
-        <p className="mt-2 text-[15px] text-[color:var(--muted)]">
-          Pick a few recipes and Recipe Evolution will combine the grocery list and prep summary for you.
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <aside className="artifact-sheet p-4 sm:p-5">
+        <p className="app-kicker">Meal planning</p>
+        <h1 className="mt-2 max-w-[14ch] font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] min-[380px]:text-[26px] sm:text-[30px]">
+          Orchestrate a week from recipes you have already developed.
+        </h1>
+        <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
+          Pick a few versions and Recipe Evolution will combine grocery, prep, and serving logic into one kitchen plan.
         </p>
         {defaultSelectedVersionIds.length > 0 ? (
-          <p className="mt-3 rounded-[18px] bg-[rgba(141,169,187,0.08)] px-4 py-3 text-sm text-[color:var(--text)]">
+          <p className="mt-3 rounded-[18px] border border-[rgba(74,106,96,0.1)] bg-[rgba(74,106,96,0.05)] px-4 py-3 text-sm text-[color:var(--text)]">
             Started with {defaultSelectedVersionIds.length} preselected recipe{defaultSelectedVersionIds.length === 1 ? "" : "s"} from your previous screen.
           </p>
         ) : null}
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-2.5">
           {recipeOptions.map((option) => {
             const active = selectedVersionIds.includes(option.versionId);
             return (
@@ -130,18 +132,28 @@ export function MealPlannerClient({
                 key={option.versionId}
                 type="button"
                 onClick={() => toggleRecipe(option.versionId)}
-                className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
+                className={`w-full rounded-[22px] border px-4 py-3 text-left transition ${
                   active
-                    ? "border-[rgba(82,124,116,0.28)] bg-[rgba(82,124,116,0.1)]"
-                    : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)]"
+                    ? "border-[rgba(74,106,96,0.2)] bg-[rgba(250,249,244,0.98)] shadow-[inset_4px_0_0_var(--primary),0_10px_18px_rgba(58,84,76,0.06)]"
+                    : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)]"
                 }`}
               >
-                <p className="font-semibold text-[color:var(--text)]">{option.recipeTitle}</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
+                    {option.versionLabel?.trim() || "Latest version"}
+                  </span>
+                  {active ? (
+                    <span className="rounded-full border border-[rgba(74,106,96,0.12)] bg-[rgba(74,106,96,0.08)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary-strong)]">
+                      In plan
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-[18px] font-semibold leading-7 text-[color:var(--text)]">{option.recipeTitle}</p>
                 <p className="mt-1 text-sm text-[color:var(--muted)]">
-                  {option.versionLabel?.trim() || "Latest version"} · Serves {targetServingsByVersion[option.versionId] ?? option.servings ?? "-"}
+                  Serves {targetServingsByVersion[option.versionId] ?? option.servings ?? "-"}
                 </p>
                 {active ? (
-                  <div className="mt-3" onClick={(event) => event.stopPropagation()}>
+                  <div className="mt-3 border-t border-[rgba(57,52,43,0.08)] pt-3" onClick={(event) => event.stopPropagation()}>
                     <ServingsControl
                       label="Plan for"
                       baseServings={option.servings}
@@ -162,48 +174,53 @@ export function MealPlannerClient({
       </aside>
 
       <section className="space-y-5">
-        <div className="app-panel p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="artifact-sheet p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="app-kicker">Summary</p>
-              <h2 className="mt-2 text-[28px] font-semibold tracking-tight text-[color:var(--text)]">
+              <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] min-[380px]:text-[26px] sm:text-[28px]">
                 {plan.recipeCount} recipe{plan.recipeCount === 1 ? "" : "s"} in this plan
               </h2>
             </div>
-            <Button href="/recipes" variant="secondary">
-              Back to library
+            <Button href="/recipes" variant="secondary" className="min-h-11 self-start">
+              Back to cookbook
             </Button>
           </div>
           {plan.recipeCount === 0 ? (
             <p className="mt-4 text-[15px] text-[color:var(--muted)]">
-              Select one or more recipes to build a combined grocery list and prep plan.
+              Select one or more versions to build a combined grocery list and prep plan.
             </p>
           ) : null}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={copyPlan} variant="secondary">
-              Copy plan
-            </Button>
-            <Button onClick={sharePlan} variant="secondary">
-              Share plan
-            </Button>
-            <Button onClick={exportPlan} variant="secondary">
-              Export TXT
-            </Button>
-            <Button onClick={printPlan} variant="secondary">
-              Print
-            </Button>
-          </div>
+          {plan.recipeCount > 0 ? (
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <Button onClick={copyPlan} variant="secondary" className="w-full sm:w-auto">
+                Copy plan
+              </Button>
+              <Button onClick={sharePlan} variant="secondary" className="w-full sm:w-auto">
+                Share plan
+              </Button>
+              <Button onClick={exportPlan} variant="secondary" className="w-full sm:w-auto">
+                Export TXT
+              </Button>
+              <Button onClick={printPlan} variant="secondary" className="w-full sm:w-auto">
+                Print
+              </Button>
+            </div>
+          ) : null}
         </div>
 
-        <div className="app-panel p-5">
+        <div className="artifact-sheet p-4 sm:p-5">
           <p className="app-kicker">Combined grocery</p>
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-5">
             {plan.groceryPlan.groupedItems.map((group) => (
-              <section key={group.aisle}>
+              <section key={group.aisle} className="rounded-[22px] border border-[rgba(57,52,43,0.06)] bg-[rgba(255,252,246,0.8)] p-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--muted)]">{group.aisle}</h3>
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 space-y-1.5">
                   {group.items.map((item) => (
-                    <div key={item.id} className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-4 py-3 text-sm text-[color:var(--text)]">
+                    <div
+                      key={item.id}
+                      className="rounded-[16px] border border-[rgba(57,52,43,0.06)] bg-[rgba(250,248,242,0.92)] px-4 py-2.5 text-sm text-[color:var(--text)]"
+                    >
                       <p>{formatGroceryItemDisplay(item).primary}</p>
                     </div>
                   ))}
@@ -211,11 +228,14 @@ export function MealPlannerClient({
               </section>
             ))}
             {plan.groceryPlan.flexibleItems.length > 0 ? (
-              <section>
+              <section className="rounded-[22px] border border-[rgba(57,52,43,0.06)] bg-[rgba(255,252,246,0.8)] p-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--muted)]">Flexible items</h3>
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 space-y-1.5">
                   {plan.groceryPlan.flexibleItems.map((item) => (
-                    <div key={item.id} className="rounded-[18px] bg-[rgba(255,253,249,0.9)] px-4 py-3 text-sm text-[color:var(--text)]">
+                    <div
+                      key={item.id}
+                      className="rounded-[16px] border border-[rgba(57,52,43,0.05)] bg-[rgba(255,253,249,0.92)] px-4 py-2.5 text-sm text-[color:var(--text)]"
+                    >
                       {formatGroceryItemDisplay(item).primary}
                     </div>
                   ))}
@@ -223,11 +243,14 @@ export function MealPlannerClient({
               </section>
             ) : null}
             {plan.groceryPlan.pantryItems.length > 0 ? (
-              <section>
+              <section className="rounded-[22px] border border-[rgba(74,106,96,0.08)] bg-[rgba(247,250,248,0.84)] p-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--muted)]">Already stocked</h3>
-                <div className="mt-2 space-y-2">
+                <div className="mt-2 space-y-1.5">
                   {plan.groceryPlan.pantryItems.map((item) => (
-                    <div key={item.id} className="rounded-[18px] bg-[rgba(142,168,141,0.12)] px-4 py-3 text-sm text-[color:var(--text)]">
+                    <div
+                      key={item.id}
+                      className="rounded-[16px] border border-[rgba(74,106,96,0.08)] bg-[rgba(74,106,96,0.06)] px-4 py-2.5 text-sm text-[color:var(--text)]"
+                    >
                       {formatGroceryItemDisplay(item).primary}
                     </div>
                   ))}
@@ -239,7 +262,7 @@ export function MealPlannerClient({
 
         <div className="grid gap-4 lg:grid-cols-2">
           {plan.prepPlans.map((entry) => (
-            <section key={entry.versionId} className="app-panel p-5">
+            <section key={entry.versionId} className="artifact-sheet p-4 sm:p-5">
               <p className="text-sm font-medium uppercase tracking-[0.16em] text-[color:var(--muted)]">Prep summary</p>
               <h3 className="mt-2 text-[24px] font-semibold tracking-tight text-[color:var(--text)]">
                 {entry.recipeTitle}
@@ -247,6 +270,9 @@ export function MealPlannerClient({
               <p className="mt-1 text-sm text-[color:var(--muted)]">
                 {entry.versionLabel?.trim() || "Latest version"}
               </p>
+              <div className="annotation-note mt-4 px-4 py-3">
+                <p className="font-annotate text-[17px] leading-7">Prep this like a recipe card, not a spreadsheet.</p>
+              </div>
               <div className="mt-4 space-y-4">
                 {[
                   prepSection("Start here", entry.prepPlan.firstMoves, "No immediate first moves detected."),
@@ -254,12 +280,15 @@ export function MealPlannerClient({
                   prepSection("Make ahead", entry.prepPlan.makeAheadTasks, "No make-ahead cues detected."),
                   prepSection("Open windows", entry.prepPlan.cookingWindows, "No longer waiting windows detected."),
                 ].map((section) => (
-                  <div key={section.title}>
+                  <div key={section.title} className="artifact-sheet p-4">
                     <p className="text-sm font-semibold text-[color:var(--text)]">{section.title}</p>
                     {section.items.length > 0 ? (
-                      <ul className="mt-2 space-y-2">
+                      <ul className="mt-2 space-y-1.5">
                         {section.items.map((item) => (
-                          <li key={item} className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-4 py-3 text-sm leading-6 text-[color:var(--text)]">
+                          <li
+                            key={item}
+                            className="rounded-[16px] border border-[rgba(57,52,43,0.06)] bg-[rgba(250,248,242,0.92)] px-4 py-2.5 text-sm leading-6 text-[color:var(--text)]"
+                          >
                             {item}
                           </li>
                         ))}

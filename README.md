@@ -157,6 +157,25 @@ Production build:
 npm run build
 ```
 
+## Vercel Security
+
+This app is deployed on Vercel, so host-level SSH and firewall controls do not apply in the same way they would on a self-hosted VPS.
+
+Recommended Vercel baseline:
+
+1. Keep the project on Vercel directly instead of placing Cloudflare in front of it.
+2. Enable Deployment Protection for preview deployments with Vercel Authentication.
+3. Use Vercel WAF features available on the Hobby plan for basic IP blocking and custom rules where needed.
+4. Keep secrets only in Vercel environment variables, not in committed files.
+5. Keep application-layer auth, rate limiting, and secure headers enabled.
+
+Relevant Vercel docs:
+
+- [Deployment Protection](https://vercel.com/docs/deployment-protection)
+- [Vercel Authentication](https://vercel.com/docs/deployment-protection/methods-to-protect-deployments/vercel-authentication)
+- [Hobby plan limits and security features](https://vercel.com/docs/plans/hobby)
+- [Using Cloudflare in front of Vercel](https://vercel.com/guides/cloudflare-with-vercel)
+
 End-to-end suite:
 
 ```bash

@@ -39,9 +39,9 @@ export function SmartMealBuilder({
   return (
     <aside className="app-panel h-full">
       <div className="flex h-full flex-col p-6">
-        <p className="app-kicker">Secondary path</p>
-        <h2 className="mt-3 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Use filters when you already know the constraints.</h2>
-        <p className="mt-2 max-w-md text-[16px] leading-7 text-[color:var(--muted)]">If you do not want to chat with Chef, build a few boundaries and generate options from there.</p>
+        <p className="app-kicker">Constraint-first path</p>
+        <h2 className="mt-3 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Set the boundaries when you already know the shape of the meal.</h2>
+        <p className="mt-2 max-w-md text-[16px] leading-7 text-[color:var(--muted)]">Skip the conversation and define the edges first. Chef will return a tighter set of directions to develop from there.</p>
 
         <div className="mt-6 space-y-5">
           <div>
@@ -104,9 +104,9 @@ export function SmartMealBuilder({
             type="button"
             onClick={onGenerateRecipes}
             disabled={smartLoading}
-            className="w-full rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] py-3.5 text-[16px] font-semibold text-[#f8fcfb] shadow-[0_18px_30px_rgba(82,124,116,0.18)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-full bg-[color:var(--primary)] py-3.5 text-[16px] font-semibold text-[#f8fcfb] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {smartLoading ? "Generating..." : "Generate Options"}
+            {smartLoading ? "Developing..." : "Develop Directions"}
           </button>
         </div>
 

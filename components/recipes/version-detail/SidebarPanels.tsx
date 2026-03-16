@@ -127,9 +127,10 @@ export function RecipeSidebar({
 }: RecipeSidebarProps) {
   return (
     <aside className="flex flex-col gap-4">
-      <section className="app-panel p-5">
-        <p className="app-kicker">Recipe navigation</p>
-        <p className="mt-2 text-[16px] font-semibold text-[color:var(--text)]">{recipe.title}</p>
+      <section className="app-panel p-4 sm:p-5">
+        <p className="app-kicker">Cookbook</p>
+        <p className="mt-2 font-display text-[22px] font-semibold leading-tight text-[color:var(--text)] sm:text-[26px]">{recipe.title}</p>
+        <p className="mt-2 text-sm text-[color:var(--muted)]">Move across your saved dishes without losing the version context of this one.</p>
         <input
           type="text"
           value={recipeSearch}
@@ -137,25 +138,32 @@ export function RecipeSidebar({
           placeholder="Jump to another recipe..."
           className="mt-4 w-full"
         />
-        <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1">
+        <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1 sm:max-h-80 sm:space-y-3">
           {recipeSearch.trim().length > 0 && searchResults.length === 0 ? (
-            <p className="text-sm text-[color:var(--muted)]">No matches in this quick list. Open the library to search everything.</p>
+            <p className="text-sm text-[color:var(--muted)]">No matches in this quick list. Open the cookbook to search everything.</p>
           ) : null}
           {searchResults.map((userRecipe) => {
             const isActive = userRecipe.id === currentRecipeId;
             return (
               <div
                 key={userRecipe.id}
-                className={`rounded-[22px] border p-3 transition ${
+                className={`rounded-[20px] border p-3 transition ${
                   isActive
-                    ? "border-[rgba(82,124,116,0.16)] bg-[rgba(82,124,116,0.08)] text-[color:var(--primary)]"
+                    ? "border-[rgba(82,124,116,0.2)] bg-[linear-gradient(135deg,rgba(79,125,115,0.12)_0%,rgba(255,251,245,0.98)_100%)] text-[color:var(--primary)]"
                     : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] text-[color:var(--text)] hover:bg-white"
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <button type="button" onClick={() => onRecipeNavigate(userRecipe.id)} className="flex-1 text-left text-[15px] font-medium">
-                    {userRecipe.title}
-                  </button>
+                  <div className="flex-1">
+                    {isActive ? (
+                      <span className="inline-flex rounded-full bg-[rgba(79,125,115,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--primary)]">
+                        Current dish
+                      </span>
+                    ) : null}
+                    <button type="button" onClick={() => onRecipeNavigate(userRecipe.id)} className="mt-2 block w-full text-left text-[14px] font-medium sm:text-[15px]">
+                      {userRecipe.title}
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onMouseDown={(event) => {
@@ -185,33 +193,53 @@ export function RecipeSidebar({
         {sidebarActionError ? <p className="mt-3 text-sm text-red-600">{sidebarActionError}</p> : null}
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Button href="/recipes" variant="secondary" className="w-full justify-center">
-            Library
+            Cookbook
           </Button>
-          <Button href="/recipes/new" variant="secondary" className="w-full justify-center">
-            + New Recipe
+          <Button href="/dashboard" variant="secondary" className="w-full justify-center">
+            Ask Chef
           </Button>
         </div>
       </section>
 
-      <section className="app-panel p-5">
-        <p className="app-kicker">Versions</p>
-        <p className="mt-2 text-sm text-[color:var(--muted)]">Version history stays here so comparisons remain easy.</p>
+      <section className="app-panel p-4 sm:p-5">
+        <p className="app-kicker">Version rail</p>
+        <p className="mt-2 text-sm text-[color:var(--muted)]">Follow the progression of this dish from the original build through each saved iteration.</p>
         <div className="mt-4 space-y-2">
           {timelineVersions.map((timelineVersion) => {
             const isActive = timelineVersion.id === currentVersion.id;
+            const isBest = recipe.best_version_id === timelineVersion.id;
+            const stageLabel = timelineVersion.version_number === 1 ? "Original build" : `Iteration ${timelineVersion.version_number}`;
             return (
               <div
                 key={timelineVersion.id}
-                className={`rounded-[22px] p-3 transition ${
-                  isActive ? "border border-[rgba(82,124,116,0.16)] bg-[rgba(82,124,116,0.08)]" : "bg-[rgba(255,253,249,0.84)] hover:bg-white"
+                className={`rounded-[20px] p-3 transition ${
+                  isActive
+                    ? "border border-[rgba(82,124,116,0.18)] bg-[linear-gradient(135deg,rgba(79,125,115,0.12)_0%,rgba(255,251,245,0.98)_100%)]"
+                    : "border border-[rgba(57,75,70,0.06)] bg-[rgba(255,253,249,0.84)] hover:bg-white"
                 }`}
               >
                 <div className="flex items-start gap-2">
                   <button type="button" onClick={() => onVersionNavigate(timelineVersion.id)} className="flex-1 text-left">
-                    <p className="text-[15px] font-medium text-[color:var(--text)]">
-                      {recipe.best_version_id === timelineVersion.id ? `★ ${versionLabel(timelineVersion)}` : versionLabel(timelineVersion)}
+                    <div className="flex flex-wrap gap-2">
+                      {isActive ? (
+                        <span className="rounded-full bg-[rgba(79,125,115,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                          Current
+                        </span>
+                      ) : null}
+                      {isBest ? (
+                        <span className="rounded-full bg-[rgba(201,123,66,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+                          Best
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-[14px] font-medium text-[color:var(--text)] sm:text-[15px]">{versionLabel(timelineVersion)}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">{stageLabel}</p>
+                    <p className="mt-2 text-sm text-[color:var(--muted)]">
+                      {timelineVersion.change_summary?.trim().length
+                        ? timelineVersion.change_summary
+                        : "No change note saved for this version."}
                     </p>
-                    <p className="mt-1 text-sm text-[color:var(--muted)]">{new Date(timelineVersion.created_at).toLocaleDateString()}</p>
+                    <p className="mt-2 text-xs text-[color:var(--muted)]">{new Date(timelineVersion.created_at).toLocaleDateString()}</p>
                   </button>
                   <button
                     type="button"

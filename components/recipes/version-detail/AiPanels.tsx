@@ -38,13 +38,13 @@ export function ChefAiPanel({
   conversationEndRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <section className="app-panel p-5">
-      <p className="app-kicker">Chef AI</p>
-      <h2 className="mt-2 text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Refine this version.</h2>
-      <p className="mt-2 text-[16px] leading-7 text-[color:var(--muted)]">Ask questions, explore changes, or turn a suggestion into a new version.</p>
+    <section className="app-panel p-4 sm:p-5">
+      <p className="app-kicker">Chef workshop</p>
+      <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[28px]">Refine this version with intent.</h2>
+      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use Chef to pressure-test the dish, explore targeted moves, and save the iteration that deserves to stick.</p>
 
       <div className="mt-5">
-        <p className="app-kicker">Quick improvements</p>
+        <p className="app-kicker">Development moves</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {[
             { label: "Improve Flavor", instruction: "Improve the flavor profile" },
@@ -65,14 +65,14 @@ export function ChefAiPanel({
           disabled={isAskingAi || isGeneratingVersion}
           className="mt-3 w-full rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] px-4 py-3 text-[15px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
         >
-          Remix Leftovers
+          Build a Leftover Remix
         </button>
       </div>
 
       <div className="mt-5">
         <p className="text-[16px] font-semibold text-[color:var(--text)]">Ask the Chef</p>
-        <p className="mt-1 text-sm text-[color:var(--muted)]">Chat is for guidance first. Apply a suggestion only if it looks right.</p>
-        <div className="mt-3 flex min-h-[240px] max-h-[340px] flex-col gap-3 overflow-y-auto rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] p-4">
+        <p className="mt-1 text-sm text-[color:var(--muted)]">Treat chat like a test kitchen bench: get guidance first, then save the change only if it improves the dish.</p>
+        <div className="mt-3 flex min-h-[140px] max-h-[240px] flex-col gap-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] p-4 sm:min-h-[240px] sm:max-h-[340px] sm:rounded-[26px]">
           {aiConversation.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
@@ -88,7 +88,7 @@ export function ChefAiPanel({
           ))}
           {aiConversation.length === 0 && !isAskingAi ? (
             <div className="self-start rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-white px-4 py-3 text-[15px] text-[color:var(--muted)]">
-              Ask the chef anything about this recipe...
+              Ask the chef anything about this version...
             </div>
           ) : null}
           {isAskingAi ? (
@@ -97,8 +97,8 @@ export function ChefAiPanel({
             </div>
           ) : null}
           {suggestedChange && !isAskingAi ? (
-            <div className="self-start max-w-[92%] rounded-[24px] border border-[rgba(82,124,116,0.14)] bg-[rgba(82,124,116,0.08)] px-4 py-4">
-              <p className="app-kicker text-[color:var(--primary)]">Suggested change</p>
+            <div className="self-start max-w-[92%] rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(250,248,242,0.94)] px-4 py-4 shadow-[inset_3px_0_0_var(--primary)]">
+              <p className="app-kicker text-[color:var(--primary)]">Ready to save</p>
               <p className="mt-2 text-[15px] leading-7 text-[color:var(--text)]">
                 {suggestedChange.explanation?.trim() || "AI suggested a concrete recipe modification you can apply."}
               </p>
@@ -106,9 +106,9 @@ export function ChefAiPanel({
                 type="button"
                 onClick={onApplySuggestedChange}
                 disabled={isGeneratingVersion || isAskingAi}
-                className="mt-4 w-full rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] px-4 py-3 text-[15px] font-semibold text-white disabled:opacity-60"
+                className="mt-4 w-full rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
               >
-                Apply Change and Create Version
+                Save as New Version
               </button>
             </div>
           ) : null}
@@ -120,14 +120,14 @@ export function ChefAiPanel({
             type="text"
             value={customInstruction}
             onChange={(event) => onInstructionChange(event.target.value)}
-            placeholder="Ask the chef anything about this recipe..."
-            className="flex-1 rounded-full bg-white px-5 py-3 text-[16px]"
+            placeholder="Ask about flavor, technique, speed, substitutions..."
+            className="min-w-0 flex-1 rounded-full bg-white px-4 py-3 text-[15px] sm:px-5 sm:text-[16px]"
           />
           <button
             type="button"
             onClick={onAskSubmit}
             disabled={isAskingAi || isGeneratingVersion || customInstruction.trim().length === 0}
-            className="rounded-full bg-[color:var(--primary)] px-5 py-3 text-[15px] font-semibold text-white hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+            className="shrink-0 rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white hover:bg-[color:var(--primary-strong)] disabled:opacity-60 sm:px-5"
           >
             Send
           </button>
@@ -150,7 +150,7 @@ export function MetricsPanel({
   servings: number;
 }) {
   return (
-    <section className="app-panel p-5">
+    <section className="app-panel p-4 sm:p-5">
       <p className="app-kicker">Recipe metrics</p>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Prep Time" value={`${prepMinutes} min`} tone="bg-[rgba(141,169,187,0.1)]" />
@@ -170,7 +170,7 @@ export function NutritionPanel({
   totalMinutes: number;
 }) {
   return (
-    <section className="app-panel p-5">
+    <section className="app-panel p-4 sm:p-5">
       <p className="app-kicker">Nutrition</p>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Calories" value={`${nutrition.calories}`} tone="bg-[rgba(255,255,255,0.7)]" />
@@ -178,9 +178,9 @@ export function NutritionPanel({
         <MetricCard label="Fat" value={`${nutrition.fat}g`} tone="bg-[rgba(255,255,255,0.7)]" />
         <MetricCard label="Carbs" value={`${nutrition.carbs}g`} tone="bg-[rgba(141,169,187,0.1)]" />
       </div>
-      <div className="mt-3 rounded-[22px] bg-[rgba(82,124,116,0.08)] p-4 text-center">
+      <div className="mt-3 rounded-[20px] bg-[rgba(82,124,116,0.08)] p-4 text-center">
         <p className="app-kicker">Total time</p>
-        <p className="mt-2 text-[28px] font-semibold text-[color:var(--text)]">{totalMinutes} min</p>
+        <p className="mt-2 text-[24px] font-semibold text-[color:var(--text)] sm:text-[28px]">{totalMinutes} min</p>
       </div>
     </section>
   );
@@ -196,7 +196,7 @@ export function PrepPlanPanel({
   onToggleChecklistItem?: (itemId: string) => void;
 }) {
   return (
-    <section className="app-panel p-5">
+    <section className="app-panel p-4 sm:p-5">
       <p className="app-kicker">Prep plan</p>
       <div className="mt-4 space-y-4">
         {prepPlan.checklist.length > 0 ? (
@@ -290,8 +290,8 @@ function PrepPlanGroup({
 
 function MetricCard({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
-    <div className={`rounded-[22px] p-4 text-center ${tone}`}>
-      <p className="text-[26px] font-semibold text-[color:var(--text)]">{value}</p>
+    <div className={`rounded-[20px] p-4 text-center sm:rounded-[22px] ${tone}`}>
+      <p className="text-[20px] font-semibold text-[color:var(--text)] sm:text-[26px]">{value}</p>
       <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">{label}</p>
     </div>
   );

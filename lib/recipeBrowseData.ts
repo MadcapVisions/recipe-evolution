@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signVersionPhotoUrls } from "@/lib/versionPhotoUrls";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { getStockRecipeCover } from "@/lib/stockRecipeCovers";
 
 export type RecipeBrowseItem = {
   id: string;
@@ -183,7 +184,13 @@ export async function loadRecipeBrowsePage(
       version_count: versionCountByRecipe[recipe.id] ?? 0,
       latest_version_id: latestVersionIdByRecipe[recipe.id] ?? null,
       servings: latestServingsByRecipe[recipe.id] ?? null,
-      cover_image_url: coverUrlByRecipe[recipe.id] ?? null,
+      cover_image_url:
+        coverUrlByRecipe[recipe.id] ??
+        getStockRecipeCover({
+          recipeId: recipe.id,
+          title: recipe.title,
+          tags: recipe.tags ?? [],
+        }),
       tags: recipe.tags ?? [],
     })),
     hasMore,

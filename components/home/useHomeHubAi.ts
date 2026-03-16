@@ -220,7 +220,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   }) => {
     setLoading(true);
     setError(null);
-    setStatus("Generating recipe ideas...");
+    setStatus("Developing directions...");
 
     try {
       const data = await invokeAi({
@@ -240,7 +240,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       setIdeas(nextIdeas.slice(0, IDEA_BATCH_SIZE));
       setIdeaSource(source);
       setIdeaBatchIndex(1);
-      setTransientStatus("Choose an idea to turn into a full recipe.");
+      setTransientStatus("Choose a direction to turn into a full recipe.");
     } catch (aiError) {
       const fallbackIdeas = dedupeIdeas(
         generateLocalRecipeIdeas(prompt ?? ingredients?.join(" ") ?? "", ingredients ?? [], userTasteProfile ?? undefined)
@@ -249,7 +249,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       setIdeaSource(source);
       setIdeaBatchIndex(1);
       setError(null);
-      setStatus("Showing fallback ideas while AI is unavailable.");
+      setStatus("Showing fallback directions while Chef is unavailable.");
     } finally {
       setLoading(false);
     }
@@ -263,7 +263,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setGeneratingRecipe(true);
     setSelectedIdeaTitle(selectedIdea.title);
     setError(null);
-    setStatus("Generating full recipe...");
+    setStatus("Building full recipe...");
 
     try {
       const ingredients = detectPromptType(promptInput) === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined;
@@ -307,7 +307,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
     setGeneratingRecipe(true);
     setError(null);
-    setStatus("Generating recipe...");
+    setStatus("Building recipe...");
 
     try {
       const data = await invokeAi({
@@ -352,7 +352,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     const nextBatchIndex = ideaBatchIndex + 1;
     setLoading(true);
     setError(null);
-    setStatus("Generating more ideas...");
+    setStatus("Developing more directions...");
 
     try {
       const mode = ideaSource === "ingredients" ? "ingredients_ideas" : "mood_ideas";
@@ -368,7 +368,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       const mergedIdeas = dedupeIdeas([...ideas, ...normalizeIdeas(data?.ideas)]).slice(0, MAX_IDEA_COUNT);
       setIdeas(mergedIdeas);
       setIdeaBatchIndex(nextBatchIndex);
-      setTransientStatus("Choose an idea to turn into a full recipe.");
+      setTransientStatus("Choose a direction to turn into a full recipe.");
     } catch (aiError) {
       const fallbackIdeas = generateLocalRecipeIdeas(promptInput.trim(), [], userTasteProfile ?? undefined).filter(
         (idea) => !ideas.some((existing) => existing.title.toLowerCase() === idea.title.toLowerCase())
@@ -388,7 +388,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
     const trimmedPrompt = promptInput.trim();
     if (!trimmedPrompt) {
-      setError("Enter what you want to cook first.");
+      setError("Enter a dish direction first.");
       return;
     }
 
@@ -401,7 +401,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     lastHeroPromptRef.current = { value: trimmedPrompt, at: Date.now() };
     setLoading(true);
     setError(null);
-    setStatus("Chef is thinking...");
+    setStatus("Chef is refining...");
     setPromptInput("");
     trackEventInBackground("chef_chat_prompt", {
       prompt: trimmedPrompt,
@@ -433,7 +433,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
       setHeroChatMessages((current) => [...current, { role: "user", text: trimmedPrompt }, { role: "ai", text: data.reply! }]);
       setHeroChatReadyToApply(true);
-      setTransientStatus("Chef responded. Apply suggestions when the direction feels right.");
+      setTransientStatus("Chef responded. Build the recipe when the direction feels right.");
     } catch (chatError) {
       setHeroChatMessages((current) => [
         ...current,
@@ -451,7 +451,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
   const handleApplyHeroChatIdeas = async () => {
     if (heroChatMessages.length === 0) {
-      setError("Ask Chef something first.");
+      setError("Ask Chef for a direction first.");
       return;
     }
 
@@ -508,7 +508,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
     setSmartLoading(true);
     setSmartError(null);
-    setSmartStatus("Generating recipe ideas...");
+    setSmartStatus("Developing directions...");
     setSmartIdeas([]);
     trackEventInBackground("smart_filters_used", {
       proteins: smartProteins,
@@ -549,7 +549,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       );
 
       setSmartIdeas(nextIdeas);
-      setSmartStatus("Select an idea to generate the full recipe.");
+      setSmartStatus("Select a direction to generate the full recipe.");
     } catch (aiError) {
       const cookTimeMinutes = smartCookTimes.map(cookTimeLabelToMinutes);
       const fallbackPrompt = `${smartProteins.join(" ")} ${smartCuisines.join(" ")} ${smartPreferences.join(" ")} ${smartCookTimes.join(" ")}`.trim();

@@ -49,10 +49,10 @@ export function NewRecipeFromTextForm() {
       message = "Chef is structuring your recipe...";
       tone = "loading";
     } else if (saving) {
-      message = "Generating recipe...";
+      message = "Saving to cookbook...";
       tone = "loading";
     } else if (structured && !error) {
-      message = "Suggestions ready";
+      message = "Draft ready";
       tone = "success";
     } else if (error) {
       if (
@@ -61,7 +61,7 @@ export function NewRecipeFromTextForm() {
         lowerError.includes("failed") ||
         lowerError.includes("parsing")
       ) {
-        message = "AI temporarily unavailable";
+        message = "Chef temporarily unavailable";
         tone = "fallback";
       }
     }
@@ -234,34 +234,30 @@ export function NewRecipeFromTextForm() {
       <section className="saas-card space-y-4 p-5">
         <div className="space-y-2">
           <p className="app-kicker">Step 1</p>
-          <h2 className="text-lg font-semibold text-[color:var(--text)]">Paste recipe text</h2>
+          <h2 className="font-display text-[28px] font-semibold text-[color:var(--text)]">Paste the source material</h2>
           <p className="text-[15px] leading-6 text-[color:var(--muted)]">
-            Paste from notes, a website, or a document. Chef will turn it into editable recipe fields.
+            Paste from notes, a website, or a document. Chef will structure it into a clean starting version you can actually work with.
           </p>
         </div>
         <textarea
           value={rawText}
           onChange={(event) => setRawText(event.target.value)}
           className="min-h-40 w-full"
-          placeholder="Paste a recipe from notes, website, or cookbook..."
+          placeholder="Paste a recipe from notes, a website, or an old cookbook entry..."
         />
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-[15px] font-medium text-[color:var(--text)]">Preferred units</p>
           <Button
             onClick={() => setPreferredUnits("metric")}
             variant={preferredUnits === "metric" ? "primary" : "secondary"}
-            className={`min-h-11 ${
-              preferredUnits === "metric" ? "bg-slate-900 text-white" : "border"
-            }`}
+            className="min-h-11 min-w-[112px]"
           >
             Metric
           </Button>
           <Button
             onClick={() => setPreferredUnits("imperial")}
             variant={preferredUnits === "imperial" ? "primary" : "secondary"}
-            className={`min-h-11 ${
-              preferredUnits === "imperial" ? "bg-slate-900 text-white" : "border"
-            }`}
+            className="min-h-11 min-w-[112px]"
           >
             Imperial
           </Button>
@@ -271,7 +267,7 @@ export function NewRecipeFromTextForm() {
           onClick={handleStructure}
           className="min-h-12 w-full"
         >
-          {structuring ? "Structuring..." : "Structure with AI"}
+          {structuring ? "Structuring..." : "Structure with Chef"}
         </Button>
       </section>
 
@@ -279,9 +275,15 @@ export function NewRecipeFromTextForm() {
         <section className="saas-card space-y-4 p-5">
           <div className="space-y-2">
             <p className="app-kicker">Step 2</p>
-            <h2 className="text-lg font-semibold text-[color:var(--text)]">Review and save</h2>
+            <h2 className="font-display text-[28px] font-semibold text-[color:var(--text)]">Review the first clean version</h2>
             <p className="text-[15px] leading-6 text-[color:var(--muted)]">
-              Make any edits you want, then save the imported recipe into your library.
+              Make any edits you want, then save this as the base version in your cookbook.
+            </p>
+          </div>
+          <div className="rounded-[24px] bg-[rgba(79,125,115,0.08)] p-4">
+            <p className="app-kicker">Imported foundation</p>
+            <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">
+              Imported recipes are most useful when the first version is clean. You can rename, refine, and evolve it after saving.
             </p>
           </div>
           <div className="space-y-1">
@@ -397,7 +399,7 @@ export function NewRecipeFromTextForm() {
             disabled={saving}
             className="min-h-12 w-full"
           >
-            {saving ? "Saving..." : "Save Recipe"}
+            {saving ? "Saving..." : "Save to Cookbook"}
           </Button>
         </section>
       ) : null}

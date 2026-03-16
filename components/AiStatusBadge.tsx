@@ -7,28 +7,28 @@ function toneClasses(tone: AiStatusTone) {
   if (tone === "loading") {
     return {
       wrap:
-        "border-sky-300/70 bg-[linear-gradient(135deg,rgba(127,180,197,0.22)_0%,rgba(82,124,116,0.12)_100%)] text-sky-950 shadow-[0_10px_24px_rgba(97,150,173,0.16)]",
-      dot: "bg-sky-500 animate-pulse",
+        "border-[rgba(74,106,96,0.16)] bg-[rgba(252,249,243,0.92)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+      dot: "bg-[color:var(--primary)] animate-pulse",
     };
   }
   if (tone === "success") {
     return {
       wrap:
-        "border-emerald-300/80 bg-[linear-gradient(135deg,rgba(209,245,227,0.85)_0%,rgba(236,252,243,0.95)_100%)] text-emerald-950 shadow-[0_10px_24px_rgba(38,136,96,0.12)]",
-      dot: "bg-emerald-500 shadow-[0_0_0_6px_rgba(16,185,129,0.16)]",
+        "border-[rgba(74,106,96,0.16)] bg-[rgba(246,250,247,0.95)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+      dot: "bg-[color:var(--primary)]",
     };
   }
   if (tone === "fallback") {
     return {
       wrap:
-        "border-amber-300/80 bg-[linear-gradient(135deg,rgba(255,239,201,0.92)_0%,rgba(255,248,228,0.96)_100%)] text-amber-950 shadow-[0_10px_24px_rgba(180,123,32,0.12)]",
-      dot: "bg-amber-500",
+        "border-[rgba(181,123,77,0.2)] bg-[rgba(255,249,241,0.96)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+      dot: "bg-[color:var(--accent)]",
     };
   }
   return {
     wrap:
-      "border-emerald-300/75 bg-[linear-gradient(135deg,rgba(223,247,235,0.95)_0%,rgba(245,252,248,0.98)_100%)] text-emerald-950 shadow-[0_10px_24px_rgba(46,125,94,0.1)]",
-    dot: "bg-emerald-500 shadow-[0_0_0_6px_rgba(16,185,129,0.12)]",
+      "border-[rgba(74,106,96,0.18)] bg-[rgba(245,250,247,0.96)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+    dot: "bg-[color:var(--primary)]",
   };
 }
 

@@ -28,10 +28,10 @@ const baseStyles =
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "border border-transparent text-[color:#f8fcfb] shadow-[0_16px_34px_rgba(82,124,116,0.24)] bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] hover:brightness-[1.03]",
+    "border border-transparent bg-[color:var(--primary)] text-[color:#f8fcfb] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] hover:bg-[color:var(--primary-strong)]",
   secondary:
-    "border border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.96)] text-[color:var(--text)] shadow-[0_14px_28px_rgba(76,50,24,0.1)] hover:bg-white",
-  danger: "bg-red-600 text-white hover:bg-red-700",
+    "border border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.96)] text-[color:var(--text)] shadow-[0_2px_8px_rgba(61,51,36,0.03)] hover:bg-white",
+  danger: "border border-[rgba(138,64,46,0.12)] bg-[color:#9d5e4a] text-white shadow-[0_10px_20px_rgba(122,70,52,0.12)] hover:bg-[color:#8a5443]",
 };
 
 const joinClasses = (...classes: Array<string | undefined>) => classes.filter(Boolean).join(" ");

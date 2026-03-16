@@ -3,6 +3,8 @@ import { signVersionPhotoUrls } from "@/lib/versionPhotoUrls";
 import { loadRecipeSidebarRecentRecipes } from "@/lib/recipeSidebarData";
 import type { RecipeListItem, TimelineVersion } from "@/components/recipes/version-detail/types";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { readCanonicalIngredients } from "@/lib/recipes/canonicalRecipe";
+import { getStockRecipeCover } from "@/lib/stockRecipeCovers";
 
 const INITIAL_TIMELINE_LIMIT = 8;
 
@@ -19,7 +21,7 @@ export async function loadRecipeTimelineSlice(
   const fetchLimit = Math.max(input.limit, 1) + 1;
   const { data, error } = await supabase
     .from("recipe_versions")
-    .select("id, version_number, version_label, created_at")
+    .select("id, version_number, version_label, change_summary, created_at")
     .eq("recipe_id", recipeId)
     .order("version_number", { ascending: false })
     .range(offset, offset + fetchLimit - 1);
@@ -38,7 +40,7 @@ export async function loadRecipeTimelineSlice(
 
   const { data: currentVersion, error: currentVersionError } = await supabase
     .from("recipe_versions")
-    .select("id, version_number, version_label, created_at")
+    .select("id, version_number, version_label, change_summary, created_at")
     .eq("id", currentVersionId)
     .eq("recipe_id", recipeId)
     .maybeSingle();
@@ -66,6 +68,7 @@ export type VersionDetailData = {
     id: string;
     version_number: number;
     version_label: string | null;
+    change_summary?: string | null;
     created_at: string;
   }>;
   timelineHasMore: boolean;
@@ -84,6 +87,7 @@ export type VersionDetailData = {
     created_at: string;
   };
   initialPhotosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
+  stockCoverUrl: string | null;
   sidebarRecentRecipes: RecipeListItem[];
 };
 
@@ -123,7 +127,7 @@ export async function loadVersionDetailData(
   ] = await Promise.all([
     supabase
       .from("recipes")
-      .select("id, title, best_version_id")
+      .select("id, title, tags, best_version_id")
       .eq("id", recipeId)
       .eq("owner_id", userId)
       .maybeSingle(),
@@ -156,6 +160,12 @@ export async function loadVersionDetailData(
     canonical_ingredients: version.ingredients_json,
     canonical_steps: version.steps_json,
   };
+  const stockCoverUrl = getStockRecipeCover({
+    recipeId: recipe.id,
+    title: recipe.title,
+    tags: "tags" in recipe ? recipe.tags ?? [] : [],
+    ingredientNames: readCanonicalIngredients(version.ingredients_json).map((item) => item.name),
+  });
 
   return {
     userId,
@@ -164,6 +174,7 @@ export async function loadVersionDetailData(
     timelineHasMore: timelineSlice.hasMore,
     version: mappedVersion,
     initialPhotosWithUrls: initialPhotos,
+    stockCoverUrl,
     sidebarRecentRecipes: recentRecipes,
   };
 }

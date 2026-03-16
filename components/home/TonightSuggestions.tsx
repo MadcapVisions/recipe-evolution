@@ -34,8 +34,8 @@ export function TonightSuggestions({
   activeTitle,
   ideas,
   kicker = "Starting points",
-  heading = "What should I cook tonight?",
-  description = "Popular meals people are cooking right now.",
+  heading = "Strong directions to develop next",
+  description = "Pick a direction, then turn it into a recipe you would actually want to keep.",
 }: TonightSuggestionsProps) {
   const [suggestions, setSuggestions] = useState<TrendingRecipe[]>(() => trendingRecipes.slice(0, 3));
   const [localError, setLocalError] = useState<string | null>(null);
@@ -83,7 +83,7 @@ export function TonightSuggestions({
       <p className="mt-2 text-[16px] text-[color:var(--muted)]">{description}</p>
       {loading && activeTitle ? (
         <div className="mt-4 rounded-[22px] border border-[rgba(111,135,103,0.18)] bg-[rgba(111,135,103,0.1)] px-4 py-3 text-sm text-[color:#35513a]">
-          Creating <span className="font-semibold">{activeTitle}</span> now. Please wait...
+          Building <span className="font-semibold">{activeTitle}</span> now. Please wait...
         </div>
       ) : null}
 
@@ -91,7 +91,7 @@ export function TonightSuggestions({
         {(customIdeas ?? suggestions).map((suggestion, index) => (
           <article
             key={`${suggestion.title}-${index}`}
-            className="flex h-full cursor-pointer flex-col rounded-[26px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.92)] p-4 shadow-[0_12px_24px_rgba(76,50,24,0.06)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(76,50,24,0.08)] sm:p-5"
+            className="flex h-full cursor-pointer flex-col rounded-[26px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.94)] p-4 shadow-[0_8px_18px_rgba(76,50,24,0.05)] transition hover:-translate-y-px hover:shadow-[0_12px_24px_rgba(76,50,24,0.06)] sm:p-5"
           >
             <h3 className="text-[18px] font-semibold text-[color:var(--text)]">{suggestion.title}</h3>
             <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
@@ -119,9 +119,9 @@ export function TonightSuggestions({
                 type="button"
                 onClick={() => void handleCook(suggestion.title)}
                 disabled={loading}
-                className="flex-1 rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] px-4 py-3 text-[16px] font-semibold text-[#f8fcfb] transition hover:brightness-[1.03] disabled:opacity-60"
+                className="flex-1 rounded-full bg-[color:var(--primary)] px-4 py-3 text-[16px] font-semibold text-[#f8fcfb] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
               >
-                {activeTitle === suggestion.title ? "Cooking..." : "Cook This"}
+                {activeTitle === suggestion.title ? "Building..." : "Build This Dish"}
               </button>
               {!customIdeas ? (
                 <button
@@ -130,7 +130,7 @@ export function TonightSuggestions({
                   disabled={loading}
                   className="flex-1 rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.92)] px-4 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
                 >
-                  Swap Idea
+                  Swap Direction
                 </button>
               ) : null}
             </div>

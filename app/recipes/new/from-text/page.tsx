@@ -16,9 +16,9 @@ export default async function NewRecipeFromTextPage() {
     <div className="mx-auto max-w-3xl page-shell">
       <div className="space-y-3">
         <p className="app-kicker">Import</p>
-        <h1 className="page-title">Import from text</h1>
+        <h1 className="page-title">Turn pasted text into a workable recipe</h1>
         <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
-          Paste a recipe, let Chef structure it, then review the result before saving.
+          Paste from notes, a website, or an old document. Chef will structure it into editable fields so you can save a clean starting version in your cookbook.
         </p>
       </div>
       <NewRecipeFromTextForm />

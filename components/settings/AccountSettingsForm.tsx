@@ -111,7 +111,7 @@ export function AccountSettingsForm({
         <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Account summary</p>
         <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">{initialDisplayName || "Set your display name"}</p>
         <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)]">
-          Manage the name people see, the email you sign in with, and your password.
+          Manage the name attached to your cookbook, the email you sign in with, and your password.
         </p>
       </div>
 
@@ -136,12 +136,15 @@ export function AccountSettingsForm({
         </div>
       </div>
 
-      <Button onClick={handleSaveProfile} disabled={savingProfile} className="min-h-12 w-full shadow-[0_16px_30px_rgba(188,92,47,0.22)] sm:w-auto">
-        {savingProfile ? "Saving..." : "Save Account Details"}
+      <Button onClick={handleSaveProfile} disabled={savingProfile} className="min-h-12 w-full sm:w-auto">
+        {savingProfile ? "Saving..." : "Save Identity Details"}
       </Button>
 
       <div className="settings-section p-4">
         <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Email</p>
+        <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
+          Change the email tied to your cookbook account. Supabase will ask you to confirm the update in your inbox.
+        </p>
         <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="space-y-1">
             <label htmlFor="newEmail" className="text-[15px] font-medium text-[color:var(--text)]">
@@ -156,7 +159,7 @@ export function AccountSettingsForm({
             />
           </div>
           <div className="flex items-end">
-            <Button onClick={handleSaveEmail} disabled={savingEmail} className="min-h-12 w-full shadow-[0_16px_30px_rgba(188,92,47,0.22)] sm:w-auto">
+            <Button onClick={handleSaveEmail} disabled={savingEmail} className="min-h-12 w-full sm:w-auto">
               {savingEmail ? "Updating..." : "Update Email"}
             </Button>
           </div>
@@ -165,6 +168,9 @@ export function AccountSettingsForm({
 
       <div className="settings-section p-4">
         <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Password</p>
+        <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
+          Use a strong password so access to your dishes, versions, and preferences stays protected.
+        </p>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
           <div className="space-y-1">
             <label htmlFor="newPassword" className="text-[15px] font-medium text-[color:var(--text)]">
@@ -192,7 +198,7 @@ export function AccountSettingsForm({
             />
           </div>
         </div>
-        <Button onClick={handleSavePassword} disabled={savingPassword} className="mt-4 min-h-12 w-full shadow-[0_16px_30px_rgba(188,92,47,0.22)] sm:w-auto">
+        <Button onClick={handleSavePassword} disabled={savingPassword} className="mt-4 min-h-12 w-full sm:w-auto">
           {savingPassword ? "Updating..." : "Update Password"}
         </Button>
       </div>

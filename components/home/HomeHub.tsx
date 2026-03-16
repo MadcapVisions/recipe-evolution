@@ -79,17 +79,17 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
 
     let message = activeStatus;
     if (activeLoading) {
-      if (smartGeneratingRecipe || generatingRecipe || lower.includes("full recipe")) {
-        message = "Generating recipe...";
+      if (smartGeneratingRecipe || generatingRecipe || lower.includes("full recipe") || lower.includes("building")) {
+        message = "Building dish...";
       } else {
-        message = "Chef is thinking...";
+        message = "Chef is refining...";
       }
-    } else if (lower.includes("choose an idea") || lower.includes("select an idea")) {
-      message = "Suggestions ready";
+    } else if (lower.includes("choose a direction") || lower.includes("select a direction")) {
+      message = "Directions ready";
     } else if (lower.includes("fallback")) {
-      message = lower.includes("rate-limited") ? "Using backup recipe engine" : "AI temporarily unavailable";
+      message = lower.includes("rate-limited") ? "Using backup kitchen engine" : "Chef temporarily unavailable";
     } else if (lower.includes("chef responded") || lower.includes("ready to apply")) {
-      message = "Suggestions ready";
+      message = "Directions ready";
     }
 
     publishAiStatus({ message, tone });
@@ -134,11 +134,11 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
       </section>
 
       <section className="space-y-6">
-        <section className="app-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="app-panel polish-card animate-rise-in flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="app-kicker">Meal planning</p>
-            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Plan multiple recipes together.</h2>
-            <p className="mt-2 text-[16px] text-[color:var(--muted)]">Best after you already have recipes you want to combine.</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Turn developed recipes into a working kitchen plan.</h2>
+            <p className="mt-2 text-[16px] text-[color:var(--muted)]">Best once you already have versions you trust and want to cook together.</p>
           </div>
           <Link href="/planner" className="app-chip app-chip-active justify-center self-start sm:self-auto">
             Open Planner
@@ -183,46 +183,69 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
         <section>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <p className="app-kicker">Library</p>
-              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Recent recipes</h2>
+              <p className="app-kicker">Cookbook</p>
+              <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Recent dishes in your system</h2>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {recentRecipes.map((recipe, index) => (
-              <Link
-                key={recipe.id}
-                href={`/recipes/${recipe.id}`}
-                className="overflow-hidden rounded-[28px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.92)] shadow-[0_12px_24px_rgba(76,50,24,0.06)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(76,50,24,0.08)]"
-              >
-                {recipe.cover_image_url ? (
-                  <Image
-                    src={recipe.cover_image_url}
-                    alt={`${recipe.title} cover`}
-                    width={640}
-                    height={480}
-                    unoptimized
-                    className="aspect-[4/3] w-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className={`aspect-[4/3] w-full bg-gradient-to-br ${
-                      index % 2 === 0 ? "from-[#efd7bc] to-[#d9c0a3]" : "from-[#d8e1d0] to-[#e8d8bb]"
-                    }`}
-                  />
-                )}
-                <div className="p-5">
-                  <p className="font-semibold text-[color:var(--text)]">{recipe.title}</p>
-                  <p className="mt-2 text-sm text-[color:var(--muted)]">
-                    Last updated {recipe.updated_at ? new Date(recipe.updated_at).toLocaleDateString() : "-"}
-                  </p>
-                  <p className="mt-1 text-sm text-[color:var(--muted)]">
-                    Serves {typeof recipe.servings === "number" ? recipe.servings : "-"}
-                  </p>
-                  <p className="mt-1 text-sm text-[color:var(--muted)]">Versions: {recipe.version_count}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
+          {recentRecipes.length > 0 ? (
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {recentRecipes.map((recipe, index) => (
+                <Link
+                  key={recipe.id}
+                  href={`/recipes/${recipe.id}`}
+                  className="recipe-cover-wrap polish-card animate-rise-in overflow-hidden rounded-[28px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.92)] shadow-[0_12px_24px_rgba(76,50,24,0.06)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(76,50,24,0.08)]"
+                >
+                  {recipe.cover_image_url ? (
+                    <Image
+                      src={recipe.cover_image_url}
+                      alt={`${recipe.title} cover`}
+                      width={640}
+                      height={480}
+                      unoptimized
+                      className="recipe-cover aspect-[4/3] w-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className={`editorial-frame aspect-[4/3] w-full ${
+                        index % 2 === 0 ? "bg-gradient-to-br from-[#efcfb0] to-[#d7b38d]" : "bg-gradient-to-br from-[#dce4d3] to-[#ead7b6]"
+                      }`}
+                    />
+                  )}
+                  <div className="p-5">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[rgba(79,125,115,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                        Recipe asset
+                      </span>
+                      <span className="rounded-full bg-[rgba(201,123,66,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+                        {recipe.version_count} version{recipe.version_count === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <p className="mt-3 font-display text-[32px] font-semibold leading-[0.98] text-[color:var(--text)]">{recipe.title}</p>
+                    <div className="mt-3 space-y-1 text-sm text-[color:var(--muted)]">
+                      <p>Last updated {recipe.updated_at ? new Date(recipe.updated_at).toLocaleDateString() : "-"}</p>
+                      <p>Serves {typeof recipe.servings === "number" ? recipe.servings : "-"}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="app-empty-state animate-rise-in px-6 py-10">
+              <p className="app-kicker">Cookbook</p>
+              <h3 className="mt-3 font-display text-[34px] font-semibold tracking-tight text-[color:var(--text)]">Your first saved dish will live here.</h3>
+              <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
+                Start with Chef, import an old favorite, or capture a new recipe from scratch. Once you save it, the cookbook begins to take shape.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href="/dashboard" className="ui-btn ui-btn-solid">
+                  Start with Chef
+                </Link>
+                <Link href="/recipes/new" className="ui-btn ui-btn-light">
+                  Create from Scratch
+                </Link>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="app-panel p-5">
@@ -235,11 +258,11 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="flex h-32 flex-col justify-between rounded-[24px] bg-[rgba(188,92,47,0.1)] p-5 text-left">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Recipes created</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Recipes saved</p>
               <p className="font-display text-5xl font-semibold leading-none text-[color:var(--text)]">{recentRecipes.length}</p>
             </div>
             <div className="flex h-32 flex-col justify-between rounded-[24px] bg-[rgba(111,135,103,0.12)] p-5 text-left">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Versions generated</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Versions developed</p>
               <p className="font-display text-5xl font-semibold leading-none text-[color:var(--text)]">
                 {totalVersionCount}
               </p>
@@ -249,7 +272,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
               <p className="font-display text-5xl font-semibold leading-none text-[color:var(--text)]">{favoriteRecipes.length}</p>
             </div>
             <div className="flex h-32 flex-col justify-between rounded-[24px] bg-[rgba(33,27,22,0.05)] p-5 text-left">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">AI ideas loaded</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Chef directions ready</p>
               <p className="font-display text-5xl font-semibold leading-none text-[color:var(--text)]">{ideas.length}</p>
             </div>
           </div>

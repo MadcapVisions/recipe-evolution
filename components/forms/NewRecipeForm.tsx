@@ -85,7 +85,14 @@ export function NewRecipeForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="saas-card space-y-4 p-5">
+    <form onSubmit={handleSubmit(onSubmit)} className="saas-card space-y-5 p-5">
+      <div className="rounded-[24px] bg-[rgba(201,123,66,0.08)] p-4">
+        <p className="app-kicker">Foundational version</p>
+        <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">
+          This first save creates the base version of the dish. Later changes can become named iterations inside the same recipe.
+        </p>
+      </div>
+
       <div className="space-y-1">
         <label htmlFor="title" className="text-sm font-medium">
           Title
@@ -93,6 +100,7 @@ export function NewRecipeForm() {
         <input
           id="title"
           type="text"
+          placeholder="Weeknight lemon chicken skillet"
           className="min-h-12 w-full"
           {...register("title")}
         />
@@ -105,6 +113,7 @@ export function NewRecipeForm() {
         </label>
         <textarea
           id="description"
+          placeholder="A bright, quick chicken dinner with lemon, garlic, and a pan sauce."
           className="min-h-24 w-full"
           {...register("description")}
         />
@@ -117,6 +126,7 @@ export function NewRecipeForm() {
         <input
           id="tagsInput"
           type="text"
+          placeholder="weeknight, chicken, bright"
           className="min-h-12 w-full"
           {...register("tagsInput")}
         />
@@ -137,15 +147,16 @@ export function NewRecipeForm() {
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="difficulty" className="text-sm font-medium">
-            Difficulty
-          </label>
-          <input
-            id="difficulty"
-            type="text"
-            className="min-h-12 w-full"
-            {...register("difficulty")}
-          />
+        <label htmlFor="difficulty" className="text-sm font-medium">
+          Difficulty
+        </label>
+        <input
+          id="difficulty"
+          type="text"
+          placeholder="Easy"
+          className="min-h-12 w-full"
+          {...register("difficulty")}
+        />
         </div>
 
         <div className="space-y-1">
@@ -181,6 +192,7 @@ export function NewRecipeForm() {
         </label>
         <textarea
           id="ingredientsInput"
+          placeholder={"1 lb chicken thighs\n2 lemons\n3 cloves garlic"}
           className="min-h-32 w-full"
           {...register("ingredientsInput")}
         />
@@ -195,6 +207,7 @@ export function NewRecipeForm() {
         </label>
         <textarea
           id="stepsInput"
+          placeholder={"Season the chicken.\nSear until browned.\nFinish with lemon and garlic."}
           className="min-h-32 w-full"
           {...register("stepsInput")}
         />
@@ -205,7 +218,7 @@ export function NewRecipeForm() {
         <label htmlFor="notes" className="text-sm font-medium">
           Notes
         </label>
-        <textarea id="notes" className="min-h-24 w-full" {...register("notes")} />
+        <textarea id="notes" placeholder="What matters most when you cook this?" className="min-h-24 w-full" {...register("notes")} />
       </div>
 
       {submitError ? <p className="text-sm text-red-700">{submitError}</p> : null}
@@ -215,7 +228,7 @@ export function NewRecipeForm() {
         disabled={isSubmitting}
         className="min-h-12 w-full"
       >
-        {isSubmitting ? "Creating..." : "Create Recipe"}
+        {isSubmitting ? "Saving..." : "Save to Cookbook"}
       </Button>
     </form>
   );

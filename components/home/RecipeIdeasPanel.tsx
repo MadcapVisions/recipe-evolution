@@ -45,7 +45,7 @@ export function RecipeIdeasPanel({
       </div>
       {generatingRecipe ? (
         <div className="mb-5 mt-5 rounded-[22px] border border-[rgba(111,135,103,0.18)] bg-[rgba(111,135,103,0.1)] p-4 text-center text-[color:#35513a]">
-          <p className="font-semibold">Whipping up a custom recipe just for you</p>
+          <p className="font-semibold">Building a full recipe from this direction</p>
           <p className="text-sm">Please wait</p>
           {selectedIdeaTitle ? <p className="mt-1 text-xs text-[color:#35513a]">Selected: {selectedIdeaTitle}</p> : null}
         </div>
@@ -95,7 +95,7 @@ export function RecipeIdeasPanel({
             disabled={loading}
             className="ui-btn ui-btn-light disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Generate More Ideas
+            Show Another Direction
           </button>
         </div>
       ) : null}

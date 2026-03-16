@@ -534,7 +534,7 @@ export function CookingModeClient({
   if (totalSteps === 0) {
     return (
       <div className="space-y-4 rounded-lg border bg-white p-4">
-        <p className="text-base text-slate-700">No steps in this version.</p>
+        <p className="text-base text-slate-700">No cooking steps were saved for this version.</p>
         <Button
           onClick={() => router.push(`/recipes/${recipeId}`)}
           variant="secondary"
@@ -553,7 +553,7 @@ export function CookingModeClient({
           <div className="space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--primary)]">Start cooking</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--primary)]">Cooking mode</p>
                 <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[34px]">{recipeTitle}</h1>
               </div>
               <Button href={`/recipes/${recipeId}`} variant="secondary" className="min-h-10">
@@ -587,18 +587,18 @@ export function CookingModeClient({
             {phase === "prep" ? (
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_360px]">
                 <section className="space-y-5">
-                  <div className="rounded-[30px] border border-[rgba(57,75,70,0.08)] bg-[linear-gradient(135deg,rgba(223,247,235,0.74)_0%,rgba(255,255,255,0.94)_100%)] p-5 sm:p-6">
-                    <p className="text-sm font-medium text-[color:var(--muted)]">Prep phase</p>
-                    <h2 className="mt-3 text-[34px] font-semibold leading-[1.08] tracking-tight text-[color:var(--text)] sm:text-[42px]">Set yourself up before the heat starts.</h2>
-                    <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
-                      Great cooking starts with setup. Gather ingredients, do the prep that matters, and use the cues here to avoid avoidable mistakes.
-                    </p>
-                  </div>
+	                  <div className="rounded-[30px] border border-[rgba(57,75,70,0.08)] bg-[linear-gradient(135deg,rgba(223,247,235,0.74)_0%,rgba(255,255,255,0.94)_100%)] p-5 sm:p-6">
+	                    <p className="text-sm font-medium text-[color:var(--muted)]">Prep phase</p>
+	                    <h2 className="mt-3 text-[34px] font-semibold leading-[1.08] tracking-tight text-[color:var(--text)] sm:text-[42px]">Set yourself up before the heat starts.</h2>
+	                    <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
+	                      Great cooking starts with setup. Gather ingredients, do the prep that matters, and use the cues here to avoid avoidable mistakes.
+	                    </p>
+	                  </div>
 
-                  <div className="flex flex-wrap gap-3">
-                    <Button onClick={() => setPhase("cook")} className="min-h-14 text-base">Start Cooking Steps</Button>
-                    <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-14 text-base">Skip to Cooking</Button>
-                  </div>
+	                  <div className="flex flex-wrap gap-3">
+	                    <Button onClick={() => setPhase("cook")} className="min-h-14 text-base">Begin Live Cooking</Button>
+	                    <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-14 text-base">Skip Setup</Button>
+	                  </div>
 
                   {scaledIngredientLines.length > 0 ? (
                     <section className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.04)] p-4">

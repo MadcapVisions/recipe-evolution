@@ -40,9 +40,9 @@ export default async function SettingsPage() {
       <div className="space-y-5">
         <div className="space-y-3">
           <p className="app-kicker">Settings</p>
-          <h1 className="page-title">Personal settings</h1>
+          <h1 className="page-title">Kitchen settings</h1>
           <p className="max-w-3xl text-[16px] leading-7 text-[color:var(--muted)]">
-            Manage your account and the meal preferences Chef should use by default.
+            Manage your account, taste profile, and kitchen defaults so Chef starts from a better understanding of how you cook.
           </p>
         </div>
       </div>
@@ -50,21 +50,21 @@ export default async function SettingsPage() {
       <section className="saas-card space-y-5 p-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1fr)] xl:items-center">
           <div className="space-y-2">
-            <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Account info</p>
+            <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Cookbook owner</p>
             <h2 className="break-words text-[28px] font-semibold tracking-tight text-[color:var(--text)]">{userTitle}</h2>
             <p className="text-[16px] text-[color:var(--muted)]">Signed in as {user.email ?? "No email"}</p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(150px,0.7fr)_minmax(180px,0.8fr)_auto]">
-            <div className="min-w-0 rounded-[20px] bg-[rgba(141,169,187,0.08)] px-5 py-4">
+            <div className="min-w-0 rounded-[20px] border border-[rgba(57,52,43,0.06)] bg-[rgba(250,248,242,0.92)] px-5 py-4">
               <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Email</p>
               <p className="mt-3 break-words text-[15px] font-medium leading-7 text-[color:var(--text)]">{user.email ?? "No email"}</p>
             </div>
-            <div className="min-w-0 rounded-[20px] bg-[rgba(142,168,141,0.1)] px-5 py-4">
+            <div className="min-w-0 rounded-[20px] border border-[rgba(74,106,96,0.08)] bg-[rgba(74,106,96,0.06)] px-5 py-4">
               <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Plan</p>
               <p className="mt-3 text-[15px] font-medium leading-7 text-[color:var(--text)]">Free</p>
             </div>
-            <div className="min-w-0 rounded-[20px] bg-[rgba(255,252,246,0.72)] px-5 py-4 ring-1 ring-[rgba(79,54,33,0.08)]">
+            <div className="min-w-0 rounded-[20px] border border-[rgba(57,52,43,0.06)] bg-[rgba(255,252,246,0.82)] px-5 py-4">
               <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Member since</p>
               <p className="mt-3 text-[15px] font-medium leading-7 text-[color:var(--text)]">{createdAtLabel ?? "Recently joined"}</p>
             </div>
@@ -75,21 +75,21 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="saas-card hidden h-fit space-y-3 p-4 xl:sticky xl:top-32 xl:block">
           <p className="app-kicker">Navigate</p>
           <nav className="space-y-2">
             <a
               href="#account"
-              className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.72)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(141,169,187,0.35)]"
+              className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.78)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(74,106,96,0.22)]"
             >
               Account
             </a>
             <a
               href="#preferences"
-              className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.72)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(141,169,187,0.35)]"
+              className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.78)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(74,106,96,0.22)]"
             >
-              Taste profile
+              Kitchen profile
             </a>
           </nav>
         </aside>
@@ -100,7 +100,7 @@ export default async function SettingsPage() {
               <p className="app-kicker">Account</p>
               <h2 className="text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Identity and sign-in</h2>
               <p className="text-[16px] leading-7 text-[color:var(--muted)]">
-                Keep your account details current and control how you sign in.
+                Keep your cookbook owner details current and control how you sign in.
               </p>
             </div>
             <AccountSettingsForm
@@ -111,10 +111,10 @@ export default async function SettingsPage() {
 
           <section id="preferences" className="scroll-mt-32 space-y-3">
             <div className="space-y-2">
-              <p className="app-kicker">Meal profile</p>
-              <h2 className="text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Taste and food preferences</h2>
+              <p className="app-kicker">Kitchen profile</p>
+              <h2 className="text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Taste and cooking defaults</h2>
               <p className="text-[16px] leading-7 text-[color:var(--muted)]">
-                Set the baseline for what you like to cook and eat. Recipe Evolution uses this together with your behavior over time.
+                Set the baseline for what you like to cook and eat. Recipe Evolution uses this together with your saved dishes and behavior over time.
               </p>
             </div>
             <PreferencesForm

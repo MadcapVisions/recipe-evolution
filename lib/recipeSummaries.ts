@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { signVersionPhotoUrls } from "@/lib/versionPhotoUrls";
+import { getStockRecipeCover } from "@/lib/stockRecipeCovers";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -117,7 +118,13 @@ export async function loadRecipeSummaries(
     is_favorite: recipe.is_favorite ?? false,
     version_count: versionCountByRecipe[recipe.id] ?? 0,
     servings: latestServingsByRecipe[recipe.id] ?? null,
-    cover_image_url: coverUrlByRecipe[recipe.id] ?? null,
+    cover_image_url:
+      coverUrlByRecipe[recipe.id] ??
+      getStockRecipeCover({
+        recipeId: recipe.id,
+        title: recipe.title,
+        tags: recipe.tags ?? [],
+      }),
   }));
   return {
     recipeSummaries,

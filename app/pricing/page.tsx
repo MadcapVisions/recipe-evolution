@@ -1,28 +1,28 @@
 import Link from "next/link";
 
 const freeFeatures = [
-  "AI Chef guidance with a limited monthly usage cap",
-  "Smart meal builder and guided recipe directions",
-  "Recipe library with favorites, hide, and archive controls",
-  "Create and save recipe versions",
+  "Chef guidance with a limited monthly usage cap",
+  "Constraint-based dish directions and refinement",
+  "Cookbook with favorites, hide, and archive controls",
+  "Save recipes with version history",
   "Import recipes from pasted text",
   "Taste profile and personal cooking preferences",
   "Deterministic backup recipe engine when AI is unavailable",
 ];
 
 const proFeatures = [
-  "Higher AI generation limits for daily cooking and planning",
+  "Higher Chef usage limits for regular cooking and planning",
   "Unlimited recipe versions, refinements, and remix flows",
-  "Advanced recipe improvement actions like faster, spicier, or vegetarian",
+  "Advanced recipe development actions like faster, spicier, or vegetarian",
   "Live cooking mode with step-by-step recipe flow",
   "Grocery list workflow and pantry-aware planning",
-  "More personalized AI guidance from your taste profile and behavior",
+  "More personalized guidance from your taste profile and behavior",
   "Priority access to new planning, billing, and support tools",
 ];
 
 const comparisonRows = [
-  { label: "AI recipe generation", free: "Limited", pro: "Expanded" },
-  { label: "Recipe library", free: "Core access", pro: "Full access" },
+  { label: "Guided recipe development", free: "Limited", pro: "Expanded" },
+  { label: "Cookbook", free: "Core access", pro: "Full access" },
   { label: "Recipe versions", free: "Included", pro: "Unlimited" },
   { label: "Smart meal builder", free: "Included", pro: "Included" },
   { label: "Recipe import", free: "Included", pro: "Included" },
@@ -39,15 +39,15 @@ export default function PricingPage() {
           <div className="space-y-5">
             <p className="app-kicker">Pricing</p>
             <h1 className="font-display text-[46px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[60px]">
-              Choose the plan that fits your kitchen.
+              Choose the plan that fits how seriously you develop recipes.
             </h1>
             <p className="max-w-3xl text-[19px] leading-8 text-[color:var(--muted)]">
-              Start with a limited free tier, then upgrade when you want more AI guidance, more recipe evolution, and more room to plan around your real cooking habits.
+              Start with a limited free tier, then upgrade when you want more guided refinement, deeper recipe evolution, and more room to build a cookbook around your real cooking habits.
             </p>
             <div className="flex flex-wrap gap-3">
               <span className="app-chip border border-[rgba(57,75,70,0.08)] bg-white">Limited free tier</span>
-              <span className="app-chip border border-[rgba(57,75,70,0.08)] bg-white">Personalized AI chef</span>
-              <span className="app-chip border border-[rgba(57,75,70,0.08)] bg-white">Built-in fallback engine</span>
+              <span className="app-chip border border-[rgba(57,75,70,0.08)] bg-white">Taste-aware Chef guidance</span>
+              <span className="app-chip border border-[rgba(57,75,70,0.08)] bg-white">Version-based workflow</span>
             </div>
           </div>
 
@@ -55,7 +55,7 @@ export default function PricingPage() {
             <p className="app-kicker">What you already get</p>
             <div className="mt-4 space-y-3">
               {[
-                "Guided AI recipe brainstorming",
+                "Guided dish development",
                 "Recipe import and version history",
                 "Favorites, organization, and cooking mode",
                 "Taste profile memory and personalization",
@@ -78,13 +78,13 @@ export default function PricingPage() {
             <p className="app-kicker">Starter</p>
             <h2 className="text-[38px] font-semibold tracking-tight text-[color:var(--text)]">Free</h2>
             <p className="text-[16px] leading-7 text-[color:var(--muted)]">
-              A limited free tier for trying the AI chef, building recipes, and organizing your kitchen without committing up front.
+              A limited free tier for trying the workflow, saving recipes, and building the foundation of your cookbook without committing up front.
             </p>
           </div>
 
           <div className="mt-6 rounded-[24px] bg-[rgba(141,169,187,0.08)] p-5">
             <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Best for</p>
-            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Trying the workflow and building a personal recipe base</p>
+            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Trying the workflow and building the first shelf of your cookbook</p>
           </div>
 
           <ul className="mt-6 space-y-3">
@@ -107,7 +107,7 @@ export default function PricingPage() {
         </article>
 
         <article className="app-panel relative overflow-hidden p-6 lg:p-8">
-          <div className="absolute right-6 top-6 rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] px-4 py-2 text-[14px] font-semibold text-white shadow-[0_16px_28px_rgba(82,124,116,0.22)]">
+          <div className="absolute right-6 top-6 rounded-full bg-[color:var(--primary)] px-4 py-2 text-[14px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)]">
             Best value
           </div>
 
@@ -118,13 +118,13 @@ export default function PricingPage() {
               <p className="pb-1 text-[18px] font-medium text-[color:var(--muted)]">$4.17/month billed annually</p>
             </div>
             <p className="text-[16px] leading-7 text-[color:var(--muted)]">
-              For cooks who want the AI chef available more often, deeper personalization, and more room to evolve recipes over time.
+              For cooks who want Chef available more often, deeper personalization, and more room to evolve recipes into repeatable standards.
             </p>
           </div>
 
           <div className="mt-6 rounded-[24px] bg-[rgba(142,168,141,0.1)] p-5">
             <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Best for</p>
-            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Frequent cooking, more AI usage, and long-term kitchen planning</p>
+            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Frequent cooking, active recipe development, and long-term kitchen planning</p>
           </div>
 
           <ul className="mt-6 space-y-3">
@@ -139,7 +139,7 @@ export default function PricingPage() {
           <div className="mt-8">
             <Link
               href="/sign-up"
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] px-6 py-3 text-[16px] font-semibold text-white shadow-[0_18px_30px_rgba(82,124,116,0.18)] transition hover:brightness-[1.03]"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
             >
               Choose Pro
             </Link>
@@ -174,14 +174,14 @@ export default function PricingPage() {
 
       <section className="app-panel p-8 text-center">
         <p className="app-kicker">Start now</p>
-        <h2 className="mt-3 text-[42px] font-semibold tracking-tight text-[color:var(--text)]">Start free, upgrade when the kitchen becomes a habit.</h2>
+        <h2 className="mt-3 text-[42px] font-semibold tracking-tight text-[color:var(--text)]">Start free, upgrade when recipe development becomes part of how you cook.</h2>
         <p className="mx-auto mt-4 max-w-3xl text-[18px] leading-8 text-[color:var(--muted)]">
-          The free tier gets you into the workflow. Pro is there when you want more AI capacity, more recipe evolution, and a more personalized cooking companion.
+          The free tier gets you into the workflow. Pro is there when you want more guidance, more recipe evolution, and a stronger personal cooking system.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             href="/sign-up"
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--primary)_0%,var(--accent)_100%)] px-6 py-3 text-[16px] font-semibold text-white shadow-[0_18px_30px_rgba(82,124,116,0.18)] transition hover:brightness-[1.03]"
+            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
           >
             Create account
           </Link>

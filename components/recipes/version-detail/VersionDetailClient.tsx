@@ -105,7 +105,7 @@ export function VersionDetailClient({
         : ingredients,
     [baseServings, canAdjustServings, displayServings, ingredients]
   );
-  const topPhotoUrl = photosWithUrls[0]?.signedUrl ?? null;
+  const topPhotoUrl = photosWithUrls[0]?.signedUrl ?? initialData.stockCoverUrl;
 
   useEffect(() => {
     let cancelled = false;
@@ -507,6 +507,7 @@ export function VersionDetailClient({
         id: nextVersionRow.id,
         version_number: nextVersionRow.version_number,
         version_label: nextVersionRow.version_label,
+        change_summary: nextVersionRow.change_summary,
         created_at: nextVersionRow.created_at,
       },
       ...current,
@@ -912,46 +913,65 @@ export function VersionDetailClient({
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
-        <RecipeSidebar
-          currentRecipeId={recipeId}
-          currentVersion={version!}
-          recipe={recipe!}
-          recipeSearch={sidebar.recipeSearch}
-          searchResults={sidebar.searchResults}
-          timelineVersions={timelineVersions}
-          timelineHasMore={timelineHasMore}
-          timelineLoadingMore={timelineLoadingMore}
-          sidebarActionError={sidebar.sidebarActionError}
-          onRecipeSearchChange={sidebar.setRecipeSearch}
-          onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
-          onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
-          onLoadMoreVersions={() => void loadMoreVersions()}
-          onOpenRecipeMenu={(targetRecipeId, rect) => {
-            sidebar.setMenuAnchor(openMenuAtRect(rect));
-            sidebar.setOpenMenuRecipeId(targetRecipeId);
-          }}
-          onOpenVersionMenu={(targetVersionId, rect) => {
-            sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
-            sidebar.setOpenVersionMenuId(targetVersionId);
-          }}
-        />
+        <div className="order-3 xl:order-1">
+          <RecipeSidebar
+            currentRecipeId={recipeId}
+            currentVersion={version!}
+            recipe={recipe!}
+            recipeSearch={sidebar.recipeSearch}
+            searchResults={sidebar.searchResults}
+            timelineVersions={timelineVersions}
+            timelineHasMore={timelineHasMore}
+            timelineLoadingMore={timelineLoadingMore}
+            sidebarActionError={sidebar.sidebarActionError}
+            onRecipeSearchChange={sidebar.setRecipeSearch}
+            onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
+            onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
+            onLoadMoreVersions={() => void loadMoreVersions()}
+            onOpenRecipeMenu={(targetRecipeId, rect) => {
+              sidebar.setMenuAnchor(openMenuAtRect(rect));
+              sidebar.setOpenMenuRecipeId(targetRecipeId);
+            }}
+            onOpenVersionMenu={(targetVersionId, rect) => {
+              sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
+              sidebar.setOpenVersionMenuId(targetVersionId);
+            }}
+          />
+        </div>
 
-        <VersionMainPanels
-          recipe={recipe!}
-          version={version!}
-          ingredients={displayIngredients}
-          displayServings={displayServings}
-          canAdjustServings={canAdjustServings}
-          onSetTargetServings={setTargetServings}
-          steps={steps}
-          topPhotoUrl={topPhotoUrl}
-          userId={userId}
-          photosWithUrls={photosWithUrls}
-          onShare={() => void shareVersion()}
-          galleryLoading={galleryLoading}
-        />
+        <div className="order-1 xl:order-2">
+          <VersionMainPanels
+            recipe={recipe!}
+            version={version!}
+            ingredients={displayIngredients}
+            displayServings={displayServings}
+            canAdjustServings={canAdjustServings}
+            onSetTargetServings={setTargetServings}
+            steps={steps}
+            topPhotoUrl={topPhotoUrl}
+            userId={userId}
+            photosWithUrls={photosWithUrls}
+            onShare={() => void shareVersion()}
+            galleryLoading={galleryLoading}
+          />
+        </div>
 
-        <aside className="sticky top-28 self-start space-y-4">
+        <aside className="order-2 space-y-4 xl:order-3 xl:sticky xl:top-28 xl:self-start">
+          <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
+          <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
+          <PrepPlanPanel
+            prepPlan={prepPlan}
+            completedChecklistIds={completedPrepIds}
+            onToggleChecklistItem={(itemId) => {
+              const completed = !completedPrepIds.includes(itemId);
+              setCompletedPrepIds((current) => (completed ? [...current, itemId] : current.filter((id) => id !== itemId)));
+              void fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ checklist_item_id: itemId, completed }),
+              });
+            }}
+          />
           <ChefAiPanel
             aiConversation={assistant.aiConversation}
             customInstruction={assistant.customInstruction}
@@ -966,21 +986,6 @@ export function VersionDetailClient({
             onApplySuggestedChange={() => void handleApplySuggestedChange()}
             conversationEndRef={assistant.conversationEndRef}
           />
-          <PrepPlanPanel
-            prepPlan={prepPlan}
-            completedChecklistIds={completedPrepIds}
-            onToggleChecklistItem={(itemId) => {
-              const completed = !completedPrepIds.includes(itemId);
-              setCompletedPrepIds((current) => (completed ? [...current, itemId] : current.filter((id) => id !== itemId)));
-              void fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ checklist_item_id: itemId, completed }),
-              });
-            }}
-          />
-          <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
-          <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
         </aside>
       </div>
     </div>
