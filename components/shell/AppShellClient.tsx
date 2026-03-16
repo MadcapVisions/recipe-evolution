@@ -102,23 +102,42 @@ function EdgePeek({
   side,
   label,
   onClick,
+  hinted,
 }: {
   side: AppShellSide;
   label: string;
   onClick: () => void;
+  hinted: boolean;
 }) {
   const sideClasses =
     side === "left"
       ? "left-0 rounded-r-[18px] border-l-0 pl-2 pr-3"
       : "right-0 rounded-l-[18px] border-r-0 pl-3 pr-2";
 
+  const toneClasses =
+    side === "left"
+      ? label === "Summary"
+        ? "bg-[rgba(242,248,244,0.96)] text-[color:var(--primary-strong)]"
+        : "bg-[rgba(255,252,246,0.94)] text-[color:var(--text)]"
+      : label === "Prep"
+        ? "bg-[rgba(242,248,244,0.96)] text-[color:var(--primary-strong)]"
+        : label === "Cook" || label === "Flow"
+          ? "bg-[rgba(243,247,252,0.96)] text-slate-800"
+          : label === "Finish"
+            ? "bg-[rgba(249,244,234,0.96)] text-[color:var(--text)]"
+            : "bg-[rgba(255,252,246,0.94)] text-[color:var(--text)]";
+
+  const hintedMotion = side === "left" ? "translate-x-1.5" : "-translate-x-1.5";
+
   return (
     <button
       type="button"
       onClick={onClick}
       className={joinClasses(
-        "fixed top-1/2 z-40 -translate-y-1/2 border border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.94)] py-3 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text)] shadow-[0_10px_24px_rgba(61,51,36,0.08)] backdrop-blur-sm xl:hidden",
-        sideClasses
+        "fixed top-1/2 z-40 -translate-y-1/2 border border-[rgba(79,54,33,0.12)] py-3 text-xs font-semibold uppercase tracking-[0.18em] shadow-[0_10px_24px_rgba(61,51,36,0.08)] backdrop-blur-sm transition-[transform,background-color,box-shadow] duration-300 xl:hidden",
+        sideClasses,
+        toneClasses,
+        hinted && `${hintedMotion} shadow-[0_16px_32px_rgba(61,51,36,0.14)]`
       )}
       style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
       aria-label={`Open ${label}`}
@@ -148,6 +167,7 @@ export function AppShellClient({
   const [rightPanel, setRightPanel] = useState<AppShellSidePanel | null>(null);
   const [leftPanelTarget, setLeftPanelTarget] = useState<HTMLDivElement | null>(null);
   const [rightPanelTarget, setRightPanelTarget] = useState<HTMLDivElement | null>(null);
+  const [hintedSide, setHintedSide] = useState<AppShellSide | null>(null);
 
   useScrollLock(navOpen || openPanel !== null);
 
@@ -189,6 +209,42 @@ export function AppShellClient({
       window.removeEventListener("keydown", handleEscape);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || window.innerWidth >= 1280 || openPanel !== null) {
+      return;
+    }
+
+    const candidates: AppShellSide[] = [];
+    if (leftPanel) {
+      candidates.push("left");
+    }
+    if (rightPanel) {
+      candidates.push("right");
+    }
+    if (candidates.length === 0) {
+      return;
+    }
+
+    let timeoutA = 0;
+    let timeoutB = 0;
+
+    timeoutA = window.setTimeout(() => {
+      setHintedSide(candidates[0] ?? null);
+      timeoutB = window.setTimeout(() => {
+        setHintedSide(candidates[1] ?? null);
+        window.setTimeout(() => {
+          setHintedSide(null);
+        }, 240);
+      }, candidates.length > 1 ? 620 : 240);
+    }, 650);
+
+    return () => {
+      window.clearTimeout(timeoutA);
+      window.clearTimeout(timeoutB);
+      setHintedSide(null);
+    };
+  }, [leftPanel?.label, openPanel, pathname, rightPanel?.label]);
 
   return (
     <AppShellContext.Provider
@@ -272,8 +328,8 @@ export function AppShellClient({
           </main>
         </div>
 
-        {leftPanel && openPanel !== "left" ? <EdgePeek side="left" label={leftPanel.label} onClick={() => setOpenPanel("left")} /> : null}
-        {rightPanel && openPanel !== "right" ? <EdgePeek side="right" label={rightPanel.label} onClick={() => setOpenPanel("right")} /> : null}
+        {leftPanel && openPanel !== "left" ? <EdgePeek side="left" label={leftPanel.label} hinted={hintedSide === "left"} onClick={() => setOpenPanel("left")} /> : null}
+        {rightPanel && openPanel !== "right" ? <EdgePeek side="right" label={rightPanel.label} hinted={hintedSide === "right"} onClick={() => setOpenPanel("right")} /> : null}
 
         <div
           className={joinClasses(

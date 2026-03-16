@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useState, type FocusEvent, type RefObject } from "react";
 import type { ConversationMessage, SuggestedChange } from "@/components/recipes/version-detail/types";
 import type { PrepPlan } from "@/lib/recipes/prepPlan";
 
@@ -22,6 +22,7 @@ export function ChefAiPanel({
   onInstructionChange,
   onAskSubmit,
   onApplySuggestedChange,
+  onComposerFocus,
   conversationEndRef,
 }: {
   aiConversation: ConversationMessage[];
@@ -35,44 +36,76 @@ export function ChefAiPanel({
   onInstructionChange: (value: string) => void;
   onAskSubmit: () => void;
   onApplySuggestedChange: () => void;
+  onComposerFocus?: () => void;
   conversationEndRef: RefObject<HTMLDivElement | null>;
 }) {
+  const [composerFocused, setComposerFocused] = useState(false);
+  const shouldPrioritizeChat = composerFocused || aiConversation.length > 0 || Boolean(suggestedChange);
+
   return (
-    <section className="app-panel p-4 sm:p-5">
+    <section className="app-panel flex flex-col p-4 sm:p-5">
       <p className="app-kicker">Chef workshop</p>
       <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[28px]">Refine this version with intent.</h2>
       <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use Chef to pressure-test the dish, explore targeted moves, and save the iteration that deserves to stick.</p>
 
-      <div className="mt-5">
-        <p className="app-kicker">Development moves</p>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {[
-            { label: "Improve Flavor", instruction: "Improve the flavor profile" },
-            { label: "Make Vegetarian", instruction: "Make this recipe vegetarian" },
-            { label: "Reduce Calories", instruction: "Reduce calories but keep flavor" },
-            { label: "Make Faster", instruction: "Make this recipe faster to cook" },
-            { label: "High Protein", instruction: "Make this recipe high protein" },
-            { label: "Make it Spicy", instruction: "Make this recipe spicy" },
-          ].map((item) => (
-            <button key={item.label} type="button" onClick={() => onQuickAction(item.instruction)} disabled={isAskingAi || isGeneratingVersion} className={quickChip()}>
-              {item.label}
-            </button>
-          ))}
+      {!shouldPrioritizeChat ? (
+        <div className="mt-5">
+          <p className="app-kicker">Development moves</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              { label: "Improve Flavor", instruction: "Improve the flavor profile" },
+              { label: "Make Vegetarian", instruction: "Make this recipe vegetarian" },
+              { label: "Reduce Calories", instruction: "Reduce calories but keep flavor" },
+              { label: "Make Faster", instruction: "Make this recipe faster to cook" },
+              { label: "High Protein", instruction: "Make this recipe high protein" },
+              { label: "Make it Spicy", instruction: "Make this recipe spicy" },
+            ].map((item) => (
+              <button key={item.label} type="button" onClick={() => onQuickAction(item.instruction)} disabled={isAskingAi || isGeneratingVersion} className={quickChip()}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onRemixLeftovers}
+            disabled={isAskingAi || isGeneratingVersion}
+            className="mt-3 w-full rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] px-4 py-3 text-[15px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
+          >
+            Build a Leftover Remix
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onRemixLeftovers}
-          disabled={isAskingAi || isGeneratingVersion}
-          className="mt-3 w-full rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] px-4 py-3 text-[15px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
-        >
-          Build a Leftover Remix
-        </button>
-      </div>
+      ) : (
+        <details className="mt-5 rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] p-3">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-[color:var(--text)]">Quick actions</summary>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              { label: "Improve Flavor", instruction: "Improve the flavor profile" },
+              { label: "Make Vegetarian", instruction: "Make this recipe vegetarian" },
+              { label: "Reduce Calories", instruction: "Reduce calories but keep flavor" },
+              { label: "Make Faster", instruction: "Make this recipe faster to cook" },
+              { label: "High Protein", instruction: "Make this recipe high protein" },
+              { label: "Make it Spicy", instruction: "Make this recipe spicy" },
+            ].map((item) => (
+              <button key={item.label} type="button" onClick={() => onQuickAction(item.instruction)} disabled={isAskingAi || isGeneratingVersion} className={quickChip()}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onRemixLeftovers}
+            disabled={isAskingAi || isGeneratingVersion}
+            className="mt-3 w-full rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] px-4 py-3 text-[15px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
+          >
+            Build a Leftover Remix
+          </button>
+        </details>
+      )}
 
-      <div className="mt-5">
+      <div className="mt-5 flex min-h-0 flex-1 flex-col">
         <p className="text-[16px] font-semibold text-[color:var(--text)]">Ask the Chef</p>
         <p className="mt-1 text-sm text-[color:var(--muted)]">Treat chat like a test kitchen bench: get guidance first, then save the change only if it improves the dish.</p>
-        <div className="mt-3 flex min-h-[140px] max-h-[240px] flex-col gap-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] p-4 sm:min-h-[240px] sm:max-h-[340px] sm:rounded-[26px]">
+        <div className="mt-3 flex min-h-[280px] max-h-[58vh] flex-1 flex-col gap-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] p-4 sm:min-h-[360px] sm:max-h-[62vh] sm:rounded-[26px]">
           {aiConversation.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
@@ -120,6 +153,15 @@ export function ChefAiPanel({
             type="text"
             value={customInstruction}
             onChange={(event) => onInstructionChange(event.target.value)}
+            onFocus={() => {
+              setComposerFocused(true);
+              onComposerFocus?.();
+            }}
+            onBlur={(event: FocusEvent<HTMLInputElement>) => {
+              if (!event.currentTarget.value.trim()) {
+                setComposerFocused(false);
+              }
+            }}
             placeholder="Ask about flavor, technique, speed, substitutions..."
             className="min-w-0 flex-1 rounded-full bg-white px-4 py-3 text-[15px] sm:px-5 sm:text-[16px]"
           />

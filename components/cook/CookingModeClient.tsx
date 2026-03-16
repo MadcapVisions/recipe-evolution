@@ -13,6 +13,7 @@ import { scaleCanonicalIngredientLine } from "@/lib/recipes/servings";
 import { useTargetServings } from "@/lib/recipes/targetServings";
 import { ServingsControl } from "@/components/ServingsControl";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
+import { useAppShell } from "@/components/shell/AppShellContext";
 
 type Step = {
   text: string;
@@ -223,6 +224,7 @@ export function CookingModeClient({
   initialSteps,
 }: CookingModeClientProps) {
   const router = useRouter();
+  const { setOpenPanel } = useAppShell();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [startingLive, setStartingLive] = useState(false);
   const [submittingCompletion, setSubmittingCompletion] = useState(false);
@@ -234,8 +236,19 @@ export function CookingModeClient({
   const [error, setError] = useState<string | null>(null);
   const [completedPrepIds, setCompletedPrepIds] = useState<string[]>([]);
   const [phase, setPhase] = useState<CookingPhase>("prep");
+  const [rightSidebarMode, setRightSidebarMode] = useState<"overview" | "focus" | "flow">("focus");
   const [checkedIngredients, setCheckedIngredients] = useState<string[]>([]);
   const { targetServings, setTargetServings, canScale, baseServings } = useTargetServings(versionId, servings);
+
+  const isCompactViewport = () => (typeof window !== "undefined" ? window.innerWidth < 1280 : false);
+
+  const syncRightSidebarMode = (mode: "overview" | "focus" | "flow", reveal = false) => {
+    setRightSidebarMode(mode);
+
+    if (reveal && isCompactViewport()) {
+      setOpenPanel("right");
+    }
+  };
 
   useEffect(() => {
     let wakeLock: WakeLockSentinel | null = null;
@@ -425,7 +438,12 @@ export function CookingModeClient({
     setCheckedIngredients([]);
   }, [targetServings, versionId]);
 
+  useEffect(() => {
+    setRightSidebarMode("focus");
+  }, [phase]);
+
   const toggleChecklistItem = (itemId: string) => {
+    setRightSidebarMode("flow");
     const completed = !completedPrepIds.includes(itemId);
     setCompletedPrepIds((current) => (completed ? [...current, itemId] : current.filter((id) => id !== itemId)));
     void fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
@@ -436,6 +454,7 @@ export function CookingModeClient({
   };
 
   const goBack = () => {
+    setRightSidebarMode("focus");
     setCurrentStepIndex((previous) => Math.max(previous - 1, 0));
   };
 
@@ -445,6 +464,7 @@ export function CookingModeClient({
       return;
     }
 
+    setRightSidebarMode("focus");
     setCurrentStepIndex((previous) => Math.min(previous + 1, totalSteps - 1));
   };
 
@@ -547,38 +567,94 @@ export function CookingModeClient({
     );
   }
 
-  const contextPanelTitle = phase === "prep" ? "Prep tools" : phase === "cook" ? "Cooking tools" : "Finish tools";
+  const phasePanelName = phase === "prep" ? "prep" : phase === "cook" ? "cook" : "finish";
+  const contextPanelLabel =
+    rightSidebarMode === "overview" ? "Session" : rightSidebarMode === "flow" ? (phase === "cook" ? "Flow" : phase === "prep" ? "Checklist" : "Finish") : phase === "prep" ? "Prep" : phase === "cook" ? "Cook" : "Finish";
+  const contextPanelTitle =
+    rightSidebarMode === "overview"
+      ? "Cook session"
+      : rightSidebarMode === "flow"
+        ? phase === "cook"
+          ? "Cooking flow"
+          : phase === "prep"
+            ? "Prep checklist"
+            : "Finish checklist"
+        : phase === "prep"
+          ? "Prep support"
+          : phase === "cook"
+            ? "Active step support"
+            : "Finish support";
   const contextPanelDescription =
-    phase === "prep"
-      ? "Keep setup cues, checklist progress, and ingredient readiness close without shrinking the main prep flow."
-      : phase === "cook"
-        ? "Use this side panel for the full step rail, support notes, and fallback substitutions while you cook."
-        : "Use the finish panel for final tasting cues and service notes before you mark the cook complete.";
+    rightSidebarMode === "overview"
+      ? "Keep the live session metrics and scaling controls nearby while the main workspace stays focused on the dish."
+      : rightSidebarMode === "flow"
+        ? phase === "cook"
+          ? "Jump through the full cooking rail without leaving the current cook session."
+          : phase === "prep"
+            ? "Use the full ingredient and checklist rail while you stage the dish."
+            : "Keep the final tasting and completion checklist close as you plate and serve."
+        : phase === "prep"
+          ? "Keep setup cues and chef notes close without shrinking the main prep flow."
+          : phase === "cook"
+            ? "Use this side panel for the cues and substitutions that matter for the current step."
+            : "Use the finish panel for final tasting cues and service notes before you mark the cook complete.";
 
   return (
     <>
-      <ShellContextPanel side="right" label="Cook tools" title={contextPanelTitle} description={contextPanelDescription}>
+      <ShellContextPanel side="right" label={contextPanelLabel} title={contextPanelTitle} description={contextPanelDescription}>
         <div className="space-y-4">
-          <section className="artifact-sheet p-4">
-            <p className="app-kicker">Cook session</p>
-            <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)]">{recipeTitle}</h2>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-[18px] bg-white px-3 py-3 text-center">
-                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Servings</p>
-                <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{canScale ? targetServings : servings ?? "-"}</p>
-              </div>
-              <div className="rounded-[18px] bg-white px-3 py-3 text-center">
-                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Prep</p>
-                <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{prepTimeMin ?? "-"} min</p>
-              </div>
-              <div className="rounded-[18px] bg-white px-3 py-3 text-center">
-                <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Cook</p>
-                <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{cookTimeMin ?? "-"} min</p>
-              </div>
-            </div>
-          </section>
+          <div className="grid grid-cols-3 gap-2 rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] p-1.5">
+            <button
+              type="button"
+              onClick={() => syncRightSidebarMode("overview")}
+              className={`rounded-[18px] px-3 py-2 text-sm font-semibold transition ${
+                rightSidebarMode === "overview" ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
+              }`}
+            >
+              Session
+            </button>
+            <button
+              type="button"
+              onClick={() => syncRightSidebarMode("focus")}
+              className={`rounded-[18px] px-3 py-2 text-sm font-semibold transition ${
+                rightSidebarMode === "focus" ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
+              }`}
+            >
+              {phase === "prep" ? "Prep" : phase === "cook" ? "Focus" : "Finish"}
+            </button>
+            <button
+              type="button"
+              onClick={() => syncRightSidebarMode("flow")}
+              className={`rounded-[18px] px-3 py-2 text-sm font-semibold transition ${
+                rightSidebarMode === "flow" ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
+              }`}
+            >
+              {phase === "cook" ? "Flow" : "Checklist"}
+            </button>
+          </div>
 
-          {phase === "prep" ? (
+          {rightSidebarMode === "overview" ? (
+            <section className="artifact-sheet p-4">
+              <p className="app-kicker">{phasePanelName} session</p>
+              <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)]">{recipeTitle}</h2>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="rounded-[18px] bg-white px-3 py-3 text-center">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Servings</p>
+                  <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{canScale ? targetServings : servings ?? "-"}</p>
+                </div>
+                <div className="rounded-[18px] bg-white px-3 py-3 text-center">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Prep</p>
+                  <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{prepTimeMin ?? "-"} min</p>
+                </div>
+                <div className="rounded-[18px] bg-white px-3 py-3 text-center">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[color:var(--muted)]">Cook</p>
+                  <p className="mt-2 text-lg font-semibold text-[color:var(--text)]">{cookTimeMin ?? "-"} min</p>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {rightSidebarMode === "focus" && phase === "prep" ? (
             <>
               <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-4">
                 <p className="text-sm font-semibold text-emerald-900">Setup progress</p>
@@ -616,7 +692,7 @@ export function CookingModeClient({
             </>
           ) : null}
 
-          {phase === "cook" ? (
+          {rightSidebarMode === "focus" && phase === "cook" ? (
             <>
               <section className="rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-4">
                 <p className="text-sm font-semibold text-emerald-900">Need to know right now</p>
@@ -649,37 +725,10 @@ export function CookingModeClient({
                   </div>
                 </section>
               ) : null}
-
-              <section className="artifact-sheet p-4">
-                <p className="text-sm font-semibold text-[color:var(--text)]">Full cooking flow</p>
-                <p className="mt-1 text-sm text-[color:var(--muted)]">Jump to any step without leaving cooking mode.</p>
-                <div className="mt-4 space-y-2">
-                  {initialSteps.map((step, index) => {
-                    const parsed = parseTechniqueStep(step.text);
-                    const active = index === safeIndex;
-
-                    return (
-                      <button
-                        key={`${index}-${step.text}`}
-                        type="button"
-                        onClick={() => setCurrentStepIndex(index)}
-                        className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
-                          active
-                            ? "border-[rgba(82,124,116,0.22)] bg-[rgba(82,124,116,0.08)]"
-                            : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(141,169,187,0.06)]"
-                        }`}
-                      >
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Step {index + 1}</p>
-                        <p className="mt-2 text-sm leading-6 text-[color:var(--text)]">{parsed.instruction || step.text}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
             </>
           ) : null}
 
-          {phase === "finish" ? (
+          {rightSidebarMode === "focus" && phase === "finish" ? (
             <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Serve with intention</p>
               <div className="mt-4 space-y-3">
@@ -705,6 +754,133 @@ export function CookingModeClient({
                 ) : null}
               </div>
             </section>
+          ) : null}
+
+          {rightSidebarMode === "flow" && phase === "prep" ? (
+            <>
+              {scaledIngredientLines.length > 0 ? (
+                <section className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.04)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[color:var(--text)]">Gather ingredients{canScale && servings ? ` for ${targetServings}` : ""}</p>
+                      <p className="mt-1 text-sm text-[color:var(--muted)]">Tap once each item is on the counter.</p>
+                    </div>
+                    <p className="text-sm text-[color:var(--muted)]">{checkedIngredients.length}/{scaledIngredientLines.length} ready</p>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {scaledIngredientLines.map((line, index) => (
+                      <IngredientCheckCard
+                        key={`${index}-${line}`}
+                        item={line}
+                        checked={checkedIngredients.includes(line)}
+                        onToggle={() => {
+                          setRightSidebarMode("flow");
+                          setCheckedIngredients((current) => (current.includes(line) ? current.filter((item) => item !== line) : [...current, line]));
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="rounded-[28px] border border-emerald-200 bg-emerald-50/80 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">Prep checklist</p>
+                    <p className="mt-1 text-sm leading-6 text-emerald-800">Finish the setup work that should happen before the live cooking flow starts.</p>
+                  </div>
+                  <p className="text-sm text-emerald-800">
+                    {completedPrepIds.length}/{prepPlan.checklist.length} done
+                  </p>
+                </div>
+
+                {prepChecklistItems.mise.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Mise en place</p>
+                    {prepChecklistItems.mise.map((item) => (
+                      <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
+                    ))}
+                  </div>
+                ) : null}
+
+                {prepChecklistItems["make-ahead"].length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Make ahead</p>
+                    {prepChecklistItems["make-ahead"].map((item) => (
+                      <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
+                    ))}
+                  </div>
+                ) : null}
+
+                {prepChecklistItems["cook-window"].length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Cook window</p>
+                    {prepChecklistItems["cook-window"].map((item) => (
+                      <PrepChecklistCard key={item.id} item={item} checked={completedPrepIds.includes(item.id)} onToggle={() => toggleChecklistItem(item.id)} />
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            </>
+          ) : null}
+
+          {rightSidebarMode === "flow" && phase === "cook" ? (
+            <section className="artifact-sheet p-4">
+              <p className="text-sm font-semibold text-[color:var(--text)]">Full cooking flow</p>
+              <p className="mt-1 text-sm text-[color:var(--muted)]">Jump to any step without leaving cooking mode.</p>
+              <div className="mt-4 space-y-2">
+                {initialSteps.map((step, index) => {
+                  const parsed = parseTechniqueStep(step.text);
+                  const active = index === safeIndex;
+
+                  return (
+                    <button
+                      key={`${index}-${step.text}`}
+                      type="button"
+                      onClick={() => {
+                        setRightSidebarMode("flow");
+                        setCurrentStepIndex(index);
+                      }}
+                      className={`w-full rounded-[20px] border px-4 py-3 text-left transition ${
+                        active
+                          ? "border-[rgba(82,124,116,0.22)] bg-[rgba(82,124,116,0.08)]"
+                          : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(141,169,187,0.06)]"
+                      }`}
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Step {index + 1}</p>
+                      <p className="mt-2 text-sm leading-6 text-[color:var(--text)]">{parsed.instruction || step.text}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {rightSidebarMode === "flow" && phase === "finish" ? (
+            <>
+              <section className="rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)] p-4">
+                <p className="text-sm font-semibold text-[color:var(--text)]">Before it hits the table</p>
+                <div className="mt-4 space-y-2">
+                  {[
+                    "Taste for salt and acid right before serving.",
+                    "Check texture and stop before the final mix gets muddy or overworked.",
+                    "Only add garnish or finishing fat if it improves clarity, freshness, or richness.",
+                  ].map((item) => (
+                    <p key={item} className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-3 py-2 text-sm leading-6 text-[color:var(--text)]">
+                      {item}
+                    </p>
+                  ))}
+                </div>
+              </section>
+              <div className="grid gap-2">
+                <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-12 text-base">
+                  Back to Cooking
+                </Button>
+                <Button onClick={() => setShowCompletionModal(true)} className="min-h-12 bg-green-700 text-base hover:bg-green-800">
+                  Complete Cooking
+                </Button>
+              </div>
+            </>
           ) : null}
         </div>
       </ShellContextPanel>
@@ -740,9 +916,9 @@ export function CookingModeClient({
             <ServingsControl label="Cook for" baseServings={baseServings} targetServings={targetServings} onChange={setTargetServings} />
 
             <div className="grid gap-3 md:grid-cols-3">
-              <PhasePill active={phase === "prep"} complete={phase !== "prep"} label="Prep" description="Gather ingredients, set up, and work through the smart prep cues." onClick={() => setPhase("prep")} />
-              <PhasePill active={phase === "cook"} complete={phase === "finish"} label="Cook" description="Focus on one active step at a time with timer and chef guidance." onClick={() => setPhase("cook")} />
-              <PhasePill active={phase === "finish"} complete={false} label="Finish" description="Do the final texture, seasoning, and serving checks." onClick={() => setPhase("finish")} />
+              <PhasePill active={phase === "prep"} complete={phase !== "prep"} label="Prep" description="Gather ingredients, set up, and work through the smart prep cues." onClick={() => { setPhase("prep"); setRightSidebarMode("focus"); }} />
+              <PhasePill active={phase === "cook"} complete={phase === "finish"} label="Cook" description="Focus on one active step at a time with timer and chef guidance." onClick={() => { setPhase("cook"); setRightSidebarMode("focus"); }} />
+              <PhasePill active={phase === "finish"} complete={false} label="Finish" description="Do the final texture, seasoning, and serving checks." onClick={() => { setPhase("finish"); setRightSidebarMode("focus"); }} />
             </div>
 
             {phase === "prep" ? (
@@ -757,8 +933,8 @@ export function CookingModeClient({
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <Button onClick={() => setPhase("cook")} className="min-h-14 text-base">Begin Live Cooking</Button>
-                  <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-14 text-base">Skip Setup</Button>
+                  <Button onClick={() => { setPhase("cook"); setRightSidebarMode("focus"); }} className="min-h-14 text-base">Begin Live Cooking</Button>
+                  <Button onClick={() => { setPhase("cook"); setRightSidebarMode("focus"); }} variant="secondary" className="min-h-14 text-base">Skip Setup</Button>
                 </div>
 
                 {scaledIngredientLines.length > 0 ? (
@@ -975,7 +1151,7 @@ export function CookingModeClient({
                   <div className="space-y-3">
                     <p className="text-sm leading-6 text-[color:var(--muted)]">You are ready to serve. Give it one last taste, then mark the cook complete.</p>
                     <div className="flex flex-wrap gap-3">
-                    <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-14 text-base">
+                    <Button onClick={() => { setPhase("cook"); setRightSidebarMode("focus"); }} variant="secondary" className="min-h-14 text-base">
                       Back to Cooking
                     </Button>
                     <Button onClick={() => setShowCompletionModal(true)} className="min-h-14 bg-green-700 text-base hover:bg-green-800">

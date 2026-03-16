@@ -18,6 +18,7 @@ export function VersionMainPanels({
   topPhotoUrl,
   userId,
   onShare,
+  onViewVersionHistory,
   photosWithUrls,
   galleryLoading,
 }: {
@@ -31,6 +32,7 @@ export function VersionMainPanels({
   topPhotoUrl: string | null;
   userId: string | null;
   onShare: () => void;
+  onViewVersionHistory: () => void;
   photosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
   galleryLoading: boolean;
 }) {
@@ -78,7 +80,7 @@ export function VersionMainPanels({
               <Button onClick={onShare} variant="secondary" className="w-full justify-center lg:w-auto">
                 Share
               </Button>
-              <Button href={`/recipes/${recipe.id}`} variant="secondary" className="w-full justify-center lg:w-auto">
+              <Button onClick={onViewVersionHistory} variant="secondary" className="w-full justify-center lg:w-auto">
                 View Version History
               </Button>
             </div>
