@@ -113,6 +113,8 @@ export function MealPlannerClient({
   return (
     <div className="space-y-5 xl:grid xl:grid-cols-[340px_minmax(0,1fr)] xl:gap-5 xl:space-y-0">
       <ShellContextPanel
+        side="left"
+        label="Planner"
         title="Planner tools"
         description="Select recipe versions, tune serving counts, and export the finished plan without crowding the main workspace."
       >

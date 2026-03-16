@@ -2,7 +2,11 @@
 
 import { createContext, useContext } from "react";
 
-export type AppShellContextPanel = {
+export type AppShellSide = "left" | "right";
+
+export type AppShellSidePanel = {
+  side: AppShellSide;
+  label: string;
   title: string;
   description?: string;
 };
@@ -13,11 +17,13 @@ export type AppShellNavLink = {
 };
 
 type AppShellContextValue = {
-  contextPanel: AppShellContextPanel | null;
-  setContextPanel: (panel: AppShellContextPanel | null) => void;
-  toolsOpen: boolean;
-  setToolsOpen: (open: boolean) => void;
-  mobilePanelTarget: HTMLDivElement | null;
+  leftPanel: AppShellSidePanel | null;
+  rightPanel: AppShellSidePanel | null;
+  setSidePanel: (side: AppShellSide, panel: Omit<AppShellSidePanel, "side"> | null) => void;
+  openPanel: AppShellSide | null;
+  setOpenPanel: (side: AppShellSide | null) => void;
+  leftPanelTarget: HTMLDivElement | null;
+  rightPanelTarget: HTMLDivElement | null;
 };
 
 export const AppShellContext = createContext<AppShellContextValue | null>(null);

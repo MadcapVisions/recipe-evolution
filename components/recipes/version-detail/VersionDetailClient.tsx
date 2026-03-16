@@ -895,33 +895,43 @@ export function VersionDetailClient({
   return (
     <div className="space-y-6">
       <ShellContextPanel
+        side="left"
+        label="Cookbook"
+        title="Recipe navigation"
+        description="Jump across recipes and versions without leaving the current detail workspace."
+      >
+        <RecipeSidebar
+          currentRecipeId={recipeId}
+          currentVersion={version!}
+          recipe={recipe!}
+          recipeSearch={sidebar.recipeSearch}
+          searchResults={sidebar.searchResults}
+          timelineVersions={timelineVersions}
+          timelineHasMore={timelineHasMore}
+          timelineLoadingMore={timelineLoadingMore}
+          sidebarActionError={sidebar.sidebarActionError}
+          onRecipeSearchChange={sidebar.setRecipeSearch}
+          onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
+          onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
+          onLoadMoreVersions={() => void loadMoreVersions()}
+          onOpenRecipeMenu={(targetRecipeId, rect) => {
+            sidebar.setMenuAnchor(openMenuAtRect(rect));
+            sidebar.setOpenMenuRecipeId(targetRecipeId);
+          }}
+          onOpenVersionMenu={(targetVersionId, rect) => {
+            sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
+            sidebar.setOpenVersionMenuId(targetVersionId);
+          }}
+        />
+      </ShellContextPanel>
+
+      <ShellContextPanel
+        side="right"
+        label="Tools"
         title="Recipe tools"
         description="Use this panel for version navigation, metrics, prep cues, and Chef support while the main canvas stays focused on the current recipe."
       >
         <div className="space-y-4">
-          <RecipeSidebar
-            currentRecipeId={recipeId}
-            currentVersion={version!}
-            recipe={recipe!}
-            recipeSearch={sidebar.recipeSearch}
-            searchResults={sidebar.searchResults}
-            timelineVersions={timelineVersions}
-            timelineHasMore={timelineHasMore}
-            timelineLoadingMore={timelineLoadingMore}
-            sidebarActionError={sidebar.sidebarActionError}
-            onRecipeSearchChange={sidebar.setRecipeSearch}
-            onRecipeNavigate={(targetRecipeId) => router.push(`/recipes/${targetRecipeId}`)}
-            onVersionNavigate={(targetVersionId) => router.push(`/recipes/${recipeId}/versions/${targetVersionId}`)}
-            onLoadMoreVersions={() => void loadMoreVersions()}
-            onOpenRecipeMenu={(targetRecipeId, rect) => {
-              sidebar.setMenuAnchor(openMenuAtRect(rect));
-              sidebar.setOpenMenuRecipeId(targetRecipeId);
-            }}
-            onOpenVersionMenu={(targetVersionId, rect) => {
-              sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
-              sidebar.setOpenVersionMenuId(targetVersionId);
-            }}
-          />
           <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
           <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
           <PrepPlanPanel

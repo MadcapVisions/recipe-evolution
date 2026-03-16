@@ -557,7 +557,7 @@ export function CookingModeClient({
 
   return (
     <>
-      <ShellContextPanel title={contextPanelTitle} description={contextPanelDescription}>
+      <ShellContextPanel side="right" label="Cook tools" title={contextPanelTitle} description={contextPanelDescription}>
         <div className="space-y-4">
           <section className="artifact-sheet p-4">
             <p className="app-kicker">Cook session</p>

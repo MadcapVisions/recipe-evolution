@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AiStatusBadge } from "@/components/AiStatusBadge";
 import { UserMenu } from "@/components/UserMenu";
-import { AppShellContext, type AppShellContextPanel, type AppShellNavLink } from "@/components/shell/AppShellContext";
+import { AppShellContext, type AppShellNavLink, type AppShellSide, type AppShellSidePanel } from "@/components/shell/AppShellContext";
 
 function joinClasses(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -64,10 +64,12 @@ function AppNav({
 }
 
 function ShellSurface({
+  kicker = "Page tools",
   title,
   description,
   children,
 }: {
+  kicker?: string;
   title: string;
   description?: string;
   children: ReactNode;
@@ -75,7 +77,7 @@ function ShellSurface({
   return (
     <section className="app-panel flex h-full flex-col overflow-hidden">
       <div className="border-b border-[rgba(57,75,70,0.08)] px-4 py-4 sm:px-5">
-        <p className="app-kicker">Page tools</p>
+        <p className="app-kicker">{kicker}</p>
         <h2 className="mt-2 font-display text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[26px]">
           {title}
         </h2>
@@ -85,6 +87,36 @@ function ShellSurface({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
     </section>
+  );
+}
+
+function EdgePeek({
+  side,
+  label,
+  onClick,
+}: {
+  side: AppShellSide;
+  label: string;
+  onClick: () => void;
+}) {
+  const sideClasses =
+    side === "left"
+      ? "left-0 rounded-r-[18px] border-l-0 pl-2 pr-3"
+      : "right-0 rounded-l-[18px] border-r-0 pl-3 pr-2";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={joinClasses(
+        "fixed top-1/2 z-40 -translate-y-1/2 border border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.94)] py-3 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text)] shadow-[0_10px_24px_rgba(61,51,36,0.08)] backdrop-blur-sm xl:hidden",
+        sideClasses
+      )}
+      style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+      aria-label={`Open ${label}`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -103,22 +135,36 @@ export function AppShellClient({
 }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const [contextPanel, setContextPanel] = useState<AppShellContextPanel | null>(null);
-  const [mobilePanelTarget, setMobilePanelTarget] = useState<HTMLDivElement | null>(null);
+  const [openPanel, setOpenPanel] = useState<AppShellSide | null>(null);
+  const [leftPanel, setLeftPanel] = useState<AppShellSidePanel | null>(null);
+  const [rightPanel, setRightPanel] = useState<AppShellSidePanel | null>(null);
+  const [leftPanelTarget, setLeftPanelTarget] = useState<HTMLDivElement | null>(null);
+  const [rightPanelTarget, setRightPanelTarget] = useState<HTMLDivElement | null>(null);
 
-  useScrollLock(navOpen || toolsOpen);
+  useScrollLock(navOpen || openPanel !== null);
+
+  const setSidePanel = (side: AppShellSide, panel: Omit<AppShellSidePanel, "side"> | null) => {
+    if (side === "left") {
+      setLeftPanel(panel ? { side, ...panel } : null);
+      return;
+    }
+
+    setRightPanel(panel ? { side, ...panel } : null);
+  };
 
   useEffect(() => {
     setNavOpen(false);
-    setToolsOpen(false);
+    setOpenPanel(null);
   }, [pathname]);
 
   useEffect(() => {
-    if (!contextPanel) {
-      setToolsOpen(false);
+    if (openPanel === "left" && !leftPanel) {
+      setOpenPanel(null);
     }
-  }, [contextPanel]);
+    if (openPanel === "right" && !rightPanel) {
+      setOpenPanel(null);
+    }
+  }, [leftPanel, openPanel, rightPanel]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -127,7 +173,7 @@ export function AppShellClient({
       }
 
       setNavOpen(false);
-      setToolsOpen(false);
+      setOpenPanel(null);
     };
 
     window.addEventListener("keydown", handleEscape);
@@ -139,11 +185,13 @@ export function AppShellClient({
   return (
     <AppShellContext.Provider
       value={{
-        contextPanel,
-        setContextPanel,
-        toolsOpen,
-        setToolsOpen,
-        mobilePanelTarget,
+        leftPanel,
+        rightPanel,
+        setSidePanel,
+        openPanel,
+        setOpenPanel,
+        leftPanelTarget,
+        rightPanelTarget,
       }}
     >
       <div className="min-h-screen">
@@ -196,16 +244,6 @@ export function AppShellClient({
             </nav>
 
             <div className="ml-auto flex items-center gap-2">
-              {contextPanel ? (
-                <button
-                  type="button"
-                  onClick={() => setToolsOpen(true)}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.92)] px-4 py-2 text-sm font-semibold text-[color:var(--text)] shadow-[0_2px_8px_rgba(61,51,36,0.03)] transition hover:bg-white xl:hidden"
-                >
-                  Tools
-                </button>
-              ) : null}
-
               {showUserMenu ? (
                 <UserMenu label={userLabel} email={userEmail} />
               ) : (
@@ -225,6 +263,9 @@ export function AppShellClient({
             <div className="app-shell animate-rise-in p-3 sm:p-6 lg:p-7">{children}</div>
           </main>
         </div>
+
+        {leftPanel && openPanel !== "left" ? <EdgePeek side="left" label={leftPanel.label} onClick={() => setOpenPanel("left")} /> : null}
+        {rightPanel && openPanel !== "right" ? <EdgePeek side="right" label={rightPanel.label} onClick={() => setOpenPanel("right")} /> : null}
 
         <div
           className={joinClasses(
@@ -261,21 +302,35 @@ export function AppShellClient({
         <div
           className={joinClasses(
             "fixed inset-0 z-[60] bg-[rgba(30,40,37,0.24)] backdrop-blur-[2px] transition xl:hidden",
-            toolsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+            openPanel !== null ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           )}
-          onClick={() => setToolsOpen(false)}
-          aria-hidden={!toolsOpen}
+          onClick={() => setOpenPanel(null)}
+          aria-hidden={openPanel === null}
         >
           <div
             className={joinClasses(
-              "absolute inset-y-0 right-0 w-[min(92vw,380px)] border-l border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[-18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4",
-              toolsOpen ? "translate-x-0" : "translate-x-full"
+              "absolute inset-y-0 left-0 w-[min(88vw,360px)] border-r border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4",
+              openPanel === "left" ? "translate-x-0" : "-translate-x-full"
             )}
             onClick={(event) => event.stopPropagation()}
           >
-            {contextPanel ? (
-              <ShellSurface title={contextPanel.title} description={contextPanel.description}>
-                <div ref={setMobilePanelTarget} className="space-y-4" />
+            {leftPanel ? (
+              <ShellSurface kicker="Page panel" title={leftPanel.title} description={leftPanel.description}>
+                <div ref={setLeftPanelTarget} className="space-y-4" />
+              </ShellSurface>
+            ) : null}
+          </div>
+
+          <div
+            className={joinClasses(
+              "absolute inset-y-0 right-0 w-[min(92vw,380px)] border-l border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[-18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4",
+              openPanel === "right" ? "translate-x-0" : "translate-x-full"
+            )}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {rightPanel ? (
+              <ShellSurface kicker="Page tools" title={rightPanel.title} description={rightPanel.description}>
+                <div ref={setRightPanelTarget} className="space-y-4" />
               </ShellSurface>
             ) : null}
           </div>

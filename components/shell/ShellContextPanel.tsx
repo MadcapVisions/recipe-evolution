@@ -3,33 +3,36 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
-import { useAppShell } from "@/components/shell/AppShellContext";
+import { useAppShell, type AppShellSide } from "@/components/shell/AppShellContext";
 
 export function ShellContextPanel({
+  side,
+  label,
   title,
   description,
   children,
 }: {
+  side: AppShellSide;
+  label: string;
   title: string;
   description?: string;
   children: ReactNode;
 }) {
-  const { setContextPanel, mobilePanelTarget } = useAppShell();
+  const { setSidePanel, leftPanelTarget, rightPanelTarget } = useAppShell();
 
   useEffect(() => {
-    setContextPanel({
+    setSidePanel(side, {
+      label,
       title,
       description,
     });
 
     return () => {
-      setContextPanel(null);
+      setSidePanel(side, null);
     };
-  }, [description, setContextPanel, title]);
+  }, [description, label, setSidePanel, side, title]);
 
-  return (
-    <>
-      {mobilePanelTarget ? createPortal(children, mobilePanelTarget) : null}
-    </>
-  );
+  const target = side === "left" ? leftPanelTarget : rightPanelTarget;
+
+  return target ? createPortal(children, target) : null;
 }
