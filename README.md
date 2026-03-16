@@ -8,7 +8,7 @@ Current architecture highlights:
 - AI-assisted creation flows share a common recipe draft shape
 - canonical recipe persistence is intentionally simple: ingredient names and step text
 - richer parsing such as quantities, units, prep notes, and timers is treated as optional derived enrichment
-- app-route AI endpoints handle auth, rate limits, caching, and provider fallback
+- app-route AI endpoints handle auth, rate limits, caching, and task-based OpenRouter routing
 - HomeHub and recipe-detail chef conversations are persisted server-side
 
 ## Requirements
@@ -27,23 +27,22 @@ NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-If you are using app-route AI features locally, also configure your provider secrets as needed:
+If you are using app-route AI features locally, also configure OpenRouter and the admin env:
 
 ```bash
-AI_PROVIDER=openai
-AI_FALLBACK_PROVIDERS=gemini,claude
 AI_TIMEOUT_MS=20000
 AI_MAX_RETRIES=2
 
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-4.1-mini
+OPENROUTER_API_KEY=...
+OPENROUTER_DEFAULT_MODEL=openai/gpt-4o-mini
+OPENROUTER_HTTP_REFERER=http://localhost:3000
+OPENROUTER_APP_TITLE="Recipe Evolution"
 
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash
-
-ANTHROPIC_API_KEY=...
-ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+SUPABASE_SERVICE_ROLE_KEY=...
+ADMIN_EMAILS=your-admin@example.com
 ```
+
+Task-specific models are stored in `ai_task_settings` and can be changed from `/admin/ai`.
 
 For authenticated Playwright coverage, add a dedicated test user:
 

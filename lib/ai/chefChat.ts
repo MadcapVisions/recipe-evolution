@@ -1,6 +1,7 @@
 import { callAIWithMeta } from "./aiClient";
 import { buildChefChatPrompt, type AIMessage, type RecipeContext } from "./chatPromptBuilder";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
+import type { AiTaskSettingRecord } from "./taskSettings";
 
 export type ChefChatResult = {
   reply: string;
@@ -80,10 +81,17 @@ export async function chefChat(
   userMessage: string,
   recipeContext: RecipeContext,
   conversationHistory: AIMessage[] = [],
-  userTasteSummary?: string
+  userTasteSummary?: string,
+  taskSetting?: AiTaskSettingRecord
 ): Promise<ChefChatResult> {
   const messages = buildChefChatPrompt(userMessage, recipeContext, conversationHistory, userTasteSummary);
-  const firstAttempt = await callAIWithMeta(messages, TOKEN_LIMITS.chefChat);
+  const aiOptions = {
+    max_tokens: taskSetting?.maxTokens ?? TOKEN_LIMITS.chefChat.max_tokens,
+    temperature: taskSetting?.temperature ?? TOKEN_LIMITS.chefChat.temperature,
+    model: taskSetting?.primaryModel,
+    fallback_models: taskSetting?.fallbackModel ? [taskSetting.fallbackModel] : [],
+  };
+  const firstAttempt = await callAIWithMeta(messages, aiOptions);
   const firstReply = firstAttempt.text;
 
   if (!looksIncomplete(firstReply)) {
@@ -106,7 +114,7 @@ export async function chefChat(
     },
   ];
 
-  const repairedAttempt = await callAIWithMeta(repairMessages, TOKEN_LIMITS.chefChat);
+  const repairedAttempt = await callAIWithMeta(repairMessages, aiOptions);
   const repairedReply = repairedAttempt.text;
 
   if (looksIncomplete(repairedReply)) {

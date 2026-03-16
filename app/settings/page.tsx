@@ -34,7 +34,6 @@ export default async function SettingsPage() {
 
   const createdAtLabel = user.created_at ? new Date(user.created_at).toLocaleDateString() : null;
   const userTitle = displayName || user.email || "Your account";
-
   return (
     <div className="mx-auto max-w-7xl page-shell space-y-8">
       <div className="space-y-5">

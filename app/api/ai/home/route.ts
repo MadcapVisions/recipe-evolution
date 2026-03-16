@@ -8,6 +8,7 @@ import { trackServerEvent } from "@/lib/trackServerEvent";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { storeConversationTurns } from "@/lib/ai/conversationStore";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
+import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -131,7 +132,12 @@ export async function POST(request: Request) {
           )
         : [];
 
-      const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary);
+      const taskSetting = await resolveAiTaskSettings("chef_chat");
+      if (!taskSetting.enabled) {
+        return NextResponse.json({ error: true, message: "Chef chat is currently disabled." }, { status: 503 });
+      }
+
+      const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
 
       if (typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0) {
         void storeConversationTurns(access.supabase as any, {

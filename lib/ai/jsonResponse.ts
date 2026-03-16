@@ -1,10 +1,5 @@
-import { callAIWithMeta } from "./aiClient";
+import { callAIWithMeta, type AICallOptions } from "./aiClient";
 import type { AIMessage } from "./chatPromptBuilder";
-
-type AICallOptions = {
-  max_tokens?: number;
-  temperature?: number;
-};
 
 export function parseJsonResponse(text: string): unknown {
   if (typeof text !== "string" || text.trim().length === 0) {

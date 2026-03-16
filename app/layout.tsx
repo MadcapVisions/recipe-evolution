@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "../styles/globals.css";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { AppShellClient } from "@/components/shell/AppShellClient";
+import { canAccessAdmin } from "@/lib/auth/adminAccess";
 
 export const metadata: Metadata = {
   title: "Recipe Evolution",
@@ -40,13 +41,14 @@ export default async function RootLayout({
       ? resolvedName.charAt(0).toUpperCase()
       : user?.email?.trim().charAt(0).toUpperCase() ?? "U";
   const navLinks = user
-    ? [
-        { href: "/dashboard", label: "Dashboard" },
-        { href: "/recipes", label: "Cookbook" },
-        { href: "/planner", label: "Meal Plan" },
-        { href: "/import", label: "Import Recipe" },
-        { href: "/settings", label: "Settings" },
-      ]
+      ? [
+          { href: "/dashboard", label: "Dashboard" },
+          { href: "/recipes", label: "Cookbook" },
+          { href: "/planner", label: "Meal Plan" },
+          { href: "/import", label: "Import Recipe" },
+          { href: "/settings", label: "Settings" },
+          ...(canAccessAdmin(user.email) ? [{ href: "/admin", label: "Admin" }] : []),
+        ]
     : [
         { href: "/", label: "Home" },
         { href: "/pricing", label: "Pricing" },

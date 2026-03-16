@@ -42,7 +42,7 @@ export function HomeHeroPanel({
   ];
 
   return (
-    <section className="app-panel flex h-full min-h-0 flex-col overflow-hidden">
+    <section className="app-panel flex min-h-0 flex-col overflow-hidden">
       <div
         className={`hidden overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-5 transition-[max-height,padding,opacity] duration-300 md:block md:px-6 lg:px-8 ${
           hasConversation ? "md:max-h-0 md:border-b-0 md:py-0 md:opacity-0" : "md:max-h-[340px] md:py-6 md:opacity-100 lg:max-h-[360px] lg:py-8"
@@ -80,7 +80,7 @@ export function HomeHeroPanel({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col bg-[rgba(255,255,255,0.22)] p-5 sm:p-6 lg:p-8">
+      <div className="flex min-h-0 flex-col bg-[rgba(255,255,255,0.22)] p-5 sm:p-6 lg:p-8">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="app-kicker">Chef session</p>
@@ -90,7 +90,7 @@ export function HomeHeroPanel({
           </div>
         </div>
 
-        <div ref={heroChatFrameRef} className="flex min-h-[300px] flex-1 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.9)] p-3 sm:min-h-[420px] sm:p-4 lg:min-h-[480px]">
+        <div ref={heroChatFrameRef} className="flex h-[340px] rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.9)] p-3 sm:h-[420px] sm:p-4 lg:h-[520px]">
           <div
             ref={heroChatViewportRef}
             className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-4"

@@ -1,11 +1,10 @@
-import { callAI } from "./aiClient";
-import { TOKEN_LIMITS } from "./config/tokenLimits";
 import { callAIForJson } from "./jsonResponse";
 import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import type { AIMessage } from "./chatPromptBuilder";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatIngredientLine } from "../recipes/recipeDraft";
+import { resolveAiTaskSettings } from "./taskSettings";
 
 type HomeIdea = {
   title: string;
@@ -495,7 +494,16 @@ User taste summary: ${userTasteSummary?.trim() || "No user taste summary availab
   ];
 
   try {
-    const result = await callAIForJson(messages, TOKEN_LIMITS.recipeGeneration);
+    const taskSetting = await resolveAiTaskSettings("home_ideas");
+    if (!taskSetting.enabled) {
+      throw new Error("Home ideas AI task is disabled.");
+    }
+    const result = await callAIForJson(messages, {
+      max_tokens: taskSetting.maxTokens,
+      temperature: taskSetting.temperature,
+      model: taskSetting.primaryModel,
+      fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
+    });
     const { parsed } = result;
     const ideas = normalizeIdeas(parsed, input);
     const fallbackCount = input.requestedCount ?? (input.mode === "filtered_ideas" ? 5 : 6);
@@ -595,7 +603,16 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     },
   ];
 
-  const result = await callAIForJson(messages, TOKEN_LIMITS.recipeGeneration);
+  const taskSetting = await resolveAiTaskSettings("home_recipe");
+  if (!taskSetting.enabled) {
+    throw new Error("Home recipe AI task is disabled.");
+  }
+  const result = await callAIForJson(messages, {
+    max_tokens: taskSetting.maxTokens,
+    temperature: taskSetting.temperature,
+    model: taskSetting.primaryModel,
+    fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
+  });
   const { parsed } = result;
   const recipe = normalizeRecipe(parsed, input.ideaTitle);
 

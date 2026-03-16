@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AiStatusBadge } from "@/components/AiStatusBadge";
 import { UserMenu } from "@/components/UserMenu";
@@ -171,14 +171,27 @@ export function AppShellClient({
 
   useScrollLock(navOpen || openPanel !== null);
 
-  const setSidePanel = (side: AppShellSide, panel: Omit<AppShellSidePanel, "side"> | null) => {
+  const setSidePanel = useCallback((side: AppShellSide, panel: Omit<AppShellSidePanel, "side"> | null) => {
     if (side === "left") {
       setLeftPanel(panel ? { side, ...panel } : null);
       return;
     }
 
     setRightPanel(panel ? { side, ...panel } : null);
-  };
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({
+      leftPanel,
+      rightPanel,
+      setSidePanel,
+      openPanel,
+      setOpenPanel,
+      leftPanelTarget,
+      rightPanelTarget,
+    }),
+    [leftPanel, rightPanel, setSidePanel, openPanel, leftPanelTarget, rightPanelTarget]
+  );
 
   useEffect(() => {
     setNavOpen(false);
@@ -247,17 +260,7 @@ export function AppShellClient({
   }, [leftPanel?.label, openPanel, pathname, rightPanel?.label]);
 
   return (
-    <AppShellContext.Provider
-      value={{
-        leftPanel,
-        rightPanel,
-        setSidePanel,
-        openPanel,
-        setOpenPanel,
-        leftPanelTarget,
-        rightPanelTarget,
-      }}
-    >
+    <AppShellContext.Provider value={contextValue}>
       <div className="min-h-screen">
         <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(248,243,234,0.96)_0%,rgba(245,239,229,0.92)_100%)] backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-8">

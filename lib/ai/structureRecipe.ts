@@ -4,6 +4,7 @@ import { callAIWithMeta } from "./aiClient";
 import { parseJsonResponse } from "./jsonResponse";
 import { createAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import { formatIngredientLine, ingredientLineHasAmount } from "../recipes/recipeDraft";
+import { resolveAiTaskSettings } from "./taskSettings";
 
 type PreferredUnits = "metric" | "imperial";
 
@@ -269,6 +270,11 @@ Rules:
 Recipe text:
 ${rawText}`;
 
+  const taskSetting = await resolveAiTaskSettings("recipe_structure");
+  if (!taskSetting.enabled) {
+    throw new Error("Recipe structuring AI task is disabled.");
+  }
+
   const aiResult = await callAIWithMeta(
     [
       {
@@ -282,8 +288,10 @@ ${rawText}`;
       },
     ],
     {
-      max_tokens: 900,
-      temperature: 0,
+      max_tokens: taskSetting.maxTokens,
+      temperature: taskSetting.temperature,
+      model: taskSetting.primaryModel,
+      fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
     }
   );
 

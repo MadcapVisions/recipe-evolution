@@ -1,11 +1,11 @@
 import { callAIForJson } from "./jsonResponse";
 import { CHEF_SYSTEM_PROMPT } from "./chefSystemPrompt";
-import { TOKEN_LIMITS } from "./config/tokenLimits";
 import { validateRecipe } from "./schema/recipeValidator";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatIngredientLine } from "../recipes/recipeDraft";
+import { resolveAiTaskSettings } from "./taskSettings";
 
 type ImproveRecipeInput = {
   instruction: string;
@@ -130,7 +130,16 @@ ${JSON.stringify(input.recipe, null, 2)}`,
     },
   ];
 
-  const result = await callAIForJson(messages, TOKEN_LIMITS.recipeVariation);
+  const taskSetting = await resolveAiTaskSettings("recipe_improvement");
+  if (!taskSetting.enabled) {
+    throw new Error("Recipe improvement AI task is disabled.");
+  }
+  const result = await callAIForJson(messages, {
+    max_tokens: taskSetting.maxTokens,
+    temperature: taskSetting.temperature,
+    model: taskSetting.primaryModel,
+    fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
+  });
   const { parsed } = result;
   if (!parsed || typeof parsed !== "object") {
     throw new Error("AI returned invalid recipe payload.");

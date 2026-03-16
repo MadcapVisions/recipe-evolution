@@ -1,15 +1,13 @@
 import type { AIMessage } from "./chatPromptBuilder";
 
-type AICallOptions = {
+export type AICallOptions = {
   max_tokens?: number;
   temperature?: number;
+  model?: string;
+  fallback_models?: string[];
 };
 
-type AIProvider = "openai" | "gemini" | "claude";
-
-type ProviderCallContext = {
-  timeoutMs: number;
-};
+type AIProvider = "openrouter";
 
 export type AICallResult = {
   text: string;
@@ -37,14 +35,12 @@ class AIProviderError extends Error {
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS ?? 20_000);
 const MAX_RETRIES = Number(process.env.AI_MAX_RETRIES ?? 2);
-const OPENAI_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini";
-const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
-const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-3-5-sonnet-latest";
+const DEFAULT_OPENROUTER_MODEL = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || "openai/gpt-4o-mini";
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
-let openAIClientPromise: Promise<OpenAIClient> | null = null;
+let openRouterClientPromise: Promise<OpenRouterClient> | null = null;
 
-type OpenAIClient = InstanceType<typeof import("openai").default>;
+type OpenRouterClient = InstanceType<typeof import("openai").default>;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -54,47 +50,17 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function parseProvider(value: string | undefined): AIProvider | null {
-  if (!value) {
-    return null;
-  }
-  if (value === "openai" || value === "gemini" || value === "claude") {
-    return value;
-  }
-  return null;
-}
-
-function hasProviderConfig(provider: AIProvider): boolean {
-  if (provider === "gemini") {
-    return Boolean(process.env.GEMINI_API_KEY?.trim());
-  }
-  if (provider === "openai") {
-    return Boolean(process.env.OPENAI_API_KEY?.trim());
-  }
-  if (provider === "claude") {
-    return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
-  }
-  return false;
-}
-
-function getProviderOrder(): AIProvider[] {
-  const primary = parseProvider(process.env.AI_PROVIDER) ?? "openai";
-  const configuredFallbacks =
-    process.env.AI_FALLBACK_PROVIDERS?.split(",")
-      .map((item) => parseProvider(item.trim()))
-      .filter((item): item is AIProvider => item !== null) ?? [];
-
-  const configuredOrder = [primary, ...configuredFallbacks].filter(
-    (provider, index, list) => list.indexOf(provider) === index
+function getOpenRouterReferer() {
+  return (
+    process.env.OPENROUTER_HTTP_REFERER?.trim() ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "http://localhost:3000"
   );
+}
 
-  const usableProviders = configuredOrder.filter(hasProviderConfig);
-  if (usableProviders.length > 0) {
-    return usableProviders;
-  }
-
-  const defaults: AIProvider[] = ["gemini", "openai", "claude"];
-  return defaults.filter(hasProviderConfig);
+function getOpenRouterTitle() {
+  return process.env.OPENROUTER_APP_TITLE?.trim() || "Recipe Evolution";
 }
 
 function shouldRetry(error: unknown): boolean {
@@ -105,10 +71,6 @@ function shouldRetry(error: unknown): boolean {
     return true;
   }
   return false;
-}
-
-function isAbortLikeError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError";
 }
 
 function sleep(ms: number) {
@@ -135,238 +97,92 @@ async function withRetry<T>(task: () => Promise<T>) {
   throw lastError;
 }
 
-async function getOpenAIClient(): Promise<OpenAIClient> {
-  if (!openAIClientPromise) {
-    openAIClientPromise = import("openai").then(({ default: OpenAI }) => {
+async function getOpenRouterClient(): Promise<OpenRouterClient> {
+  if (!openRouterClientPromise) {
+    openRouterClientPromise = import("openai").then(({ default: OpenAI }) => {
       return new OpenAI({
-        apiKey: requireEnv("OPENAI_API_KEY"),
+        apiKey: requireEnv("OPENROUTER_API_KEY"),
+        baseURL: "https://openrouter.ai/api/v1",
+        defaultHeaders: {
+          "HTTP-Referer": getOpenRouterReferer(),
+          "X-Title": getOpenRouterTitle(),
+        },
       });
     });
   }
 
-  return openAIClientPromise;
+  return openRouterClientPromise;
 }
 
-async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (isAbortLikeError(error)) {
-      throw new AIProviderError("gemini", `Request timed out after ${timeoutMs}ms`, { retryable: true, cause: error });
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+function uniqueModels(models: Array<string | null | undefined>) {
+  return models.filter((value, index, list): value is string => Boolean(value) && list.indexOf(value) === index);
 }
 
-async function fetchWithTimeoutForProvider(provider: AIProvider, input: string, init: RequestInit, timeoutMs: number) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (isAbortLikeError(error)) {
-      throw new AIProviderError(provider, `Request timed out after ${timeoutMs}ms`, { retryable: true, cause: error });
-    }
-    throw new AIProviderError(provider, `${provider} request failed`, { retryable: true, cause: error });
-  } finally {
-    clearTimeout(timeout);
-  }
+function getModelOrder(options: AICallOptions) {
+  return uniqueModels([options.model, ...(options.fallback_models ?? []), DEFAULT_OPENROUTER_MODEL]);
 }
 
-async function callOpenAI(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
+async function callOpenRouter(messages: AIMessage[], options: AICallOptions, model: string): Promise<AICallResult> {
   try {
-    const client = await getOpenAIClient();
+    const client = await getOpenRouterClient();
     const response = await client.chat.completions.create(
       {
-        model: OPENAI_MODEL,
+        model,
         messages,
         max_tokens: options.max_tokens || 400,
         temperature: options.temperature || 0.6,
       },
       {
-        timeout: context.timeoutMs,
+        timeout: DEFAULT_TIMEOUT_MS,
       }
     );
 
     return {
       text: response.choices[0]?.message?.content ?? "",
-      provider: "openai",
-      model: OPENAI_MODEL,
+      provider: "openrouter",
+      model,
       finishReason: response.choices[0]?.finish_reason ?? null,
     };
   } catch (error) {
     const statusCode = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : undefined;
-    throw new AIProviderError("openai", "OpenAI request failed", {
+    const providerMessage =
+      error instanceof Error && error.message.trim().length > 0
+        ? error.message
+        : `OpenRouter request failed for ${model}`;
+    const message =
+      statusCode === 402
+        ? `OpenRouter account or API key has insufficient credits for ${model}. Add credits in OpenRouter billing and retry.`
+        : providerMessage;
+    throw new AIProviderError("openrouter", message, {
+      cause: error,
       statusCode,
       retryable: typeof statusCode === "number" ? RETRYABLE_STATUS_CODES.has(statusCode) : true,
-      cause: error,
     });
   }
 }
-
-async function callGemini(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
-  const apiKey = requireEnv("GEMINI_API_KEY");
-  const systemMessages = messages.filter((message) => message.role === "system").map((message) => message.content.trim()).filter(Boolean);
-  const chatMessages = messages.filter((message) => message.role !== "system");
-
-  const contents =
-    chatMessages.length > 0
-      ? chatMessages.map((message) => ({
-          role: message.role === "assistant" ? "model" : "user",
-          parts: [{ text: message.content }],
-        }))
-      : [
-          {
-            role: "user",
-            parts: [{ text: systemMessages.join("\n\n") }],
-          },
-        ];
-
-  const response = await fetchWithTimeoutForProvider(
-    "gemini",
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: systemMessages.length > 0 ? { parts: [{ text: systemMessages.join("\n\n") }] } : undefined,
-        contents,
-        generationConfig: {
-          maxOutputTokens: options.max_tokens || 500,
-          temperature: options.temperature || 0.6,
-        },
-      }),
-    },
-    context.timeoutMs
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new AIProviderError("gemini", `Gemini (${GEMINI_MODEL}) error (${response.status})`, {
-      statusCode: response.status,
-      retryable: response.status === 429 ? false : RETRYABLE_STATUS_CODES.has(response.status),
-      cause: text,
-    });
-  }
-
-  const data = (await response.json()) as {
-    candidates?: Array<{
-      finishReason?: string;
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
-  };
-  const candidate = data.candidates?.[0];
-  const finishReason = candidate?.finishReason ?? null;
-  const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
-
-  const suspiciousFinishReason =
-    finishReason &&
-    finishReason !== "STOP" &&
-    finishReason !== "MAX_TOKENS";
-
-  const suspiciousText =
-    !text ||
-    /:\s*$/.test(text) ||
-    /:\s*\d+[\.\)]?\s*$/.test(text) ||
-    /\b\d+\.\s*$/.test(text);
-
-  if (suspiciousFinishReason || suspiciousText) {
-    throw new AIProviderError("gemini", `Gemini returned incomplete content${finishReason ? ` (${finishReason})` : ""}`, {
-      retryable: true,
-      cause: data,
-    });
-  }
-
-  return {
-    text,
-    provider: "gemini",
-    model: GEMINI_MODEL,
-    finishReason,
-  };
-}
-
-async function callClaude(messages: AIMessage[], options: AICallOptions, context: ProviderCallContext): Promise<AICallResult> {
-  const prompt = messages.map((message) => message.content).join("\n");
-
-  const response = await fetchWithTimeoutForProvider(
-    "claude",
-    "https://api.anthropic.com/v1/messages",
-    {
-      method: "POST",
-      headers: {
-        "x-api-key": requireEnv("ANTHROPIC_API_KEY"),
-        "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: options.max_tokens || 400,
-        temperature: options.temperature || 0.6,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    },
-    context.timeoutMs
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new AIProviderError("claude", `Claude error (${response.status})`, {
-      statusCode: response.status,
-      retryable: RETRYABLE_STATUS_CODES.has(response.status),
-      cause: text,
-    });
-  }
-
-  const data = (await response.json()) as {
-    content?: Array<{ text?: string }>;
-    stop_reason?: string;
-  };
-
-  return {
-    text: data.content?.[0]?.text ?? "",
-    provider: "claude",
-    model: CLAUDE_MODEL,
-    finishReason: data.stop_reason ?? null,
-  };
-}
-
-const providerCallers: Record<AIProvider, (messages: AIMessage[], options: AICallOptions, context: ProviderCallContext) => Promise<AICallResult>> = {
-  openai: callOpenAI,
-  gemini: callGemini,
-  claude: callClaude,
-};
 
 export async function callAIWithMeta(messages: AIMessage[], options: AICallOptions = {}): Promise<AICallResult> {
-  const providerOrder = getProviderOrder();
-  const timeoutMs = DEFAULT_TIMEOUT_MS;
+  const modelOrder = getModelOrder(options);
   const errors: string[] = [];
 
-  for (const provider of providerOrder) {
+  for (const model of modelOrder) {
     try {
-      return await withRetry(() => providerCallers[provider](messages, options, { timeoutMs }));
+      return await withRetry(() => callOpenRouter(messages, options, model));
     } catch (error) {
       const detail =
         error instanceof AIProviderError
-          ? `${provider}${error.statusCode ? ` (${error.statusCode})` : ""}: ${error.message}`
-          : `${provider}: ${error instanceof Error ? error.message : "Unknown error"}`;
+          ? `${model}${error.statusCode ? ` (${error.statusCode})` : ""}: ${
+              error.statusCode === 402
+                ? `OpenRouter account or API key has insufficient credits. Add credits and retry.`
+                : error.message
+            }`
+          : `${model}: ${error instanceof Error ? error.message : "Unknown error"}`;
       errors.push(detail);
-      console.error("AI provider attempt failed", { provider, detail });
+      console.error("AI model attempt failed", { provider: "openrouter", model, detail });
     }
   }
 
-  throw new Error(`All AI providers failed. ${errors.join(" | ")}`);
+  throw new Error(`All AI model attempts failed. ${errors.join(" | ")}`);
 }
 
 export async function callAI(messages: AIMessage[], options: AICallOptions = {}): Promise<string> {

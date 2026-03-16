@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import { canAccessAdmin } from "@/lib/auth/adminAccess";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { signVersionPhotoUrls } from "@/lib/versionPhotoUrls";
 import { readCanonicalIngredients } from "@/lib/recipes/canonicalRecipe";
@@ -25,6 +26,10 @@ export default async function StockCoversDebugPage() {
 
   if (!user) {
     redirect("/sign-in");
+  }
+
+  if (!canAccessAdmin(user.email)) {
+    redirect("/dashboard");
   }
 
   const { data: recipes, error: recipesError } = await supabase
