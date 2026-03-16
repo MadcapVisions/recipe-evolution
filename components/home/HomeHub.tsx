@@ -243,13 +243,14 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
         </aside>
 
         <section className="space-y-6">
-          <HomeHeroPanel
-            heroChatMessages={heroChatMessages}
-            promptInput={promptInput}
-            loading={loading}
-            heroChatReadyToApply={heroChatReadyToApply}
-            activeChatRecipeIndex={activeChatRecipeIndex}
-            error={error}
+        <HomeHeroPanel
+          heroChatMessages={heroChatMessages}
+          promptInput={promptInput}
+          loading={loading}
+          generatingRecipe={generatingRecipe}
+          heroChatReadyToApply={heroChatReadyToApply}
+          activeChatRecipeIndex={activeChatRecipeIndex}
+          error={error}
             onPromptInputChange={setPromptInput}
             onPromptInputKeyDown={handleHeroInputKeyDown}
             onAskChef={() => void handleAskChefInHero()}

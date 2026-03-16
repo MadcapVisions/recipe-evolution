@@ -291,16 +291,21 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       const created = await saveGeneratedRecipe(recipe, source);
       goToCreatedRecipe(created.recipeId, created.versionId);
     } catch (aiError) {
-      const fallbackRecipe = generateLocalRecipeDraft(
-        {
-          ideaTitle: selectedIdea.title,
-          prompt: promptInput.trim() || selectedIdea.description,
-          ingredients: detectPromptType(promptInput) === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined,
-        },
-        userTasteProfile ?? undefined
-      );
-      const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
-      goToCreatedRecipe(created.recipeId, created.versionId);
+      try {
+        const fallbackRecipe = generateLocalRecipeDraft(
+          {
+            ideaTitle: selectedIdea.title,
+            prompt: promptInput.trim() || selectedIdea.description,
+            ingredients: detectPromptType(promptInput) === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined,
+          },
+          userTasteProfile ?? undefined
+        );
+        const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
+        goToCreatedRecipe(created.recipeId, created.versionId);
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : "Could not build or save the recipe.");
+        setStatus(null);
+      }
     } finally {
       setGeneratingRecipe(false);
       setSelectedIdeaTitle(null);
@@ -335,16 +340,21 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       const created = await saveGeneratedRecipe(recipe, source);
       goToCreatedRecipe(created.recipeId, created.versionId);
     } catch {
-      const fallbackRecipe = generateLocalRecipeDraft(
-        {
-          ideaTitle,
-          prompt: latestUserPrompt,
-          ingredients,
-        },
-        userTasteProfile ?? undefined
-      );
-      const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
-      goToCreatedRecipe(created.recipeId, created.versionId);
+      try {
+        const fallbackRecipe = generateLocalRecipeDraft(
+          {
+            ideaTitle,
+            prompt: latestUserPrompt,
+            ingredients,
+          },
+          userTasteProfile ?? undefined
+        );
+        const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
+        goToCreatedRecipe(created.recipeId, created.versionId);
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : "Could not build or save the recipe from this conversation.");
+        setStatus(null);
+      }
     } finally {
       setGeneratingRecipe(false);
       setSelectedIdeaTitle(null);

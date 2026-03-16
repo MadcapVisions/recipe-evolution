@@ -7,6 +7,7 @@ type HomeHeroPanelProps = {
   heroChatMessages: ChatMessage[];
   promptInput: string;
   loading: boolean;
+  generatingRecipe: boolean;
   heroChatReadyToApply: boolean;
   activeChatRecipeIndex: number | null;
   error: string | null;
@@ -23,6 +24,7 @@ export function HomeHeroPanel({
   heroChatMessages,
   promptInput,
   loading,
+  generatingRecipe,
   heroChatReadyToApply,
   activeChatRecipeIndex,
   error,
@@ -120,10 +122,10 @@ export function HomeHeroPanel({
                       <button
                         type="button"
                         onClick={() => onCreateRecipeFromReply(index)}
-                        disabled={loading}
+                        disabled={loading || generatingRecipe}
                         className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
                       >
-                        {activeChatRecipeIndex === index && loading ? "Building recipe..." : "Build recipe from this direction"}
+                        {activeChatRecipeIndex === index && generatingRecipe ? "Building recipe..." : "Build recipe from this direction"}
                       </button>
                     ) : null}
                   </div>
@@ -153,10 +155,10 @@ export function HomeHeroPanel({
             <button
               type="button"
               onClick={onApplySuggestions}
-              disabled={loading || !heroChatReadyToApply}
+              disabled={loading || generatingRecipe || !heroChatReadyToApply}
               className="w-full rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.94)] px-5 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
             >
-              Build Recipe
+              {generatingRecipe ? "Building recipe..." : "Build Recipe"}
             </button>
           </div>
         </div>
