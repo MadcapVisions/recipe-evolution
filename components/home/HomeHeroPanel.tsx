@@ -3,6 +3,11 @@
 import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { ChatMessage, SelectedChefDirection } from "@/components/home/types";
 
+function compactOptionSummary(summary: string) {
+  const firstSentence = summary.split(/[.!?]/)[0]?.trim() ?? summary.trim();
+  return firstSentence.length > 88 ? `${firstSentence.slice(0, 85).trim()}...` : firstSentence;
+}
+
 type HomeHeroPanelProps = {
   heroChatMessages: ChatMessage[];
   selectedChefDirection: SelectedChefDirection | null;
@@ -166,6 +171,7 @@ export function HomeHeroPanel({
             ) : (
               heroChatMessages.map((message, index) => {
                 const options = message.role === "ai" ? message.options ?? [] : [];
+                const selectedFromThisMessage = selectedChefDirection?.replyIndex === index ? selectedChefDirection : null;
                 return (
                 <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[88%] ${message.role === "user" ? "" : "space-y-2"}`}>
@@ -182,8 +188,48 @@ export function HomeHeroPanel({
                     </div>
                     {message.role === "ai" ? (
                       <div className="space-y-2">
-                        {options.length > 0 ? (
-                          <div className="grid gap-2 md:grid-cols-2">
+                        {options.length > 0 && !selectedFromThisMessage ? (
+                          <div className="space-y-2">
+                            <div className="space-y-2 md:hidden">
+                              {options.map((option) => {
+                                const recommended = message.recommendedOptionId === option.id;
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => onSelectChefDirection(index, option)}
+                                    className="w-full rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-white px-3 py-3 text-left transition hover:bg-[rgba(74,106,96,0.05)]"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-[14px] font-semibold text-[color:var(--text)]">{option.title}</p>
+                                          {recommended ? (
+                                            <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
+                                              Best pick
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        <p className="mt-1 text-[12px] leading-5 text-[color:var(--muted)]">{compactOptionSummary(option.summary)}</p>
+                                        {option.tags.length > 0 ? (
+                                          <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {option.tags.slice(0, 2).map((tag) => (
+                                              <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted)]">
+                                                {tag}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
+                                        Choose
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="hidden gap-2 md:grid md:grid-cols-2">
                             {options.map((option) => {
                               const selected =
                                 selectedChefDirection?.replyIndex === index && selectedChefDirection.optionId === option.id;
@@ -207,10 +253,10 @@ export function HomeHeroPanel({
                                       </span>
                                     ) : null}
                                   </div>
-                                  <p className="mt-1 text-[13px] leading-6 text-[color:var(--muted)]">{option.summary}</p>
+                                  <p className="mt-1 text-[13px] leading-6 text-[color:var(--muted)]">{compactOptionSummary(option.summary)}</p>
                                   {option.tags.length > 0 ? (
                                     <div className="mt-2 flex flex-wrap gap-2">
-                                      {option.tags.map((tag) => (
+                                      {option.tags.slice(0, 3).map((tag) => (
                                         <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[11px] font-medium text-[color:var(--muted)]">
                                           {tag}
                                         </span>
@@ -223,6 +269,20 @@ export function HomeHeroPanel({
                                 </button>
                               );
                             })}
+                            </div>
+                          </div>
+                        ) : null}
+                        {selectedFromThisMessage ? (
+                          <div className="rounded-[18px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] px-3 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-[14px] font-semibold text-[color:var(--text)]">{selectedFromThisMessage.title}</p>
+                                <p className="mt-1 text-[12px] leading-5 text-[color:var(--muted)]">{compactOptionSummary(selectedFromThisMessage.summary)}</p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
+                                Selected
+                              </span>
+                            </div>
                           </div>
                         ) : null}
                         <button
