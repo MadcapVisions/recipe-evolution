@@ -285,14 +285,16 @@ export function HomeHeroPanel({
                             </div>
                           </div>
                         ) : null}
-                        <button
-                          type="button"
-                          onClick={() => onCreateRecipeFromReply(index)}
-                          disabled={loading || generatingRecipe}
-                          className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
-                        >
-                          {activeChatRecipeIndex === index && generatingRecipe ? "Building recipe..." : options.length > 0 ? "Build from this reply" : "Build recipe from this direction"}
-                        </button>
+                        {!selectedFromThisMessage ? (
+                          <button
+                            type="button"
+                            onClick={() => onCreateRecipeFromReply(index)}
+                            disabled={loading || generatingRecipe}
+                            className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
+                          >
+                            {activeChatRecipeIndex === index && generatingRecipe ? "Building recipe..." : options.length > 0 ? "Build from this reply" : "Build recipe from this direction"}
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

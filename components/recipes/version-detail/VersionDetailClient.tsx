@@ -84,7 +84,11 @@ function buildRecipeDetailConversationHistory(
 }
 
 function wantsDirectionOptions(message: string) {
-  return /\b(options?|ideas?|directions?|variations?|versions?|ways)\b/i.test(message) || /\b2\b|\b3\b/.test(message);
+  return (
+    /\b(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i.test(message) ||
+    /\b(?:show|give)\s+me\b.+\b(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i.test(message) ||
+    /\b(?:2|3)\s+(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i.test(message)
+  );
 }
 
 export function VersionDetailClient({

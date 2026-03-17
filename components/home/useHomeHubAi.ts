@@ -141,6 +141,22 @@ const buildRecipeSeedFromConversation = (
   };
 };
 
+const buildSelectedDirectionForMessages = (messages: ChatMessage[], selectedDirection: SelectedChefDirection | null) => {
+  if (!selectedDirection) {
+    return null;
+  }
+
+  const replyIndex = messages.findLastIndex((message) => message.role === "ai");
+  if (replyIndex < 0) {
+    return null;
+  }
+
+  return {
+    ...selectedDirection,
+    replyIndex,
+  };
+};
+
 const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
   const message = error instanceof Error ? error.message.trim() : "";
   if (!message) {
@@ -426,11 +442,15 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     }
   };
 
-  const createRecipeFromConversation = async (messages: ChatMessage[], source = "chef-chat") => {
+  const createRecipeFromConversation = async (
+    messages: ChatMessage[],
+    source = "chef-chat",
+    selectedDirectionOverride: SelectedChefDirection | null = selectedChefDirection
+  ) => {
     const { conversationText, ideaTitle, latestUserPrompt, ingredients, conversationHistory } = buildRecipeSeedFromConversation(
       messages,
       userTasteProfile,
-      selectedChefDirection
+      selectedDirectionOverride
     );
     if (!conversationText.trim()) {
       setError("Ask Chef something first.");
@@ -676,6 +696,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       selectedChefDirection != null
         ? buildLockedDirectionMessages(heroChatMessages, selectedChefDirection)
         : buildFocusedRecipeConversation(heroChatMessages)
+      ,
+      "chef-chat",
+      selectedChefDirection
     );
   };
 
@@ -688,17 +711,22 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       messageCount: sliced.length,
       conversation: buildHeroConversationContext(sliced).slice(0, 1200),
     });
+    const summary = buildDirectionSummary(sliced);
+    const replyDirection: SelectedChefDirection = {
+      replyIndex: sliced.findLastIndex((message) => message.role === "ai"),
+      optionId: `reply-${replyIndex}`,
+      title: deriveIdeaTitleFromConversationContext(summary || heroChatMessages[replyIndex]?.text || "Chef direction"),
+      summary: summary || heroChatMessages[replyIndex]?.text || "Chef direction",
+      tags: [],
+    };
+
     if (!selectedChefDirection || selectedChefDirection.replyIndex !== replyIndex) {
-      const summary = buildDirectionSummary(sliced);
       setSelectedChefDirection({
+        ...replyDirection,
         replyIndex,
-        optionId: `reply-${replyIndex}`,
-        title: deriveIdeaTitleFromConversationContext(summary || heroChatMessages[replyIndex]?.text || "Chef direction"),
-        summary: summary || heroChatMessages[replyIndex]?.text || "Chef direction",
-        tags: [],
       });
     }
-    await createRecipeFromConversation(sliced, "chef-chat-reply");
+    await createRecipeFromConversation(sliced, "chef-chat-reply", buildSelectedDirectionForMessages(sliced, replyDirection));
   };
 
   const handleSelectChefDirection = (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => {
