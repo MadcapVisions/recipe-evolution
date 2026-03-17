@@ -143,6 +143,45 @@ const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => 
   return message;
 };
 
+const NEW_EXPLORATION_PATTERNS = [
+  /\bgive me\b/,
+  /\bshow me\b/,
+  /\bi want\b/,
+  /\bi need\b/,
+  /\bwhat can i make\b/,
+  /\bwhat should i make\b/,
+  /\bideas?\b/,
+  /\boptions?\b/,
+  /\bvariations?\b/,
+  /\balternatives?\b/,
+];
+
+const REFINEMENT_REFERENCE_PATTERNS = [
+  /\bmake (?:it|this)\b/,
+  /\bthis\b/,
+  /\bit\b/,
+  /\bthat\b/,
+  /\binstead\b/,
+  /\bwithout\b/,
+  /\bleave out\b/,
+  /\bskip\b/,
+  /\bremove\b/,
+  /\bi (?:don't|do not) like\b/,
+  /\bi prefer\b/,
+];
+
+function shouldStartNewChefDirection(prompt: string) {
+  const normalized = prompt.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const asksForFreshExploration = NEW_EXPLORATION_PATTERNS.some((pattern) => pattern.test(normalized));
+  const looksLikeRefinement = REFINEMENT_REFERENCE_PATTERNS.some((pattern) => pattern.test(normalized));
+
+  return asksForFreshExploration && !looksLikeRefinement;
+}
+
 export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const router = useRouter();
   const conversationKeyRef = useRef(
@@ -492,14 +531,19 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setStatus("Chef is refining...");
 
     try {
+      const startsNewDirection = selectedChefDirection != null && shouldStartNewChefDirection(trimmedPrompt);
       const focusedMessages = buildFocusedRecipeConversation(heroChatMessages);
       const directionSummary = buildDirectionSummary(focusedMessages);
       const activeDirectionMessages =
-        selectedChefDirection != null
+        startsNewDirection
+          ? []
+          : selectedChefDirection != null
           ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
           : focusedMessages;
       const activeDirectionSummary =
-        selectedChefDirection?.summary?.trim() || buildDirectionSummary(activeDirectionMessages) || directionSummary;
+        startsNewDirection
+          ? ""
+          : selectedChefDirection?.summary?.trim() || buildDirectionSummary(activeDirectionMessages) || directionSummary;
       const recipeContext: RecipeContext =
         activeDirectionMessages.length > 0
           ? {
@@ -538,7 +582,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         userMessage: trimmedPrompt,
         recipeContext,
         conversationHistory:
-          selectedChefDirection != null
+          startsNewDirection
+            ? []
+            : selectedChefDirection != null
             ? buildConversationHistory(buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex).slice(-6))
             : buildFocusedChatHistory(heroChatMessages),
         conversationKey: conversationKeyRef.current,
@@ -549,6 +595,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }
 
       const options = Array.isArray(data.options) ? data.options : [];
+      if (startsNewDirection) {
+        setSelectedChefDirection(null);
+      }
       setHeroChatMessages((current) => [
         ...current,
         { role: "user", text: trimmedPrompt, kind: "message" },

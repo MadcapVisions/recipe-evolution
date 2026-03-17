@@ -119,7 +119,7 @@ export async function POST(request: Request) {
           mode: body.mode,
           user_message_length: userMessage.length,
         });
-        return NextResponse.json({ reply: COOKING_SCOPE_MESSAGE });
+        return NextResponse.json({ mode: "refine", reply: COOKING_SCOPE_MESSAGE, options: [], recommended_option_id: null });
       }
 
       const conversationHistory = Array.isArray(body.conversationHistory)

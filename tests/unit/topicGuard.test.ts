@@ -11,6 +11,42 @@ test("allows clearly cooking-related home prompt", () => {
   assert.equal(result.reason, "cooking");
 });
 
+test("allows pantry ingredient list prompts", () => {
+  const result = guardCookingTopic({
+    message: "eggs, spinach, feta, potatoes",
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "cooking");
+});
+
+test("allows meal prep planning prompts", () => {
+  const result = guardCookingTopic({
+    message: "What should I meal prep on Sunday for 3 lunches this week?",
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "cooking");
+});
+
+test("allows grocery and budget prompts", () => {
+  const result = guardCookingTopic({
+    message: "What can I make for under $20 with chicken thighs and rice?",
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "cooking");
+});
+
+test("allows sauce and snack option requests", () => {
+  const result = guardCookingTopic({
+    message: "Give me 3 options for dipping sauces for tortilla chips.",
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "cooking");
+});
+
 test("allows recipe-detail follow-up with recipe context", () => {
   const result = guardCookingTopic({
     message: "Make it spicier and a little faster.",
@@ -25,7 +61,35 @@ test("allows recipe-detail follow-up with recipe context", () => {
   assert.equal(result.reason, "recipe_context");
 });
 
-test("blocks obvious general chat", () => {
+test("allows ingredient exclusion follow-up with active recipe context", () => {
+  const result = guardCookingTopic({
+    message: "I don't like cabbage or corn.",
+    recipeContext: {
+      title: "Shrimp Bacon Pasta",
+      ingredients: ["shrimp", "bacon", "pasta", "cabbage", "corn"],
+      steps: ["Cook the pasta", "Saute the bacon and vegetables", "Finish with shrimp"],
+    },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "recipe_context");
+});
+
+test("allows scaling follow-up with active recipe context", () => {
+  const result = guardCookingTopic({
+    message: "Double this for 8.",
+    recipeContext: {
+      title: "Baked Ziti",
+      ingredients: ["ziti", "ricotta", "mozzarella"],
+      steps: ["Boil the pasta", "Bake until bubbling"],
+    },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "recipe_context");
+});
+
+test("blocks obvious programming requests", () => {
   const result = guardCookingTopic({
     message: "Can you help me write a React component and fix a TypeScript error?",
   });
@@ -34,9 +98,27 @@ test("blocks obvious general chat", () => {
   assert.equal(result.reason, "off_topic");
 });
 
-test("blocks finance request even when phrased conversationally", () => {
+test("blocks airline ticket searches", () => {
   const result = guardCookingTopic({
-    message: "What stocks should I buy this month?",
+    message: "Can you search for airline tickets to Denver next week?",
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.reason, "off_topic");
+});
+
+test("blocks mortgage rate requests", () => {
+  const result = guardCookingTopic({
+    message: "What are today's mortgage rates?",
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.reason, "off_topic");
+});
+
+test("blocks generic non-cooking chat", () => {
+  const result = guardCookingTopic({
+    message: "Tell me a joke.",
   });
 
   assert.equal(result.allowed, false);
@@ -45,5 +127,6 @@ test("blocks finance request even when phrased conversationally", () => {
 
 test("scope message points users back to cooking topics", () => {
   assert.match(COOKING_SCOPE_MESSAGE, /cooking-focused requests only/i);
-  assert.match(COOKING_SCOPE_MESSAGE, /ingredients/i);
+  assert.match(COOKING_SCOPE_MESSAGE, /sauces/i);
+  assert.match(COOKING_SCOPE_MESSAGE, /meal prep/i);
 });

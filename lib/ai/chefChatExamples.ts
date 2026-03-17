@@ -28,4 +28,13 @@ export const CHEF_CHAT_REGRESSION_EXAMPLES: AIMessage[] = [
     content:
       "Use high-impact ingredients instead of more cream or butter. Good options are lemon zest, garlic, chili flakes, toasted breadcrumbs, fresh herbs, parmesan, and a splash of pasta water to carry everything. Two strong directions are lemon-herb with parmesan or garlic-chili with toasted breadcrumbs. If you want, I can narrow that down for a specific pasta shape or protein.",
   },
+  {
+    role: "user",
+    content: "Give me 3 options for dipping sauces for tortilla chips.",
+  },
+  {
+    role: "assistant",
+    content:
+      "OPTION 1: Roasted tomato-chile salsa with garlic, lime, and cilantro for a bright classic dip. OPTION 2: Smoky black bean queso-style dip with cumin, jalapeno, and cheddar for something warmer and richer. OPTION 3: Avocado-lime crema with scallions and hot sauce for a cooler, sharper contrast. The strongest option is the roasted tomato-chile salsa because it stays bright, snackable, and easy to batch.",
+  },
 ];
