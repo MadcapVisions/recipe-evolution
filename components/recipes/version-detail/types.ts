@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import {
   readCanonicalIngredients,
   readCanonicalSteps,
@@ -55,6 +56,17 @@ export type ConversationMessage = {
   role: "user" | "assistant";
   text: string;
   createdAt: string;
+  kind?: "message" | "direction_selected";
+  options?: ChefDirectionOption[];
+  recommendedOptionId?: string | null;
+};
+
+export type SelectedAssistantDirection = {
+  messageId: string;
+  optionId: string;
+  title: string;
+  summary: string;
+  tags: string[];
 };
 
 export type SuggestedChange = {

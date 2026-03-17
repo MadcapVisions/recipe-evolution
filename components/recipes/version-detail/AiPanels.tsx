@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FocusEvent, type RefObject } from "react";
-import type { ConversationMessage, SuggestedChange } from "@/components/recipes/version-detail/types";
+import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
+import type { ConversationMessage, SelectedAssistantDirection, SuggestedChange } from "@/components/recipes/version-detail/types";
 import type { PrepPlan } from "@/lib/recipes/prepPlan";
 
 function quickChip(active = false) {
@@ -12,6 +13,7 @@ function quickChip(active = false) {
 
 export function ChefAiPanel({
   aiConversation,
+  selectedDirection,
   customInstruction,
   suggestedChange,
   isAskingAi,
@@ -21,11 +23,14 @@ export function ChefAiPanel({
   onRemixLeftovers,
   onInstructionChange,
   onAskSubmit,
+  onSelectDirection,
+  onClearDirection,
   onApplySuggestedChange,
   onComposerFocus,
   conversationEndRef,
 }: {
   aiConversation: ConversationMessage[];
+  selectedDirection: SelectedAssistantDirection | null;
   customInstruction: string;
   suggestedChange: SuggestedChange | null;
   isAskingAi: boolean;
@@ -35,12 +40,15 @@ export function ChefAiPanel({
   onRemixLeftovers: () => void;
   onInstructionChange: (value: string) => void;
   onAskSubmit: () => void;
+  onSelectDirection: (messageId: string, option: ChefDirectionOption) => void;
+  onClearDirection: () => void;
   onApplySuggestedChange: () => void;
   onComposerFocus?: () => void;
   conversationEndRef: RefObject<HTMLDivElement | null>;
 }) {
   const [composerFocused, setComposerFocused] = useState(false);
   const shouldPrioritizeChat = composerFocused || aiConversation.length > 0 || Boolean(suggestedChange);
+  const isRefining = selectedDirection != null;
 
   return (
     <section className="app-panel flex flex-col p-4 sm:p-5">
@@ -102,18 +110,93 @@ export function ChefAiPanel({
         </details>
       )}
 
+      {selectedDirection ? (
+        <div className="mt-5 rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] p-4 shadow-[inset_3px_0_0_var(--primary)]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
+              <p className="mt-2 text-[17px] font-semibold text-[color:var(--text)]">{selectedDirection.title}</p>
+              <p className="mt-2 text-[14px] leading-6 text-[color:var(--muted)]">{selectedDirection.summary}</p>
+              {selectedDirection.tags.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedDirection.tags.map((tag) => (
+                    <span key={tag} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--muted)]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClearDirection}
+              className="shrink-0 rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[12px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
+            >
+              Change direction
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-5 flex min-h-0 flex-1 flex-col">
         <div className="mt-3 flex min-h-[280px] max-h-[58vh] flex-1 flex-col gap-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] p-4 sm:min-h-[360px] sm:max-h-[62vh] sm:rounded-[26px]">
           {aiConversation.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[88%] rounded-[22px] px-4 py-3 text-[15px] leading-6 ${
-                  message.role === "user"
-                    ? "bg-[color:var(--primary)] text-white"
-                    : "border border-[rgba(57,75,70,0.08)] bg-white text-[color:var(--text)]"
-                }`}
-              >
-                {message.text}
+              <div className={`max-w-[92%] ${message.role === "assistant" ? "space-y-2" : ""}`}>
+                <div
+                  className={`rounded-[22px] px-4 py-3 text-[15px] leading-6 ${
+                    message.kind === "direction_selected"
+                      ? "border border-[rgba(74,106,96,0.12)] bg-[rgba(247,250,248,0.95)] text-[color:var(--text)] shadow-[inset_3px_0_0_var(--primary)]"
+                      : message.role === "user"
+                      ? "bg-[color:var(--primary)] text-white"
+                      : "border border-[rgba(57,75,70,0.08)] bg-white text-[color:var(--text)]"
+                  }`}
+                >
+                  {message.text}
+                </div>
+                {message.role === "assistant" && (message.options?.length ?? 0) > 0 ? (
+                  <div className="grid gap-2">
+                    {message.options?.map((option) => {
+                      const selected =
+                        selectedDirection?.messageId === message.id && selectedDirection.optionId === option.id;
+                      const recommended = message.recommendedOptionId === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => onSelectDirection(message.id, option)}
+                          className={`rounded-[20px] border px-4 py-3 text-left transition ${
+                            selected
+                              ? "border-[rgba(74,106,96,0.28)] bg-[rgba(247,250,248,0.95)] shadow-[inset_3px_0_0_var(--primary)]"
+                              : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(74,106,96,0.05)]"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-[14px] font-semibold text-[color:var(--text)]">{option.title}</p>
+                            {recommended ? (
+                              <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                                Best pick
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-[13px] leading-6 text-[color:var(--muted)]">{option.summary}</p>
+                          {option.tags.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {option.tags.map((tag) => (
+                                <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[11px] font-medium text-[color:var(--muted)]">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                            {selected ? "Selected direction" : "Choose this direction"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
@@ -160,7 +243,7 @@ export function ChefAiPanel({
                 setComposerFocused(false);
               }
             }}
-            placeholder="Ask about flavor, technique, timing, substitutions..."
+            placeholder={isRefining ? "Refine this direction: flavor, technique, timing, substitutions..." : "Ask about flavor, technique, timing, substitutions..."}
             className="min-w-0 flex-1 rounded-full bg-white px-4 py-3 text-[15px] sm:px-5 sm:text-[16px]"
           />
           <button

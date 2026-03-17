@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ConversationMessage, SuggestedChange } from "@/components/recipes/version-detail/types";
+import type { ConversationMessage, SelectedAssistantDirection, SuggestedChange } from "@/components/recipes/version-detail/types";
 
 export function useRecipeAssistant(recipeId: string) {
   const [isAskingAi, setIsAskingAi] = useState(false);
@@ -13,6 +13,7 @@ export function useRecipeAssistant(recipeId: string) {
   const [aiConversation, setAiConversation] = useState<ConversationMessage[]>([]);
   const [conversationKey, setConversationKey] = useState("");
   const [suggestedChange, setSuggestedChange] = useState<SuggestedChange | null>(null);
+  const [selectedDirection, setSelectedDirection] = useState<SelectedAssistantDirection | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -26,10 +27,12 @@ export function useRecipeAssistant(recipeId: string) {
   useEffect(() => {
     const key = `recipe-ai-conversation-${recipeId}`;
     const conversationKeyStorage = `recipe-ai-conversation-key-${recipeId}`;
+    const selectedDirectionKey = `recipe-ai-selected-direction-${recipeId}`;
     const raw = window.localStorage.getItem(key);
     const suggestionKey = `recipe-ai-suggestion-${recipeId}`;
     const rawSuggestion = window.localStorage.getItem(suggestionKey);
     const storedConversationKey = window.localStorage.getItem(conversationKeyStorage);
+    const rawSelectedDirection = window.localStorage.getItem(selectedDirectionKey);
 
     if (storedConversationKey?.trim()) {
       setConversationKey(storedConversationKey);
@@ -67,22 +70,45 @@ export function useRecipeAssistant(recipeId: string) {
 
     if (!rawSuggestion) {
       setSuggestedChange(null);
-      return;
-    }
-
-    try {
-      const parsedSuggestion = JSON.parse(rawSuggestion) as SuggestedChange;
-      if (
-        typeof parsedSuggestion?.instruction === "string" &&
-        Array.isArray(parsedSuggestion?.ingredients) &&
-        Array.isArray(parsedSuggestion?.steps)
-      ) {
-        setSuggestedChange(parsedSuggestion);
-      } else {
+    } else {
+      try {
+        const parsedSuggestion = JSON.parse(rawSuggestion) as SuggestedChange;
+        if (
+          typeof parsedSuggestion?.instruction === "string" &&
+          Array.isArray(parsedSuggestion?.ingredients) &&
+          Array.isArray(parsedSuggestion?.steps)
+        ) {
+          setSuggestedChange(parsedSuggestion);
+        } else {
+          setSuggestedChange(null);
+        }
+      } catch {
         setSuggestedChange(null);
       }
-    } catch {
-      setSuggestedChange(null);
+    }
+
+    if (!rawSelectedDirection) {
+      setSelectedDirection(null);
+    } else {
+      try {
+        const parsedSelectedDirection = JSON.parse(rawSelectedDirection) as SelectedAssistantDirection;
+        if (
+          typeof parsedSelectedDirection?.messageId === "string" &&
+          typeof parsedSelectedDirection?.optionId === "string" &&
+          typeof parsedSelectedDirection?.title === "string" &&
+          typeof parsedSelectedDirection?.summary === "string" &&
+          Array.isArray(parsedSelectedDirection?.tags)
+        ) {
+          setSelectedDirection({
+            ...parsedSelectedDirection,
+            tags: parsedSelectedDirection.tags.filter((tag): tag is string => typeof tag === "string"),
+          });
+        } else {
+          setSelectedDirection(null);
+        }
+      } catch {
+        setSelectedDirection(null);
+      }
     }
   }, [recipeId]);
 
@@ -109,8 +135,30 @@ export function useRecipeAssistant(recipeId: string) {
   }, [recipeId, suggestedChange]);
 
   useEffect(() => {
+    const key = `recipe-ai-selected-direction-${recipeId}`;
+    if (!selectedDirection) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+    window.localStorage.setItem(key, JSON.stringify(selectedDirection));
+  }, [recipeId, selectedDirection]);
+
+  useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [aiConversation]);
+
+  useEffect(() => {
+    if (!selectedDirection) {
+      return;
+    }
+
+    const sourceMessage = aiConversation.find((message) => message.id === selectedDirection.messageId && message.role === "assistant");
+    const optionStillExists = sourceMessage?.options?.some((option) => option.id === selectedDirection.optionId) ?? false;
+
+    if (!optionStillExists) {
+      setSelectedDirection(null);
+    }
+  }, [aiConversation, selectedDirection]);
 
   return {
     isAskingAi,
@@ -129,6 +177,8 @@ export function useRecipeAssistant(recipeId: string) {
     conversationKey,
     suggestedChange,
     setSuggestedChange,
+    selectedDirection,
+    setSelectedDirection,
     conversationEndRef,
   };
 }

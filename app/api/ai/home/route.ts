@@ -139,6 +139,8 @@ export async function POST(request: Request) {
 
       const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
 
+      const envelope = result.envelope;
+
       if (typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0) {
         void storeConversationTurns(access.supabase as any, {
           ownerId: access.userId,
@@ -151,7 +153,8 @@ export async function POST(request: Request) {
             },
             {
               role: "assistant",
-              message: result.reply,
+              message: envelope.reply,
+              metadata_json: envelope.options.length > 0 ? envelope : null,
             },
           ],
         });
@@ -164,12 +167,12 @@ export async function POST(request: Request) {
           finish_reason: result.finishReason ?? null,
           user_message_length: userMessage.length,
           initial_reply_length: result.initialReply.trim().length,
-          final_reply_length: result.reply.trim().length,
+          final_reply_length: envelope.reply.trim().length,
           conversation_turns: conversationHistory.length,
         });
       }
 
-      return NextResponse.json({ reply: result.reply });
+      return NextResponse.json(envelope);
     }
 
     if (body.mode === "mood_ideas" || body.mode === "ingredients_ideas") {

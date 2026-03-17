@@ -1,4 +1,5 @@
 import type { RecipeDraft } from "@/lib/recipes/recipeDraft";
+import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 
 export type RecentRecipe = {
   id: string;
@@ -39,4 +40,15 @@ export type RecipeIdea = {
 export type ChatMessage = {
   role: "user" | "ai";
   text: string;
+  kind?: "message" | "direction_selected";
+  options?: ChefDirectionOption[];
+  recommendedOptionId?: string | null;
+};
+
+export type SelectedChefDirection = {
+  replyIndex: number;
+  optionId: string;
+  title: string;
+  summary: string;
+  tags: string[];
 };

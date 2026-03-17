@@ -5,6 +5,7 @@ import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatIngredientLine } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
+import { recipeMatchesRequestedDirection } from "./homeRecipeAlignment";
 
 type HomeIdea = {
   title: string;
@@ -334,44 +335,8 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
 }
 
 function recipeMatchesConversation(recipe: HomeGeneratedRecipe, input: { ideaTitle: string; prompt?: string; ingredients?: string[]; conversationHistory?: AIMessage[] }) {
-  const context = `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)} ${(input.ingredients ?? []).join(" ")}`.toLowerCase();
-  const recipeText = `${recipe.title} ${recipe.description ?? ""} ${recipe.ingredients.map((item) => item.name).join(" ")} ${recipe.steps.map((item) => item.text).join(" ")}`.toLowerCase();
-
-  const requiredSignals: Array<{ trigger: string[]; mustMatch: string[] }> = [
-    { trigger: ["eggplant", "aubergine", "vinete"], mustMatch: ["eggplant", "aubergine", "vinete"] },
-    { trigger: ["dip", "spread", "salata de vinete", "salată de vinete"], mustMatch: ["dip", "spread", "vinete", "eggplant"] },
-    { trigger: ["romanian"], mustMatch: ["romanian", "vinete", "sunflower oil"] },
-    { trigger: ["chicken"], mustMatch: ["chicken"] },
-    { trigger: ["salmon"], mustMatch: ["salmon"] },
-    { trigger: ["shrimp"], mustMatch: ["shrimp"] },
-    { trigger: ["tofu"], mustMatch: ["tofu"] },
-  ];
-  const requiredFormats: Array<{ trigger: string[]; mustMatch: string[] }> = [
-    { trigger: ["dip", "spread", "salata de vinete", "salată de vinete"], mustMatch: ["dip", "spread", "mash", "serve cool", "serve at room temperature"] },
-    { trigger: ["soup", "stew"], mustMatch: ["soup", "stew", "broth", "simmer"] },
-    { trigger: ["salad"], mustMatch: ["salad", "greens", "vinaigrette"] },
-    { trigger: ["taco", "tacos"], mustMatch: ["taco", "tortilla"] },
-    { trigger: ["pasta", "noodle"], mustMatch: ["pasta", "noodle"] },
-    { trigger: ["bowl", "rice bowl"], mustMatch: ["bowl"] },
-  ];
-
-  for (const rule of requiredSignals) {
-    if (rule.trigger.some((token) => context.includes(token))) {
-      if (!rule.mustMatch.some((token) => recipeText.includes(token))) {
-        return false;
-      }
-    }
-  }
-
-  for (const rule of requiredFormats) {
-    if (rule.trigger.some((token) => context.includes(token))) {
-      if (!rule.mustMatch.some((token) => recipeText.includes(token))) {
-        return false;
-      }
-    }
-  }
-
-  return true;
+  const context = `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)} ${(input.ingredients ?? []).join(" ")}`;
+  return recipeMatchesRequestedDirection(recipe, context);
 }
 
 function buildIdeasPrompt(input: IdeaInput) {
@@ -586,6 +551,8 @@ Return ONLY valid JSON:
 Rules:
 - The recipe must follow the chef conversation closely.
 - If the user narrowed to one exact dish, make that dish. Do not drift to adjacent ideas.
+- If the chef conversation indicates a dish format like pasta, skillet, salad, soup, tacos, dip, or bowl, preserve that format exactly unless the user explicitly changed it later.
+- When the conversation mentions a specific anchor ingredient or protein, keep it in the final recipe instead of swapping to a different main ingredient.
 - The title must be a clean, dish-specific recipe name a home cook would understand.
 - Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
 - If an ingredient would normally appear without a unit, still include a count, like 1 onion or 2 eggs.

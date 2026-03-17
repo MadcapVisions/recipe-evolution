@@ -16,6 +16,7 @@ import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
+import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import {
   buildVersionLabelFromInstruction,
   normalizeIngredients,
@@ -24,6 +25,7 @@ import {
   type ConversationMessage,
   type RecipeListItem,
   type RecipeRow,
+  type SelectedAssistantDirection,
   type SuggestedChange,
   type TimelineVersion,
   type VersionRow,
@@ -33,6 +35,7 @@ import type { VersionDetailData } from "@/lib/versionDetailData";
 import { buildPrepPlan } from "@/lib/recipes/prepPlan";
 import { scaleCanonicalIngredientLine } from "@/lib/recipes/servings";
 import { useTargetServings } from "@/lib/recipes/targetServings";
+import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 
 function mapInstructionToImproveGoal(instruction: string): "high protein" | "vegetarian" | "faster" | "spicier" | null {
   const lower = instruction.toLowerCase();
@@ -41,6 +44,44 @@ function mapInstructionToImproveGoal(instruction: string): "high protein" | "veg
   if (lower.includes("spicy")) return "spicier";
   if (lower.includes("protein")) return "high protein";
   return null;
+}
+
+function buildRecipeDetailConversationHistory(
+  messages: ConversationMessage[],
+  selectedDirection: SelectedAssistantDirection | null
+): AIMessage[] {
+  const relevantMessages = messages.filter((message) => message.kind !== "direction_selected");
+  if (relevantMessages.length === 0) {
+    return [];
+  }
+
+  const selectedIndex = selectedDirection
+    ? relevantMessages.findIndex((message) => message.id === selectedDirection.messageId && message.role === "assistant")
+    : -1;
+
+  if (selectedIndex >= 0) {
+    let start = selectedIndex;
+    for (let index = selectedIndex - 1; index >= 0; index -= 1) {
+      if (relevantMessages[index]?.role === "user") {
+        start = index;
+        break;
+      }
+    }
+
+    return relevantMessages.slice(start).slice(-6).map((message) => ({
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.text,
+    }));
+  }
+
+  return relevantMessages.slice(-6).map((message) => ({
+    role: message.role === "user" ? "user" : "assistant",
+    content: message.text,
+  }));
+}
+
+function wantsDirectionOptions(message: string) {
+  return /\b(options?|ideas?|directions?|variations?|versions?|ways)\b/i.test(message) || /\b2\b|\b3\b/.test(message);
 }
 
 export function VersionDetailClient({
@@ -415,7 +456,10 @@ export function VersionDetailClient({
   }
 
   async function requestChefChatResponse(userMessage: string): Promise<{
+    mode: "options" | "refine";
     reply: string;
+    options: ChefDirectionOption[];
+    recommendedOptionId: string | null;
     suggestion: SuggestedChange | null;
   }> {
     const recipeContext = {
@@ -423,6 +467,8 @@ export function VersionDetailClient({
       ingredients: ingredients.map((item) => item.name),
       steps: steps.map((item) => item.text),
     };
+    const conversationHistory = buildRecipeDetailConversationHistory(assistant.aiConversation, assistant.selectedDirection);
+    const includeSuggestion = assistant.selectedDirection !== null || !wantsDirectionOptions(userMessage);
 
     const response = await fetch("/api/ai/chef-chat", {
       method: "POST",
@@ -430,8 +476,9 @@ export function VersionDetailClient({
       body: JSON.stringify({
         userMessage,
         recipeContext,
+        conversationHistory,
         conversationKey: assistant.conversationKey,
-        includeSuggestion: true,
+        includeSuggestion,
         recipeId,
         versionId,
         recipe: {
@@ -447,7 +494,10 @@ export function VersionDetailClient({
     });
 
     const data = (await response.json()) as {
+      mode?: "options" | "refine";
       reply?: string;
+      options?: ChefDirectionOption[];
+      recommended_option_id?: string | null;
       suggestion?: (AiRecipeResult & {
         ingredients?: Array<{ name: string }>;
         steps?: Array<{ text: string }>;
@@ -468,8 +518,11 @@ export function VersionDetailClient({
     }
 
     return {
+      mode: data.mode === "options" ? "options" : "refine",
       reply: data.reply.trim(),
-      suggestion: data.suggestion ? normalizeSuggestedChange(userMessage, data.suggestion) : null,
+      options: Array.isArray(data.options) ? data.options : [],
+      recommendedOptionId: typeof data.recommended_option_id === "string" ? data.recommended_option_id : null,
+      suggestion: data.mode === "options" ? null : data.suggestion ? normalizeSuggestedChange(userMessage, data.suggestion) : null,
     };
   }
 
@@ -640,8 +693,18 @@ export function VersionDetailClient({
         role: "assistant",
         text: aiResponse.reply,
         createdAt: new Date().toISOString(),
+        kind: "message",
+        options: aiResponse.options,
+        recommendedOptionId: aiResponse.recommendedOptionId,
       };
       assistant.setAiConversation((current) => [...current, assistantMessage]);
+      if (aiResponse.mode === "options" && aiResponse.options.length > 0) {
+        assistant.setSelectedDirection(null);
+        assistant.setSuggestedChange(null);
+        assistant.setAiError("Choose one direction before saving a new version.");
+        assistant.setCustomInstruction("");
+        return;
+      }
       const suggestion = aiResponse.suggestion;
       if (!suggestion) {
         const fallbackSuggestion = buildDeterministicSuggestion(instruction);
@@ -658,16 +721,24 @@ export function VersionDetailClient({
       assistant.setCustomInstruction("");
     } catch (error) {
       const fallbackReply = buildDeterministicChefReply(instruction);
+      const optionsRequest = wantsDirectionOptions(instruction);
       const assistantMessage: ConversationMessage = {
         id: `${Date.now()}-assistant`,
         role: "assistant",
         text: fallbackReply,
         createdAt: new Date().toISOString(),
+        kind: "message",
       };
       assistant.setAiConversation((current) => [...current, assistantMessage]);
-      const fallbackSuggestion = buildDeterministicSuggestion(instruction);
-      assistant.setSuggestedChange(fallbackSuggestion);
-      assistant.setAiError("Chef AI unavailable. Using deterministic fallback guidance.");
+      if (optionsRequest) {
+        assistant.setSelectedDirection(null);
+        assistant.setSuggestedChange(null);
+        assistant.setAiError("Chef AI unavailable. Fallback guidance is shown, but choose a direction before saving.");
+      } else {
+        const fallbackSuggestion = buildDeterministicSuggestion(instruction);
+        assistant.setSuggestedChange(fallbackSuggestion);
+        assistant.setAiError("Chef AI unavailable. Using deterministic fallback guidance.");
+      }
       assistant.setCustomInstruction("");
     } finally {
       assistant.setIsAskingAi(false);
@@ -688,6 +759,44 @@ export function VersionDetailClient({
       }
     );
     assistant.setIsGeneratingVersion(false);
+  }
+
+  function handleSelectAssistantDirection(messageId: string, option: ChefDirectionOption) {
+    assistant.setSelectedDirection({
+      messageId,
+      optionId: option.id,
+      title: option.title,
+      summary: option.summary,
+      tags: option.tags,
+    });
+    assistant.setSuggestedChange(null);
+    assistant.setAiError(null);
+    assistant.setAiConversation((current) => {
+      const alreadyConfirmed =
+        current.at(-1)?.kind === "direction_selected" &&
+        current.at(-1)?.text.includes(option.title);
+
+      if (alreadyConfirmed) {
+        return current;
+      }
+
+      return [
+        ...current,
+        {
+          id: `${Date.now()}-direction-selected`,
+          role: "assistant",
+          text: `Locked direction: ${option.title}. I’ll refine only this path from here.`,
+          createdAt: new Date().toISOString(),
+          kind: "direction_selected",
+        },
+      ];
+    });
+  }
+
+  function handleClearAssistantDirection() {
+    assistant.setSelectedDirection(null);
+    assistant.setSuggestedChange(null);
+    assistant.setAiError(null);
   }
 
   async function handleRemixLeftovers() {
@@ -1079,6 +1188,7 @@ export function VersionDetailClient({
           {rightSidebarMode === "chef" ? (
             <ChefAiPanel
               aiConversation={assistant.aiConversation}
+              selectedDirection={assistant.selectedDirection}
               customInstruction={assistant.customInstruction}
               suggestedChange={assistant.suggestedChange}
               isAskingAi={assistant.isAskingAi}
@@ -1097,6 +1207,8 @@ export function VersionDetailClient({
                 openRightPanelMode("chef");
                 void handleAskAiSubmit();
               }}
+              onSelectDirection={(messageId, option) => handleSelectAssistantDirection(messageId, option)}
+              onClearDirection={handleClearAssistantDirection}
               onApplySuggestedChange={() => {
                 openRightPanelMode("chef");
                 void handleApplySuggestedChange();
@@ -1190,6 +1302,7 @@ export function VersionDetailClient({
           />
           <ChefAiPanel
             aiConversation={assistant.aiConversation}
+            selectedDirection={assistant.selectedDirection}
             customInstruction={assistant.customInstruction}
             suggestedChange={assistant.suggestedChange}
             isAskingAi={assistant.isAskingAi}
@@ -1199,6 +1312,8 @@ export function VersionDetailClient({
             onRemixLeftovers={() => void handleRemixLeftovers()}
             onInstructionChange={assistant.setCustomInstruction}
             onAskSubmit={() => void handleAskAiSubmit()}
+            onSelectDirection={(messageId, option) => handleSelectAssistantDirection(messageId, option)}
+            onClearDirection={handleClearAssistantDirection}
             onApplySuggestedChange={() => void handleApplySuggestedChange()}
             conversationEndRef={assistant.conversationEndRef}
           />

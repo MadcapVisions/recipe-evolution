@@ -3,6 +3,15 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
+import type { ChefChatEnvelope, ChefDirectionOption } from "@/lib/ai/chefOptions";
+import { deriveIdeaTitleFromConversationContext, recipeMatchesRequestedDirection } from "@/lib/ai/homeRecipeAlignment";
+import {
+  buildDirectionSummary,
+  buildFocusedChatHistory,
+  buildFocusedRecipeConversation,
+  buildReplyBranch,
+  buildSelectedDirectionConversation,
+} from "@/lib/ai/homeConversationFocus";
 import { generateLocalChefReply, generateLocalRecipeDraft, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
 import { createRecipeFromDraft, getCreatedRecipeHref } from "@/lib/client/recipeMutations";
 import { repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
@@ -17,7 +26,7 @@ import {
   matchesProtein,
   normalizeIdeas,
 } from "@/components/home/ideaUtils";
-import type { ChatMessage, GeneratedRecipe, RecipeIdea, UserTasteProfile } from "@/components/home/types";
+import type { ChatMessage, GeneratedRecipe, RecipeIdea, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
 
 const MAX_IDEA_COUNT = 2;
 const IDEA_BATCH_SIZE = 2;
@@ -61,31 +70,59 @@ const dedupeIdeas = (ideas: RecipeIdea[]) => {
   return Array.from(unique.values());
 };
 
-const buildHeroConversationContext = (messages: ChatMessage[]) => messages.map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.text}`).join("\n");
+const buildHeroConversationContext = (messages: ChatMessage[]) =>
+  messages
+    .filter((message) => message.kind !== "direction_selected")
+    .map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.text}`)
+    .join("\n");
 
 const buildConversationHistory = (messages: ChatMessage[]): AIMessage[] =>
-  messages.map((message) => ({
-    role: message.role === "user" ? "user" : "assistant",
-    content: message.text,
-  }));
+  messages
+    .filter((message) => message.kind !== "direction_selected")
+    .map((message) => ({
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.text,
+    }));
 
-const buildRecipeSeedFromConversation = (messages: ChatMessage[], userTasteProfile: UserTasteProfile | null) => {
-  const conversationText = buildHeroConversationContext(messages);
-  const ideaTitle =
-    generateLocalRecipeIdeas(conversationText, extractIngredientsFromPrompt(conversationText), userTasteProfile ?? undefined)[0]?.title ??
-    "Chef Conversation Recipe";
+const buildRecipeSeedFromConversation = (
+  messages: ChatMessage[],
+  userTasteProfile: UserTasteProfile | null,
+  selectedDirection: SelectedChefDirection | null
+) => {
+  const focusedMessages =
+    selectedDirection != null
+      ? buildSelectedDirectionConversation(messages, selectedDirection.replyIndex)
+      : buildFocusedRecipeConversation(messages);
+  const conversationText = buildHeroConversationContext(focusedMessages);
+  const latestAssistantReply =
+    [...focusedMessages]
+      .reverse()
+      .find((message) => message.role === "ai")
+      ?.text.trim() ?? "";
   const latestUserPrompt =
-    [...messages]
+    [...focusedMessages]
       .reverse()
       .find((message) => message.role === "user")
       ?.text.trim() ?? conversationText;
+  const selectedSummary = selectedDirection?.summary?.trim() ?? "";
+  const buildPrompt =
+    [selectedSummary, buildDirectionSummary(focusedMessages), latestAssistantReply, latestUserPrompt]
+      .filter((item) => item.length > 0)
+      .join("\n\n")
+      .trim();
+  const ideaTitle =
+    selectedDirection?.title?.trim() ||
+    deriveIdeaTitleFromConversationContext(buildPrompt || conversationText) ||
+    generateLocalRecipeIdeas(buildPrompt || conversationText, [], userTasteProfile ?? undefined)[0]?.title ||
+    "Chef Conversation Recipe";
 
   return {
     conversationText,
+    latestAssistantReply,
     ideaTitle,
-    latestUserPrompt,
-    ingredients: extractIngredientsFromPrompt(conversationText),
-    conversationHistory: buildConversationHistory(messages),
+    latestUserPrompt: buildPrompt || latestUserPrompt,
+    ingredients: undefined,
+    conversationHistory: buildConversationHistory(focusedMessages),
   };
 };
 
@@ -134,6 +171,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
   const [heroChatMessages, setHeroChatMessages] = useState<ChatMessage[]>([]);
   const [heroChatReadyToApply, setHeroChatReadyToApply] = useState(false);
+  const [selectedChefDirection, setSelectedChefDirection] = useState<SelectedChefDirection | null>(null);
   const [activeChatRecipeIndex, setActiveChatRecipeIndex] = useState<number | null>(null);
   const heroChatFrameRef = useRef<HTMLDivElement | null>(null);
   const heroChatViewportRef = useRef<HTMLDivElement | null>(null);
@@ -337,7 +375,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const createRecipeFromConversation = async (messages: ChatMessage[], source = "chef-chat") => {
     const { conversationText, ideaTitle, latestUserPrompt, ingredients, conversationHistory } = buildRecipeSeedFromConversation(
       messages,
-      userTasteProfile
+      userTasteProfile,
+      selectedChefDirection
     );
     if (!conversationText.trim()) {
       setError("Ask Chef something first.");
@@ -370,6 +409,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           },
           userTasteProfile ?? undefined
         );
+        if (!recipeMatchesRequestedDirection(fallbackRecipe, `${ideaTitle} ${latestUserPrompt} ${conversationText}`)) {
+          throw new Error("Chef draft drifted from the requested dish.");
+        }
         const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
         goToCreatedRecipe(created.recipeId, created.versionId);
       } catch (saveError) {
@@ -450,14 +492,28 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setStatus("Chef is refining...");
 
     try {
+      const focusedMessages = buildFocusedRecipeConversation(heroChatMessages);
+      const directionSummary = buildDirectionSummary(focusedMessages);
+      const activeDirectionMessages =
+        selectedChefDirection != null
+          ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
+          : focusedMessages;
+      const activeDirectionSummary =
+        selectedChefDirection?.summary?.trim() || buildDirectionSummary(activeDirectionMessages) || directionSummary;
       const recipeContext: RecipeContext =
-        ideas.length > 0
+        activeDirectionMessages.length > 0
           ? {
-              title: ideas[0]?.title,
-              ingredients: extractIngredientsFromPrompt(trimmedPrompt),
-              steps: heroChatMessages.filter((message) => message.role === "ai").map((message) => message.text),
+              title: selectedChefDirection?.title || deriveIdeaTitleFromConversationContext(activeDirectionSummary || buildHeroConversationContext(activeDirectionMessages)),
+              ingredients: extractIngredientsFromPrompt(activeDirectionSummary || trimmedPrompt),
+              steps: activeDirectionMessages.filter((message) => message.role === "ai").map((message) => message.text),
             }
-          : null;
+          : ideas.length > 0
+            ? {
+                title: ideas[0]?.title,
+                ingredients: extractIngredientsFromPrompt(trimmedPrompt),
+                steps: [],
+              }
+            : null;
 
       const topicGuard = guardCookingTopic({
         message: trimmedPrompt,
@@ -481,22 +537,45 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         mode: "chef_chat",
         userMessage: trimmedPrompt,
         recipeContext,
-        conversationHistory: buildConversationHistory(heroChatMessages),
+        conversationHistory:
+          selectedChefDirection != null
+            ? buildConversationHistory(buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex).slice(-6))
+            : buildFocusedChatHistory(heroChatMessages),
         conversationKey: conversationKeyRef.current,
-      })) as { reply?: string; message?: string };
+      })) as ChefChatEnvelope & { message?: string };
 
       if (!data.reply) {
         throw new Error(data.message ?? "Chef chat failed.");
       }
 
-      setHeroChatMessages((current) => [...current, { role: "user", text: trimmedPrompt }, { role: "ai", text: data.reply! }]);
-      setHeroChatReadyToApply(true);
-      setTransientStatus("Chef responded. Build the recipe when the direction feels right.");
-    } catch (chatError) {
+      const options = Array.isArray(data.options) ? data.options : [];
       setHeroChatMessages((current) => [
         ...current,
-        { role: "user", text: trimmedPrompt },
-        { role: "ai", text: generateLocalChefReply(trimmedPrompt, extractIngredientsFromPrompt(trimmedPrompt), userTasteProfile ?? undefined) },
+        { role: "user", text: trimmedPrompt, kind: "message" },
+        {
+          role: "ai",
+          text: data.reply!,
+          kind: "message",
+          options,
+          recommendedOptionId: data.recommended_option_id ?? null,
+        },
+      ]);
+      if (data.mode === "options" && options.length > 0) {
+        setSelectedChefDirection(null);
+        setTransientStatus("Choose one direction, then refine it.");
+      } else if (selectedChefDirection) {
+        setTransientStatus("Direction refined. Build the recipe when it feels right.");
+      } else {
+        setTransientStatus("Chef responded. Build the recipe when the direction feels right.");
+      }
+      setHeroChatReadyToApply(true);
+    } catch (chatError) {
+      const fallbackReply = generateLocalChefReply(trimmedPrompt, extractIngredientsFromPrompt(trimmedPrompt), userTasteProfile ?? undefined);
+      const fallbackOptions: ChefDirectionOption[] = [];
+      setHeroChatMessages((current) => [
+        ...current,
+        { role: "user", text: trimmedPrompt, kind: "message" },
+        { role: "ai", text: fallbackReply, kind: "message", options: fallbackOptions, recommendedOptionId: null },
       ]);
       setHeroChatReadyToApply(true);
       setError(null);
@@ -513,17 +592,31 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       return;
     }
 
+    const latestOptions = heroChatMessages.at(-1)?.options ?? [];
+    if (!selectedChefDirection && latestOptions.length > 1) {
+      setError("Choose a direction before building the recipe.");
+      return;
+    }
+
     trackEventInBackground("hero_chat_applied", {
       source: "home-hub",
       messageCount: heroChatMessages.length,
-      conversation: buildHeroConversationContext(heroChatMessages).slice(0, 1200),
+      conversation: buildHeroConversationContext(
+        selectedChefDirection != null
+          ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
+          : buildFocusedRecipeConversation(heroChatMessages)
+      ).slice(0, 1200),
     });
 
-    await createRecipeFromConversation(heroChatMessages);
+    await createRecipeFromConversation(
+      selectedChefDirection != null
+        ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
+        : buildFocusedRecipeConversation(heroChatMessages)
+    );
   };
 
   const handleCreateRecipeFromReply = async (replyIndex: number) => {
-    const sliced = heroChatMessages.slice(0, replyIndex + 1);
+    const sliced = buildReplyBranch(heroChatMessages, replyIndex);
     setActiveChatRecipeIndex(replyIndex);
     trackEventInBackground("hero_reply_recipe_requested", {
       source: "home-hub",
@@ -531,7 +624,50 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       messageCount: sliced.length,
       conversation: buildHeroConversationContext(sliced).slice(0, 1200),
     });
+    if (!selectedChefDirection || selectedChefDirection.replyIndex !== replyIndex) {
+      const summary = buildDirectionSummary(sliced);
+      setSelectedChefDirection({
+        replyIndex,
+        optionId: `reply-${replyIndex}`,
+        title: deriveIdeaTitleFromConversationContext(summary || heroChatMessages[replyIndex]?.text || "Chef direction"),
+        summary: summary || heroChatMessages[replyIndex]?.text || "Chef direction",
+        tags: [],
+      });
+    }
     await createRecipeFromConversation(sliced, "chef-chat-reply");
+  };
+
+  const handleSelectChefDirection = (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => {
+    setSelectedChefDirection({
+      replyIndex,
+      optionId: option.id,
+      title: option.title,
+      summary: option.summary,
+      tags: option.tags,
+    });
+    setHeroChatMessages((current) => {
+      const alreadyConfirmed = current.at(-1)?.kind === "direction_selected" && current.at(-1)?.text.includes(option.title);
+      if (alreadyConfirmed) {
+        return current;
+      }
+      return [
+        ...current,
+        {
+          role: "ai",
+          text: `Direction locked: ${option.title}. Keep refining this dish, or build the recipe when ready.`,
+          kind: "direction_selected",
+        },
+      ];
+    });
+    setHeroChatReadyToApply(true);
+    setError(null);
+    setTransientStatus("Direction selected. Refine it or build the recipe when ready.");
+  };
+
+  const handleClearChefDirection = () => {
+    setSelectedChefDirection(null);
+    setError(null);
+    setTransientStatus("Direction cleared. Choose another option or ask Chef for a new one.");
   };
 
   const handleHeroInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -678,6 +814,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     smartError,
     smartStatus,
     heroChatMessages,
+    selectedChefDirection,
     heroChatReadyToApply,
     activeChatRecipeIndex,
     heroChatFrameRef,
@@ -686,6 +823,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handleAskChefInHero,
     handleApplyHeroChatIdeas,
     handleCreateRecipeFromReply,
+    handleSelectChefDirection,
+    handleClearChefDirection,
     handleGenerateMoreIdeas,
     handleSelectIdea: handleTrackedSelectIdea,
     generateRecipeFromIdea,

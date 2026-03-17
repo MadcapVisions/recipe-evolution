@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { chefChat } from "@/lib/ai/chefChat";
+import type { ChefChatEnvelope } from "@/lib/ai/chefOptions";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
         recipe_id: body.recipeId?.trim() || null,
         version_id: body.versionId?.trim() || null,
       });
-      return NextResponse.json({ reply: COOKING_SCOPE_MESSAGE, suggestion: null });
+      return NextResponse.json({ mode: "refine", reply: COOKING_SCOPE_MESSAGE, options: [], recommended_option_id: null, suggestion: null });
     }
 
     const conversationHistory = Array.isArray(body.conversationHistory)
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
     }
 
     const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
+    const envelope = result.envelope;
     let suggestion: Record<string, unknown> | null = null;
 
     if (body.includeSuggestion) {
@@ -169,7 +171,7 @@ export async function POST(request: Request) {
         finish_reason: result.finishReason ?? null,
         user_message_length: userMessage.length,
         initial_reply_length: result.initialReply.trim().length,
-        final_reply_length: result.reply.trim().length,
+        final_reply_length: envelope.reply.trim().length,
         conversation_turns: conversationHistory.length,
       });
     }
@@ -188,14 +190,17 @@ export async function POST(request: Request) {
           },
           {
             role: "assistant",
-            message: result.reply,
-            metadata_json: suggestion ? { suggestion_created: true } : null,
+            message: envelope.reply,
+            metadata_json: suggestion ? { suggestion_created: true, envelope } : envelope.options.length > 0 ? envelope : null,
           },
         ],
       });
     }
 
-    return NextResponse.json({ reply: result.reply, suggestion });
+    return NextResponse.json({
+      ...(envelope as ChefChatEnvelope),
+      suggestion,
+    });
   } catch (error) {
     console.error("Chef chat route failed", error);
     if (trackedAccess) {

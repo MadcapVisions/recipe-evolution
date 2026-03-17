@@ -38,6 +38,12 @@ You are in conversation mode only.
 Give the user concrete meal direction quickly.
 If the user asks for "best options", "what would be flavorful", or something similar, respond with actual options instead of asking them to restate their goal.
 When the user has already supplied meal type, main ingredients, or flavor direction, synthesize that information and move forward.
+When the user explicitly asks for multiple options, give exactly 2-3 compact options.
+Format each option on its own line as:
+OPTION 1: ...
+OPTION 2: ...
+OPTION 3: ...
+After that, add one short line that names the strongest option.
 `,
         },
         {

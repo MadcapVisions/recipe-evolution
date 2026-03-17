@@ -153,7 +153,28 @@ export default function PricingPage() {
           <h2 className="text-[36px] font-semibold tracking-tight text-[color:var(--text)]">What changes as you upgrade</h2>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.86)]">
+        <div className="mt-6 space-y-3 md:hidden">
+          {comparisonRows.map((row) => (
+            <article
+              key={row.label}
+              className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.86)] p-4"
+            >
+              <p className="text-[17px] font-semibold leading-7 text-[color:var(--text)]">{row.label}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-3 py-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Free</p>
+                  <p className="mt-2 text-[15px] leading-6 text-[color:var(--text)]">{row.free}</p>
+                </div>
+                <div className="rounded-[18px] bg-[rgba(74,106,96,0.08)] px-3 py-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pro</p>
+                  <p className="mt-2 text-[15px] font-semibold leading-6 text-[color:var(--primary)]">{row.pro}</p>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-6 hidden overflow-hidden rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.86)] md:block">
           <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)] border-b border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.08)] px-5 py-4 text-[15px] font-semibold text-[color:var(--text)]">
             <div>Capability</div>
             <div>Free</div>

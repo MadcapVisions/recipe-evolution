@@ -137,6 +137,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
     smartError,
     smartStatus,
     heroChatMessages,
+    selectedChefDirection,
     heroChatReadyToApply,
     activeChatRecipeIndex,
     heroChatFrameRef,
@@ -145,6 +146,8 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
     handleAskChefInHero,
     handleApplyHeroChatIdeas,
     handleCreateRecipeFromReply,
+    handleSelectChefDirection,
+    handleClearChefDirection,
     handleGenerateMoreIdeas,
     handleSelectIdea,
     generateRecipeFromIdea,
@@ -245,6 +248,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
         <section className="space-y-6">
         <HomeHeroPanel
           heroChatMessages={heroChatMessages}
+          selectedChefDirection={selectedChefDirection}
           promptInput={promptInput}
           loading={loading}
           generatingRecipe={generatingRecipe}
@@ -256,6 +260,8 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
             onAskChef={() => void handleAskChefInHero()}
             onApplySuggestions={() => void handleApplyHeroChatIdeas()}
             onCreateRecipeFromReply={(replyIndex) => void handleCreateRecipeFromReply(replyIndex)}
+            onSelectChefDirection={handleSelectChefDirection}
+            onClearChefDirection={handleClearChefDirection}
             heroChatFrameRef={heroChatFrameRef}
             heroChatViewportRef={heroChatViewportRef}
           />

@@ -1,10 +1,11 @@
-import { callAIWithMeta } from "./aiClient";
+import { callAIForJson } from "./jsonResponse";
 import { buildChefChatPrompt, type AIMessage, type RecipeContext } from "./chatPromptBuilder";
+import { buildChefChatEnvelope, normalizeChefChatEnvelope, type ChefChatEnvelope } from "./chefOptions";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
 import type { AiTaskSettingRecord } from "./taskSettings";
 
 export type ChefChatResult = {
-  reply: string;
+  envelope: ChefChatEnvelope;
   repaired: boolean;
   initialReply: string;
   provider: string;
@@ -77,6 +78,39 @@ function looksIncomplete(reply: string): boolean {
   return false;
 }
 
+function buildStructuredMessages(
+  userMessage: string,
+  recipeContext: RecipeContext,
+  conversationHistory: AIMessage[],
+  userTasteSummary?: string
+): AIMessage[] {
+  return [
+    ...buildChefChatPrompt(userMessage, recipeContext, conversationHistory, userTasteSummary),
+    {
+      role: "system",
+      content: `Return ONLY valid JSON with this shape:
+{
+  "mode": "options" | "refine",
+  "reply": string,
+  "options": [{ "id": string, "title": string, "summary": string, "tags": string[] }],
+  "recommended_option_id": string | null
+}
+
+Rules:
+- Use mode "options" only when the user explicitly asked for multiple ideas, options, directions, or variations.
+- In options mode, return exactly 2 or 3 options.
+- In refine mode, return no options and recommended_option_id must be null.
+- Keep reply concise and cooking-specific.
+- The reply text should match the structured fields exactly.
+- Do not include markdown fences or any text outside the JSON object.`,
+    },
+  ];
+}
+
+function normalizeOrBuildEnvelope(parsed: unknown, rawText: string) {
+  return normalizeChefChatEnvelope(parsed) ?? buildChefChatEnvelope(rawText);
+}
+
 export async function chefChat(
   userMessage: string,
   recipeContext: RecipeContext,
@@ -84,19 +118,21 @@ export async function chefChat(
   userTasteSummary?: string,
   taskSetting?: AiTaskSettingRecord
 ): Promise<ChefChatResult> {
-  const messages = buildChefChatPrompt(userMessage, recipeContext, conversationHistory, userTasteSummary);
+  const messages = buildStructuredMessages(userMessage, recipeContext, conversationHistory, userTasteSummary);
   const aiOptions = {
     max_tokens: taskSetting?.maxTokens ?? TOKEN_LIMITS.chefChat.max_tokens,
     temperature: taskSetting?.temperature ?? TOKEN_LIMITS.chefChat.temperature,
     model: taskSetting?.primaryModel,
     fallback_models: taskSetting?.fallbackModel ? [taskSetting.fallbackModel] : [],
   };
-  const firstAttempt = await callAIWithMeta(messages, aiOptions);
-  const firstReply = firstAttempt.text;
+
+  const firstAttempt = await callAIForJson(messages, aiOptions);
+  const firstEnvelope = normalizeOrBuildEnvelope(firstAttempt.parsed, firstAttempt.text);
+  const firstReply = firstEnvelope.reply;
 
   if (!looksIncomplete(firstReply)) {
     return {
-      reply: firstReply,
+      envelope: firstEnvelope,
       repaired: false,
       initialReply: firstReply,
       provider: firstAttempt.provider,
@@ -106,23 +142,27 @@ export async function chefChat(
 
   const repairMessages: AIMessage[] = [
     ...messages,
-    { role: "assistant", content: firstReply },
+    {
+      role: "assistant",
+      content: JSON.stringify(firstEnvelope),
+    },
     {
       role: "user",
       content:
-        "Your previous reply was incomplete. Give a complete answer now. If you mention options, explicitly list 2-3 concrete meal directions with flavor cues. Do not write an intro without finishing it.",
+        "Your previous JSON reply was incomplete or weak. Return a complete JSON response now. If mode is options, include exactly 2 or 3 concrete options and a recommended_option_id. If mode is refine, return no options.",
     },
   ];
 
-  const repairedAttempt = await callAIWithMeta(repairMessages, aiOptions);
-  const repairedReply = repairedAttempt.text;
+  const repairedAttempt = await callAIForJson(repairMessages, aiOptions);
+  const repairedEnvelope = normalizeOrBuildEnvelope(repairedAttempt.parsed, repairedAttempt.text);
+  const repairedReply = repairedEnvelope.reply;
 
   if (looksIncomplete(repairedReply)) {
     throw new Error("Chef chat returned incomplete content after repair.");
   }
 
   return {
-    reply: repairedReply.trim().length > 0 ? repairedReply : firstReply,
+    envelope: repairedReply.trim().length > 0 ? repairedEnvelope : firstEnvelope,
     repaired: true,
     initialReply: firstReply,
     provider: repairedAttempt.provider,
