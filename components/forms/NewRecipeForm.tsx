@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createRecipeFromDraft, LimitExceededError } from "@/lib/client/recipeMutations";
+import { createRecipeFromDraft, getCreatedRecipeHref, LimitExceededError } from "@/lib/client/recipeMutations";
 import { parseIngredientLines, parseStepLines } from "@/lib/recipes/recipeDraft";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import {
@@ -73,7 +73,7 @@ export function NewRecipeForm() {
         versionNumber: created.versionNumber,
         source: "manual",
       });
-      router.push(`/recipes/${created.recipeId}/versions/${created.versionId}`);
+      router.push(getCreatedRecipeHref({ recipeId: created.recipeId, versionId: created.versionId }));
     } catch (error) {
       if (error instanceof LimitExceededError) {
         trackEventInBackground("limit_hit", { limit: "recipes_per_user", max: 50 });

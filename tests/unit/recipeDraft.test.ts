@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  coerceIngredientLineWithAmount,
   formatIngredientLine,
   ingredientLineHasAmount,
   normalizeRecipeDraft,
   normalizeRecipeVersionPayload,
   parseIngredientLines,
+  repairRecipeDraftIngredientLines,
   parseStepLines,
 } from "../../lib/recipes/recipeDraft";
 
@@ -32,6 +34,21 @@ test("formatIngredientLine builds a shopping-ready ingredient line", () => {
     "2 tbsp olive oil"
   );
   assert.equal(formatIngredientLine({ quantity: 1, name: "onion", prep: "diced" }), "1 onion diced");
+});
+
+test("coerceIngredientLineWithAmount adds amounts to common AI ingredient fragments", () => {
+  assert.equal(coerceIngredientLineWithAmount("olive oil"), "2 tbsp olive oil");
+  assert.equal(coerceIngredientLineWithAmount("garlic"), "2 cloves garlic, minced");
+  assert.equal(coerceIngredientLineWithAmount("zucchini"), "2 medium zucchini, sliced");
+  assert.equal(coerceIngredientLineWithAmount("salt to taste"), "1 tsp salt");
+});
+
+test("repairRecipeDraftIngredientLines converts bare ingredient names into measured lines", () => {
+  assert.deepEqual(repairRecipeDraftIngredientLines([{ name: "turkey breast" }, { name: "rice" }, { name: "black pepper" }]), [
+    { name: "1 lb turkey breast" },
+    { name: "1 cup rice" },
+    { name: "1/2 tsp black pepper" },
+  ]);
 });
 
 test("parseStepLines trims lines and drops blanks", () => {

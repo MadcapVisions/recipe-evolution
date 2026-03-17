@@ -23,6 +23,19 @@ const recipeDraft_1 = require("../../lib/recipes/recipeDraft");
     strict_1.default.equal((0, recipeDraft_1.formatIngredientLine)({ quantity: 2, unit: "tbsp", name: "olive oil" }), "2 tbsp olive oil");
     strict_1.default.equal((0, recipeDraft_1.formatIngredientLine)({ quantity: 1, name: "onion", prep: "diced" }), "1 onion diced");
 });
+(0, node_test_1.default)("coerceIngredientLineWithAmount adds amounts to common AI ingredient fragments", () => {
+    strict_1.default.equal((0, recipeDraft_1.coerceIngredientLineWithAmount)("olive oil"), "2 tbsp olive oil");
+    strict_1.default.equal((0, recipeDraft_1.coerceIngredientLineWithAmount)("garlic"), "2 cloves garlic, minced");
+    strict_1.default.equal((0, recipeDraft_1.coerceIngredientLineWithAmount)("zucchini"), "2 medium zucchini, sliced");
+    strict_1.default.equal((0, recipeDraft_1.coerceIngredientLineWithAmount)("salt to taste"), "1 tsp salt");
+});
+(0, node_test_1.default)("repairRecipeDraftIngredientLines converts bare ingredient names into measured lines", () => {
+    strict_1.default.deepEqual((0, recipeDraft_1.repairRecipeDraftIngredientLines)([{ name: "turkey breast" }, { name: "rice" }, { name: "black pepper" }]), [
+        { name: "1 lb turkey breast" },
+        { name: "1 cup rice" },
+        { name: "1/2 tsp black pepper" },
+    ]);
+});
 (0, node_test_1.default)("parseStepLines trims lines and drops blanks", () => {
     const parsed = (0, recipeDraft_1.parseStepLines)(" Preheat oven \n\n Roast for 20 minutes \n");
     strict_1.default.deepEqual(parsed, [{ text: "Preheat oven" }, { text: "Roast for 20 minutes" }]);

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { useRouter } from "next/navigation";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import { generateLocalChefReply, generateLocalRecipeDraft, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
-import { createRecipeFromDraft } from "@/lib/client/recipeMutations";
-import type { RecipeDraft } from "@/lib/recipes/recipeDraft";
+import { createRecipeFromDraft, getCreatedRecipeHref } from "@/lib/client/recipeMutations";
+import { repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
 import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
@@ -89,6 +89,23 @@ const buildRecipeSeedFromConversation = (messages: ChatMessage[], userTasteProfi
   };
 };
 
+const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
+  const message = error instanceof Error ? error.message.trim() : "";
+  if (!message) {
+    return fallbackMessage;
+  }
+
+  if (message.includes("Each ingredient needs a quantity")) {
+    return "Chef drafted a recipe, but some ingredients were missing amounts. Please try again or switch to a stronger recipe model in Admin.";
+  }
+
+  if (message.startsWith("[{") || message.startsWith('["')) {
+    return fallbackMessage;
+  }
+
+  return message;
+};
+
 export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const router = useRouter();
   const conversationKeyRef = useRef(
@@ -140,10 +157,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   }, []);
 
   const saveGeneratedRecipe = async (recipe: RecipeDraft, source: string) => {
+    const repairedDraft: RecipeDraft = {
+      ...recipe,
+      ingredients: repairRecipeDraftIngredientLines(recipe.ingredients),
+    };
     const created = await createRecipeFromDraft({
       draft: {
-        ...recipe,
-        change_log: recipe.change_log ?? "Created from AI Home Hub",
+        ...repairedDraft,
+        change_log: repairedDraft.change_log ?? "Created from AI Home Hub",
       },
     });
 
@@ -158,7 +179,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       recipeId: created.recipeId,
       versionNumber: 1,
       source,
-      title: recipe.title,
+      title: repairedDraft.title,
     });
 
     return {
@@ -209,7 +230,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   };
 
   const goToCreatedRecipe = (recipeId: string, versionId: string) => {
-    const href = `/recipes/${recipeId}/versions/${versionId}`;
+    const href = getCreatedRecipeHref({ recipeId, versionId });
 
     if (typeof window !== "undefined") {
       window.location.assign(href);
@@ -303,7 +324,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
         goToCreatedRecipe(created.recipeId, created.versionId);
       } catch (saveError) {
-        setError(saveError instanceof Error ? saveError.message : "Could not build or save the recipe.");
+        setError(getRecipeBuildErrorMessage(saveError, "Could not build or save the recipe."));
         setStatus(null);
       }
     } finally {
@@ -352,7 +373,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
         goToCreatedRecipe(created.recipeId, created.versionId);
       } catch (saveError) {
-        setError(saveError instanceof Error ? saveError.message : "Could not build or save the recipe from this conversation.");
+        setError(
+          getRecipeBuildErrorMessage(saveError, "Could not build or save the recipe from this conversation.")
+        );
         setStatus(null);
       }
     } finally {

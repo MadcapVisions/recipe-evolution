@@ -7,6 +7,10 @@ export class LimitExceededError extends Error {
   }
 }
 
+export function getCreatedRecipeHref(input: { recipeId: string; versionId: string }) {
+  return `/recipes/${input.recipeId}/versions/${input.versionId}`;
+}
+
 export async function createRecipeVersionViaApi(
   recipeId: string,
   input: {

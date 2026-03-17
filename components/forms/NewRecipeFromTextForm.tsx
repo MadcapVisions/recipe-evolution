@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { structureRecipeFromText } from "@/lib/client/aiStructureRecipe";
-import { createRecipeFromDraft, LimitExceededError } from "@/lib/client/recipeMutations";
+import { createRecipeFromDraft, getCreatedRecipeHref, LimitExceededError } from "@/lib/client/recipeMutations";
 import { parseIngredientLines, parseStepLines } from "@/lib/recipes/recipeDraft";
 import { buildCanonicalEnrichment } from "@/lib/recipes/canonicalEnrichment";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
@@ -187,7 +187,7 @@ export function NewRecipeFromTextForm() {
       trackEventInBackground("recipe_created", { recipeId: created.recipeId, source: "from_text" });
       trackEventInBackground("version_created", { recipeId: created.recipeId, versionNumber: 1, source: "from_text" });
 
-      router.push(`/recipes/${created.recipeId}`);
+      router.push(getCreatedRecipeHref({ recipeId: created.recipeId, versionId: created.versionId }));
       setSaving(false);
     } catch (error) {
       if (error instanceof LimitExceededError) {
