@@ -12,10 +12,26 @@ export type ChefChatResult = {
   finishReason?: string | null;
 };
 
-function looksIncomplete(reply: string): boolean {
-  const normalized = reply.trim().toLowerCase();
+function looksIncompleteEnvelope(envelope: ChefChatEnvelope): boolean {
+  const normalized = envelope.reply.trim().toLowerCase();
 
-  if (normalized.length < 40) {
+  if (!normalized) {
+    return true;
+  }
+
+  if (envelope.mode === "options") {
+    if (envelope.options.length < 2) {
+      return true;
+    }
+
+    if (normalized.length < 60) {
+      return true;
+    }
+
+    return false;
+  }
+
+  if (normalized.length < 18) {
     return true;
   }
 
@@ -71,7 +87,7 @@ function looksIncomplete(reply: string): boolean {
   }
 
   const sentenceCount = normalized.split(/[.!?]+/).filter((part) => part.trim().length > 0).length;
-  if (sentenceCount < 2 && !normalized.includes("\n")) {
+  if (sentenceCount < 1 && !normalized.includes("\n")) {
     return true;
   }
 
@@ -130,7 +146,7 @@ export async function chefChat(
   const firstEnvelope = normalizeOrBuildEnvelope(firstAttempt.parsed, firstAttempt.text);
   const firstReply = firstEnvelope.reply;
 
-  if (!looksIncomplete(firstReply)) {
+  if (!looksIncompleteEnvelope(firstEnvelope)) {
     return {
       envelope: firstEnvelope,
       repaired: false,
@@ -155,14 +171,11 @@ export async function chefChat(
 
   const repairedAttempt = await callAIForJson(repairMessages, aiOptions);
   const repairedEnvelope = normalizeOrBuildEnvelope(repairedAttempt.parsed, repairedAttempt.text);
-  const repairedReply = repairedEnvelope.reply;
-
-  if (looksIncomplete(repairedReply)) {
-    throw new Error("Chef chat returned incomplete content after repair.");
-  }
+  const repairedUsable = !looksIncompleteEnvelope(repairedEnvelope);
+  const firstUsable = !looksIncompleteEnvelope(firstEnvelope);
 
   return {
-    envelope: repairedReply.trim().length > 0 ? repairedEnvelope : firstEnvelope,
+    envelope: repairedUsable ? repairedEnvelope : firstUsable ? firstEnvelope : repairedEnvelope.reply.trim().length > 0 ? repairedEnvelope : firstEnvelope,
     repaired: true,
     initialReply: firstReply,
     provider: repairedAttempt.provider,
