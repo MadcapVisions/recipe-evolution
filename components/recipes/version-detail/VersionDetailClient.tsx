@@ -60,15 +60,18 @@ function buildRecipeDetailConversationHistory(
     : -1;
 
   if (selectedIndex >= 0) {
-    let start = selectedIndex;
-    for (let index = selectedIndex - 1; index >= 0; index -= 1) {
-      if (relevantMessages[index]?.role === "user") {
-        start = index;
-        break;
-      }
-    }
+    const lockedMessages: ConversationMessage[] = [
+      {
+        id: `locked-${selectedDirection?.messageId ?? "direction"}`,
+        role: "assistant",
+        text: `Locked direction: ${selectedDirection?.title}. ${selectedDirection?.summary}`,
+        createdAt: new Date(0).toISOString(),
+        kind: "message",
+      },
+      ...relevantMessages.slice(selectedIndex + 1),
+    ];
 
-    return relevantMessages.slice(start).slice(-6).map((message) => ({
+    return lockedMessages.slice(-6).map((message) => ({
       role: message.role === "user" ? "user" : "assistant",
       content: message.text,
     }));

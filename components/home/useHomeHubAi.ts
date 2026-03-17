@@ -84,6 +84,21 @@ const buildConversationHistory = (messages: ChatMessage[]): AIMessage[] =>
       content: message.text,
     }));
 
+const buildLockedDirectionMessages = (messages: ChatMessage[], selectedDirection: SelectedChefDirection): ChatMessage[] => {
+  const trailingMessages = messages
+    .slice(selectedDirection.replyIndex + 1)
+    .filter((message) => message.kind !== "direction_selected");
+
+  return [
+    {
+      role: "ai",
+      text: `Locked direction: ${selectedDirection.title}. ${selectedDirection.summary}`,
+      kind: "message",
+    },
+    ...trailingMessages,
+  ];
+};
+
 const buildRecipeSeedFromConversation = (
   messages: ChatMessage[],
   userTasteProfile: UserTasteProfile | null,
@@ -91,7 +106,7 @@ const buildRecipeSeedFromConversation = (
 ) => {
   const focusedMessages =
     selectedDirection != null
-      ? buildSelectedDirectionConversation(messages, selectedDirection.replyIndex)
+      ? buildLockedDirectionMessages(messages, selectedDirection)
       : buildFocusedRecipeConversation(messages);
   const conversationText = buildHeroConversationContext(focusedMessages);
   const latestAssistantReply =
@@ -538,7 +553,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         startsNewDirection
           ? []
           : selectedChefDirection != null
-          ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
+          ? buildLockedDirectionMessages(heroChatMessages, selectedChefDirection)
           : focusedMessages;
       const activeDirectionSummary =
         startsNewDirection
@@ -585,7 +600,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           startsNewDirection
             ? []
             : selectedChefDirection != null
-            ? buildConversationHistory(buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex).slice(-6))
+            ? buildConversationHistory(buildLockedDirectionMessages(heroChatMessages, selectedChefDirection).slice(-6))
             : buildFocusedChatHistory(heroChatMessages),
         conversationKey: conversationKeyRef.current,
       })) as ChefChatEnvelope & { message?: string };
@@ -652,14 +667,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       messageCount: heroChatMessages.length,
       conversation: buildHeroConversationContext(
         selectedChefDirection != null
-          ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
+          ? buildLockedDirectionMessages(heroChatMessages, selectedChefDirection)
           : buildFocusedRecipeConversation(heroChatMessages)
       ).slice(0, 1200),
     });
 
     await createRecipeFromConversation(
       selectedChefDirection != null
-        ? buildSelectedDirectionConversation(heroChatMessages, selectedChefDirection.replyIndex)
+        ? buildLockedDirectionMessages(heroChatMessages, selectedChefDirection)
         : buildFocusedRecipeConversation(heroChatMessages)
     );
   };

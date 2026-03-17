@@ -114,6 +114,7 @@ function buildStructuredMessages(
 
 Rules:
 - Use mode "options" only when the user explicitly asked for multiple ideas, options, directions, or variations.
+- If the conversation already has a locked or chosen direction, stay in refine mode unless the user explicitly asks for new options again.
 - In options mode, return exactly 2 or 3 options.
 - In refine mode, return no options and recommended_option_id must be null.
 - Keep reply concise and cooking-specific.
