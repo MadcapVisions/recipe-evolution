@@ -320,11 +320,13 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
           }
           if (item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string") {
             const ingredient = item as { name: string; quantity?: number; unit?: string | null; prep?: string | null };
+            const rawUnit = typeof ingredient.unit === "string" ? ingredient.unit.trim().toLowerCase() : null;
+            const unit = rawUnit && rawUnit !== "count" && rawUnit !== "piece" && rawUnit !== "pieces" ? ingredient.unit!.trim() : null;
             return {
               name: formatIngredientLine({
                 name: ingredient.name,
                 quantity: typeof ingredient.quantity === "number" ? ingredient.quantity : null,
-                unit: typeof ingredient.unit === "string" ? ingredient.unit : null,
+                unit,
                 prep: typeof ingredient.prep === "string" ? ingredient.prep : null,
               }) || ingredient.name.trim(),
             };
@@ -359,7 +361,9 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
     servings: typeof raw.servings === "number" ? Math.round(raw.servings) : 4,
     prep_time_min: typeof raw.prep_time_min === "number" ? Math.round(raw.prep_time_min) : 15,
     cook_time_min: typeof raw.cook_time_min === "number" ? Math.round(raw.cook_time_min) : 30,
-    difficulty: typeof raw.difficulty === "string" && raw.difficulty.trim() ? raw.difficulty.trim() : "Easy",
+    difficulty: typeof raw.difficulty === "string" && raw.difficulty.trim()
+      ? raw.difficulty.trim().charAt(0).toUpperCase() + raw.difficulty.trim().slice(1).toLowerCase()
+      : "Easy",
     ingredients,
     steps,
   };
