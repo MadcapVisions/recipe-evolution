@@ -143,8 +143,10 @@ Rules:
 - If the conversation already has a locked or chosen direction, stay in refine mode unless the user explicitly asks for new options again.
 - In options mode, return exactly 2 or 3 options. Each option must have a distinct flavor angle — do not return minor variations of the same idea.
 - In refine mode, return no options and recommended_option_id must be null.
+- The "reply" field MUST always be a complete, non-empty chef response — it is the main text the user reads. NEVER leave it empty or null.
+- In refine mode, "reply" is the full chef response.
+- In options mode, "reply" is a 1-2 sentence intro that frames the options (e.g. "Three strong directions for a bright chicken dinner:").
 - Keep reply concise and cooking-specific.
-- The reply text should match the structured fields exactly.
 - Do not include markdown fences or any text outside the JSON object.`,
     },
   ];
@@ -157,9 +159,17 @@ function normalizeOrBuildEnvelope(parsed: unknown, rawText: string) {
   }
 
   if (parsed && typeof parsed === "object") {
+    // The AI returned a valid JSON object but with an empty/missing reply field.
+    // Try rescuing a reply from common alternative field names before giving up.
+    const raw = parsed as Record<string, unknown>;
+    const rescuedReply =
+      (typeof raw.response === "string" && raw.response.trim()) ||
+      (typeof raw.content === "string" && raw.content.trim()) ||
+      (typeof raw.message === "string" && raw.message.trim()) ||
+      "";
     return {
       mode: "refine" as const,
-      reply: "",
+      reply: rescuedReply,
       options: [],
       recommended_option_id: null,
     };
