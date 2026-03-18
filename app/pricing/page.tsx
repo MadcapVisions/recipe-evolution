@@ -207,10 +207,10 @@ export default function PricingPage() {
             Create account
           </Link>
           <Link
-            href="/dashboard"
+            href="/"
             className="inline-flex min-h-12 items-center justify-center rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.96)] px-6 py-3 text-[16px] font-semibold text-[color:var(--text)] shadow-[0_14px_28px_rgba(76,50,24,0.1)] transition hover:bg-white"
           >
-            Explore the app
+            See how it works
           </Link>
         </div>
       </section>

@@ -114,8 +114,17 @@ export default function SignUpPage() {
           {loading ? "Creating account..." : "Claim My Free Starter Shelf"}
         </Button>
       </form>
-      {message ? <p className="text-green-700">{message}</p> : null}
-      {error ? <p className="text-red-700">{error}</p> : null}
+      {message ? (
+        <div className="rounded-[20px] border border-green-200 bg-green-50 px-5 py-4">
+          <p className="text-[15px] font-semibold text-green-800">{message}</p>
+          <Link href="/sign-in" className="mt-2 block text-[14px] text-green-700 hover:underline">
+            Go to sign in
+          </Link>
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-[20px] border border-red-200 bg-red-50 px-5 py-4 text-[15px] text-red-700">{error}</div>
+      ) : null}
       <p className="text-[15px] text-[color:var(--muted)]">
         Already have an account?{" "}
         <Link href="/sign-in" className="text-[color:var(--primary)] hover:underline">

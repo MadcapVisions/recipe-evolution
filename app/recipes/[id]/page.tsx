@@ -39,7 +39,7 @@ export default async function RecipePage({ params }: RecipePageProps) {
   }
 
   if (latestVersionError) {
-    notFound();
+    throw new Error("Failed to load recipe versions.");
   }
 
   if (!latestVersion) {
