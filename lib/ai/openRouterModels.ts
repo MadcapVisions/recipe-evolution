@@ -55,12 +55,14 @@ function buildLabel(option: {
 function getRecommendationRank(id: string): number | null {
   const normalized = id.toLowerCase();
   const rankedPrefixes = [
-    "deepseek/deepseek-chat-v3",
-    "deepseek/deepseek-chat",
-    "deepseek/deepseek-r1",
+    // Top 3 — benchmarked and recommended
     "openai/gpt-4o-mini",
-    "google/gemini-2.0-flash",
     "google/gemini-2.5-flash",
+    "deepseek/deepseek-chat",
+    // Strong secondaries
+    "deepseek/deepseek-chat-v3",
+    "deepseek/deepseek-r1",
+    "google/gemini-2.0-flash",
     "anthropic/claude-3.5-haiku",
     "meta-llama/llama-3.3-70b-instruct",
     "qwen/qwen-2.5-72b-instruct",

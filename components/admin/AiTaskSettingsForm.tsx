@@ -23,18 +23,22 @@ type TaskRecommendation = {
 const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
   chef_chat: [
     {
+      // Benchmark: all 3 top models scored 7/10. Gemini 2.5 Flash is 3x faster (1.9s vs 5.7s)
+      // at same cost — ideal for chat responsiveness. GPT-4o mini and DeepSeek also solid.
       prefix: "🟢",
-      note: "best value for fast chef chat",
+      note: "best value — fast & reliable for chat",
       matches: (id) =>
-        id === "deepseek/deepseek-chat-v3.1" ||
-        id === "deepseek/deepseek-chat" ||
         id === "openai/gpt-4o-mini" ||
+        id === "google/gemini-2.5-flash" ||
+        id === "deepseek/deepseek-chat" ||
+        id === "deepseek/deepseek-chat-v3.1" ||
+        id === "deepseek/deepseek-chat-v3-0324" ||
         id === "google/gemini-2.0-flash",
     },
     {
       prefix: "🟡",
-      note: "worth it for richer chat quality",
-      matches: (id) => id === "google/gemini-2.5-flash" || id === "anthropic/claude-3.5-haiku",
+      note: "more expensive, marginal gain for chat",
+      matches: (id) => id === "anthropic/claude-3.5-haiku",
     },
     {
       prefix: "🔴",
@@ -44,19 +48,21 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
   ],
   home_ideas: [
     {
+      // Benchmark: all 3 scored 10/10. GPT-4o mini cheapest, Gemini fastest.
       prefix: "🟢",
-      note: "best value for idea generation",
+      note: "best value — all scored 10/10 in benchmark",
       matches: (id) =>
+        id === "openai/gpt-4o-mini" ||
+        id === "google/gemini-2.5-flash" ||
+        id === "deepseek/deepseek-chat" ||
         id === "deepseek/deepseek-chat-v3.1" ||
         id === "deepseek/deepseek-chat-v3-0324" ||
-        id === "deepseek/deepseek-chat" ||
-        id === "openai/gpt-4o-mini" ||
         id === "google/gemini-2.0-flash",
     },
     {
       prefix: "🟡",
-      note: "worth it for more polished ideas",
-      matches: (id) => id === "google/gemini-2.5-flash" || id === "anthropic/claude-3.5-haiku",
+      note: "more expensive, no quality gain here",
+      matches: (id) => id === "anthropic/claude-3.5-haiku",
     },
     {
       prefix: "🔴",
@@ -66,17 +72,21 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
   ],
   home_recipe: [
     {
+      // Benchmark: all 3 scored 10/10. GPT-4o mini cheapest ($0.51/1k).
+      // Gemini 2.5 Flash 3x faster and same quality. DeepSeek slowest (19s).
       prefix: "🟢",
-      note: "best value for recipe drafting",
+      note: "best value — all scored 10/10 in benchmark",
       matches: (id) =>
-        id === "deepseek/deepseek-chat-v3.1" ||
+        id === "openai/gpt-4o-mini" ||
+        id === "google/gemini-2.5-flash" ||
         id === "deepseek/deepseek-chat" ||
-        id === "openai/gpt-4o-mini",
+        id === "deepseek/deepseek-chat-v3.1" ||
+        id === "deepseek/deepseek-chat-v3-0324",
     },
     {
       prefix: "🟡",
-      note: "worth it for stronger recipe writing",
-      matches: (id) => id === "anthropic/claude-3.5-haiku" || id === "google/gemini-2.5-flash",
+      note: "higher cost, comparable quality",
+      matches: (id) => id === "anthropic/claude-3.5-haiku" || id === "google/gemini-2.0-flash",
     },
     {
       prefix: "🔴",
@@ -86,18 +96,22 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
   ],
   recipe_improvement: [
     {
+      // Benchmark: GPT-4o mini 10/10, DeepSeek V3 10/10. Gemini 2.5 Flash FAILED (JSON parse).
+      // Do not use Gemini 2.5 Flash for this task.
       prefix: "🟢",
-      note: "best value for recipe refinement",
+      note: "best value — 10/10 in benchmark",
       matches: (id) =>
-        id === "deepseek/deepseek-chat-v3.1" ||
+        id === "openai/gpt-4o-mini" ||
         id === "deepseek/deepseek-chat" ||
-        id === "deepseek/deepseek-r1-distill-qwen-32b" ||
-        id === "openai/gpt-4o-mini",
+        id === "deepseek/deepseek-chat-v3.1" ||
+        id === "deepseek/deepseek-chat-v3-0324" ||
+        id === "deepseek/deepseek-r1-distill-qwen-32b",
     },
     {
+      // Gemini 2.5 Flash failed JSON on recipe improvement — avoid as primary
       prefix: "🟡",
-      note: "worth it for tougher refinements",
-      matches: (id) => id === "deepseek/deepseek-r1-0528" || id === "anthropic/claude-3.5-haiku",
+      note: "use as fallback only — Gemini failed JSON here",
+      matches: (id) => id === "google/gemini-2.5-flash" || id === "anthropic/claude-3.5-haiku" || id === "deepseek/deepseek-r1-0528",
     },
     {
       prefix: "🔴",
@@ -107,9 +121,16 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
   ],
   recipe_structure: [
     {
+      // Benchmark: all 3 scored 10/10. GPT-4o mini cheapest, Gemini 2.5 Flash fastest (4s vs 7s).
       prefix: "🟢",
-      note: "best value for structured output",
-      matches: (id) => id === "openai/gpt-4o-mini" || id === "deepseek/deepseek-chat-v3.1" || id === "google/gemini-2.0-flash",
+      note: "best value — all scored 10/10 in benchmark",
+      matches: (id) =>
+        id === "openai/gpt-4o-mini" ||
+        id === "google/gemini-2.5-flash" ||
+        id === "deepseek/deepseek-chat" ||
+        id === "deepseek/deepseek-chat-v3.1" ||
+        id === "deepseek/deepseek-chat-v3-0324" ||
+        id === "google/gemini-2.0-flash",
     },
     {
       prefix: "🟡",
