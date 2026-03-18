@@ -260,7 +260,6 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
             onPromptInputChange={setPromptInput}
             onPromptInputKeyDown={handleHeroInputKeyDown}
             onAskChef={() => void handleAskChefInHero()}
-            onApplySuggestions={() => void handleApplyHeroChatIdeas()}
             onCreateRecipeFromReply={(replyIndex) => void handleCreateRecipeFromReply(replyIndex)}
             onSelectChefDirection={handleSelectChefDirection}
             onClearChefDirection={handleClearChefDirection}

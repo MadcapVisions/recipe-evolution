@@ -21,7 +21,6 @@ type HomeHeroPanelProps = {
   onPromptInputChange: (value: string) => void;
   onPromptInputKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onAskChef: () => void;
-  onApplySuggestions: () => void;
   onCreateRecipeFromReply: (replyIndex: number) => void;
   onSelectChefDirection: (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => void;
   onClearChefDirection: () => void;
@@ -43,7 +42,6 @@ export function HomeHeroPanel({
   onPromptInputChange,
   onPromptInputKeyDown,
   onAskChef,
-  onApplySuggestions,
   onCreateRecipeFromReply,
   onSelectChefDirection,
   onClearChefDirection,
@@ -288,6 +286,13 @@ export function HomeHeroPanel({
                     </div>
                   </div>
                 ) : null}
+                {generatingRecipe ? (
+                  <div className="flex justify-start">
+                    <div className="rounded-[22px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.94)] px-4 py-3 text-[15px] text-[color:var(--primary)]">
+                      Building your recipe...
+                    </div>
+                  </div>
+                ) : null}
               </>
             )}
           </div>
@@ -305,24 +310,14 @@ export function HomeHeroPanel({
             }
             className="min-h-12 flex-1 rounded-full bg-white px-5 py-3 text-[16px]"
           />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={onAskChef}
-              disabled={loading}
-              className="w-full rounded-full bg-[color:var(--primary)] px-5 py-3 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
-            >
-              Explore with Chef
-            </button>
-            <button
-              type="button"
-              onClick={onApplySuggestions}
-              disabled={loading || generatingRecipe || !heroChatReadyToApply}
-              className="w-full rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.94)] px-5 py-3 text-[16px] font-semibold text-[color:var(--text)] transition hover:bg-white disabled:opacity-60"
-            >
-              {generatingRecipe ? "Building recipe..." : "Build Recipe"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onAskChef}
+            disabled={loading || generatingRecipe}
+            className="w-full rounded-full bg-[color:var(--primary)] px-5 py-3 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+          >
+            Explore with Chef
+          </button>
         </div>
 
         {!heroChatReadyToApply && !hasConversation && !error && !loading ? (
