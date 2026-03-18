@@ -65,6 +65,9 @@ export default function SignInPage() {
             required
           />
         </label>
+        {error ? (
+          <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
         <Button
           type="submit"
           disabled={loading}
@@ -73,7 +76,6 @@ export default function SignInPage() {
           {loading ? "Signing in..." : "Open My Cookbook"}
         </Button>
       </form>
-      {error ? <p className="text-red-700">{error}</p> : null}
       <p className="text-[15px] text-[color:var(--muted)]">
         Need an account?{" "}
         <Link href="/sign-up" className="text-[color:var(--primary)] hover:underline">

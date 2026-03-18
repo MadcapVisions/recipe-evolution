@@ -386,14 +386,24 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
       {!isLoading && recipes.length === 0 ? (
         <div className="app-empty-state animate-rise-in px-6 py-10 text-center">
           <p className="app-kicker">Cookbook shelf</p>
-          <p className="mt-3 font-display text-[36px] font-semibold text-[color:var(--text)]">Nothing is on this shelf yet.</p>
+          <p className="mt-3 font-display text-[36px] font-semibold text-[color:var(--text)]">
+            {deferredSearch.trim() ? "No recipes match that search." : "Nothing is on this shelf yet."}
+          </p>
           <p className="mx-auto mt-3 max-w-2xl text-[15px] leading-7 text-[color:var(--muted)]">
-            Try another shelf, clear the search, or add a new dish to the cookbook so this section starts to fill with recipes worth revisiting.
+            {deferredSearch.trim()
+              ? "Try a different word, switch to another shelf, or clear the search to browse everything."
+              : "Try another shelf, or add a new dish to the cookbook so this section starts to fill with recipes worth revisiting."}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            <Link href="/dashboard" className="ui-btn ui-btn-solid">
-              Develop with Chef
-            </Link>
+            {deferredSearch.trim() ? (
+              <button type="button" onClick={() => setSearch("")} className="ui-btn ui-btn-solid">
+                Clear Search
+              </button>
+            ) : (
+              <Link href="/dashboard" className="ui-btn ui-btn-solid">
+                Develop with Chef
+              </Link>
+            )}
             <Link href="/import" className="ui-btn ui-btn-light">
               Import a Recipe
             </Link>

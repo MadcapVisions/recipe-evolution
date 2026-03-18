@@ -34,7 +34,7 @@ export function ServingsControl({
   if (!baseServings) {
     return (
       <div className={className}>
-        <div className="rounded-xl border bg-slate-50 p-3 text-sm text-slate-600">
+        <div className="rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] p-3 text-sm text-[color:var(--muted)]">
           Add servings to this version to unlock scaling.
         </div>
       </div>

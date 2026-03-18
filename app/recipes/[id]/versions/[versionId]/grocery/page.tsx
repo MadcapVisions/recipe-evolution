@@ -57,7 +57,14 @@ export default async function GroceryPage({ params }: GroceryPageProps) {
   }
 
   if (listError) {
-    return <p className="text-red-700">{listError.message}</p>;
+    return (
+      <div className="page-shell">
+        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{listError.message}</div>
+        <Button href={`/recipes/${id}/versions/${versionId}`} variant="secondary" className="w-fit">
+          Back to Version
+        </Button>
+      </div>
+    );
   }
 
   return (

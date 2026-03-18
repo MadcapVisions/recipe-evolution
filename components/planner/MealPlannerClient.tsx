@@ -47,6 +47,7 @@ export function MealPlannerClient({
     Object.fromEntries(recipeOptions.map((item) => [item.versionId, item.targetServings ?? item.servings ?? 1]))
   );
   const [modalText, setModalText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const selectedRecipes = useMemo(
     () =>
@@ -106,6 +107,8 @@ export function MealPlannerClient({
     openLeftPanelMode("summary");
     try {
       await navigator.clipboard.writeText(plannerText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       setModalText(plannerText);
     }
@@ -245,7 +248,7 @@ export function MealPlannerClient({
                 {plan.recipeCount > 0 ? (
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <Button onClick={copyPlan} variant="secondary" className="w-full">
-                      Copy
+                      {copied ? "Copied!" : "Copy"}
                     </Button>
                     <Button onClick={sharePlan} variant="secondary" className="w-full">
                       Share

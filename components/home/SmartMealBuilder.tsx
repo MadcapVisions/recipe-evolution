@@ -110,7 +110,9 @@ export function SmartMealBuilder({
           </button>
         </div>
 
-        {smartError ? <p className="mt-4 text-sm text-red-600">{smartError}</p> : null}
+        {smartError ? (
+          <div className="mt-4 rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{smartError}</div>
+        ) : null}
       </div>
     </aside>
   );
