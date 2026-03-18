@@ -85,15 +85,29 @@ const buildConversationHistory = (messages: ChatMessage[]): AIMessage[] =>
     }));
 
 const buildLockedDirectionMessages = (messages: ChatMessage[], selectedDirection: SelectedChefDirection): ChatMessage[] => {
+  // Include the user message that prompted the options reply so ingredient context
+  // (e.g. "I have fresh ravioli filled with chicken") is preserved when building the recipe.
+  let start = selectedDirection.replyIndex;
+  for (let i = selectedDirection.replyIndex - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") {
+      start = i;
+      break;
+    }
+  }
+  const contextMessages = messages
+    .slice(start, selectedDirection.replyIndex)
+    .filter((message) => message.kind !== "direction_selected");
+
   const trailingMessages = messages
     .slice(selectedDirection.replyIndex + 1)
     .filter((message) => message.kind !== "direction_selected");
 
   return [
+    ...contextMessages,
     {
-      role: "ai",
+      role: "ai" as const,
       text: `Locked direction: ${selectedDirection.title}. ${selectedDirection.summary}`,
-      kind: "message",
+      kind: "message" as const,
     },
     ...trailingMessages,
   ];

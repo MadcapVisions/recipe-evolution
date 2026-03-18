@@ -62,6 +62,7 @@ export type VersionDetailData = {
   recipe: {
     id: string;
     title: string;
+    description?: string | null;
     best_version_id?: string | null;
   };
   timelineVersions: Array<{
@@ -127,7 +128,7 @@ export async function loadVersionDetailData(
   ] = await Promise.all([
     supabase
       .from("recipes")
-      .select("id, title, tags, best_version_id")
+      .select("id, title, description, tags, best_version_id")
       .eq("id", recipeId)
       .eq("owner_id", userId)
       .maybeSingle(),

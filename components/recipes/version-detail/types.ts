@@ -13,6 +13,7 @@ export type { IngredientItem, StepItem };
 export type RecipeRow = {
   id: string;
   title: string;
+  description?: string | null;
   best_version_id?: string | null;
 };
 

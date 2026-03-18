@@ -584,6 +584,7 @@ Rules:
 - If the user narrowed to one exact dish, make that dish. Do not drift to adjacent ideas.
 - If the chef conversation indicates a dish format like pasta, skillet, salad, soup, tacos, dip, or bowl, preserve that format exactly unless the user explicitly changed it later.
 - When the conversation mentions a specific anchor ingredient or protein, keep it in the final recipe instead of swapping to a different main ingredient.
+- If the user mentions a ready-made or filled ingredient (fresh pasta, stuffed pasta, dumplings, tortillas, pre-made dough, etc.), treat that item as the centerpiece. Do not discard it or replace it with its filling ingredient (e.g. chicken-filled ravioli stays as ravioli, not a chicken dish).
 - The title must be a clean, dish-specific recipe name a home cook would understand.
 - Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
 - If an ingredient would normally appear without a unit, still include a count, like 1 onion or 2 eggs.

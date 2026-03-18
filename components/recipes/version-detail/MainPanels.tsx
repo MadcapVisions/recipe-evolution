@@ -53,6 +53,9 @@ export function VersionMainPanels({
             <div>
               <p className="app-kicker">Current version</p>
               <h1 className="mt-3 text-[24px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] min-[380px]:text-[28px] sm:text-[42px]">{recipe.title}</h1>
+              {recipe.description ? (
+                <p className="mt-3 text-[15px] leading-relaxed text-[color:var(--muted)]">{recipe.description}</p>
+              ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="rounded-full bg-[rgba(79,125,115,0.12)] px-3 py-1.5 text-sm font-semibold text-[color:var(--primary)]">
                   {versionLabel(version)}
