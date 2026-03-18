@@ -101,10 +101,10 @@ export function NewRecipeForm() {
           id="title"
           type="text"
           placeholder="Weeknight lemon chicken skillet"
-          className="min-h-12 w-full"
+          className={`min-h-12 w-full ${errors.title ? "border-red-400 ring-1 ring-red-300" : ""}`}
           {...register("title")}
         />
-        {errors.title ? <p className="text-sm text-red-700">{errors.title.message}</p> : null}
+        {errors.title ? <p className="mt-1 text-sm text-red-700">{errors.title.message}</p> : null}
       </div>
 
       <div className="space-y-1">
@@ -193,11 +193,11 @@ export function NewRecipeForm() {
         <textarea
           id="ingredientsInput"
           placeholder={"1 lb chicken thighs\n2 lemons\n3 cloves garlic"}
-          className="min-h-32 w-full"
+          className={`min-h-32 w-full ${errors.ingredientsInput ? "border-red-400 ring-1 ring-red-300" : ""}`}
           {...register("ingredientsInput")}
         />
         {errors.ingredientsInput ? (
-          <p className="text-sm text-red-700">{errors.ingredientsInput.message}</p>
+          <p className="mt-1 text-sm text-red-700">{errors.ingredientsInput.message}</p>
         ) : null}
       </div>
 
@@ -208,10 +208,10 @@ export function NewRecipeForm() {
         <textarea
           id="stepsInput"
           placeholder={"Season the chicken.\nSear until browned.\nFinish with lemon and garlic."}
-          className="min-h-32 w-full"
+          className={`min-h-32 w-full ${errors.stepsInput ? "border-red-400 ring-1 ring-red-300" : ""}`}
           {...register("stepsInput")}
         />
-        {errors.stepsInput ? <p className="text-sm text-red-700">{errors.stepsInput.message}</p> : null}
+        {errors.stepsInput ? <p className="mt-1 text-sm text-red-700">{errors.stepsInput.message}</p> : null}
       </div>
 
       <div className="space-y-1">

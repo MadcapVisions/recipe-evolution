@@ -72,7 +72,23 @@ export default async function DashboardPage() {
   if (loadError) {
     return (
       <div className="mx-auto max-w-[1380px] p-6">
-        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{loadError}</div>
+        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-5">
+          <p className="text-sm text-red-700">{loadError}</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a
+              href="/dashboard"
+              className="inline-flex min-h-10 items-center rounded-2xl bg-red-100 px-4 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-200"
+            >
+              Refresh
+            </a>
+            <a
+              href="/recipes"
+              className="inline-flex min-h-10 items-center rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-[color:var(--text)] ring-1 ring-[rgba(79,54,33,0.12)] transition hover:bg-[rgba(255,252,246,0.8)]"
+            >
+              Go to Cookbook
+            </a>
+          </div>
+        </div>
       </div>
     );
   }

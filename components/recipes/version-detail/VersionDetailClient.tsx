@@ -2,6 +2,7 @@
 
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/components/recipes/version-detail/AiPanels";
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
@@ -1062,6 +1063,14 @@ export function VersionDetailClient({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Link
+          href="/recipes"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+        >
+          <span aria-hidden="true">←</span> Cookbook
+        </Link>
+      </div>
       <ShellContextPanel
         side="left"
         label="Cookbook"

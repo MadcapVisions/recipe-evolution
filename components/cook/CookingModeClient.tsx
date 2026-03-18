@@ -1047,7 +1047,7 @@ export function CookingModeClient({
                         </h2>
                       </div>
                       {typeof currentStep?.timer_seconds === "number" ? (
-                        <p className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700">
+                        <p className="inline-flex rounded-full bg-[rgba(74,106,96,0.12)] px-3 py-1 text-sm font-medium text-[color:var(--primary-strong)]">
                           Suggested timer: {Math.round(currentStep.timer_seconds / 60)} min
                         </p>
                       ) : null}
