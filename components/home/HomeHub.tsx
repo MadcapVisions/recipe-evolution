@@ -25,6 +25,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
     smartCuisines,
     smartCookTimes,
     smartPreferences,
+    appliedFilters,
     smartIdeas,
     smartLoading,
     smartGeneratingRecipe,
@@ -49,12 +50,13 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
     toggleSmartProtein,
     toggleSmartCuisine,
     toggleSmartCookTime,
+    applyCurrentSmartFilters,
+    removeAppliedFilter,
     handleGenerateSmartMeals,
     handleSelectSmartIdea,
   } = useHomeHubAi(userTasteProfile);
 
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
   const chatStarted = heroChatMessages.length > 0;
 
   // Close filters panel when the user starts a conversation
@@ -65,14 +67,13 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
   }, [chatStarted]);
 
   function handleApplyFilters() {
-    const all = [...smartProteins, ...smartCuisines, ...smartCookTimes, ...smartPreferences];
-    setAppliedFilters(all);
+    applyCurrentSmartFilters();
     setFiltersPanelOpen(false);
     void handleGenerateSmartMeals();
   }
 
   function handleRemoveAppliedFilter(filter: string) {
-    setAppliedFilters((prev) => prev.filter((f) => f !== filter));
+    removeAppliedFilter(filter);
   }
 
   const activeFilterCount =

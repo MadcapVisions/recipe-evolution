@@ -30,6 +30,7 @@ const homeAiRequestSchema = z.discriminatedUnion("mode", [
     userMessage: z.string().trim().min(1).max(4000),
     recipeContext: recipeContextSchema,
     conversationHistory: z.array(aiMessageSchema).optional(),
+    conversationRails: z.array(z.string()).optional(),
     conversationKey: z.string().optional(),
   }),
   z.object({
@@ -68,6 +69,7 @@ const homeAiRequestSchema = z.discriminatedUnion("mode", [
     prompt: z.string().optional(),
     ingredients: z.array(z.string()).optional(),
     conversationHistory: z.array(aiMessageSchema).optional(),
+    conversationRails: z.array(z.string()).optional(),
   }),
 ]);
 
@@ -137,7 +139,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: true, message: "Chef chat is currently disabled." }, { status: 503 });
       }
 
-      const result = await chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
+      const conversationRails = Array.isArray(body.conversationRails)
+        ? body.conversationRails.filter((rail): rail is string => typeof rail === "string" && rail.trim().length > 0).map((rail) => rail.trim())
+        : [];
+
+      const result = await chefChat(
+        userMessage,
+        body.recipeContext ?? null,
+        conversationHistory,
+        userTasteSummary,
+        taskSetting,
+        conversationRails
+      );
 
       const envelope = result.envelope;
 
@@ -246,6 +259,9 @@ export async function POST(request: Request) {
                 typeof message.content === "string" &&
                 message.content.trim().length > 0
             )
+          : undefined,
+        conversationRails: Array.isArray(body.conversationRails)
+          ? body.conversationRails.filter((rail): rail is string => typeof rail === "string" && rail.trim().length > 0).map((rail) => rail.trim())
           : undefined,
       }, userTasteSummary, {
         supabase: access.supabase as any,

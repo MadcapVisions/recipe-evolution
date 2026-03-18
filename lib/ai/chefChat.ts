@@ -110,10 +110,11 @@ function buildStructuredMessages(
   userMessage: string,
   recipeContext: RecipeContext,
   conversationHistory: AIMessage[],
-  userTasteSummary?: string
+  userTasteSummary?: string,
+  conversationRails: string[] = []
 ): AIMessage[] {
   return [
-    ...buildChefChatPrompt(userMessage, recipeContext, conversationHistory, userTasteSummary),
+    ...buildChefChatPrompt(userMessage, recipeContext, conversationHistory, userTasteSummary, conversationRails),
     {
       role: "system",
       content: `Return ONLY valid JSON with this shape:
@@ -169,9 +170,16 @@ export async function chefChat(
   recipeContext: RecipeContext,
   conversationHistory: AIMessage[] = [],
   userTasteSummary?: string,
-  taskSetting?: AiTaskSettingRecord
+  taskSetting?: AiTaskSettingRecord,
+  conversationRails: string[] = []
 ): Promise<ChefChatResult> {
-  const messages = buildStructuredMessages(userMessage, recipeContext, conversationHistory, userTasteSummary);
+  const messages = buildStructuredMessages(
+    userMessage,
+    recipeContext,
+    conversationHistory,
+    userTasteSummary,
+    conversationRails
+  );
   const aiOptions = {
     max_tokens: taskSetting?.maxTokens ?? TOKEN_LIMITS.chefChat.max_tokens,
     temperature: taskSetting?.temperature ?? TOKEN_LIMITS.chefChat.temperature,

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeBrowseItem, RecipeBrowseSort, RecipeBrowseTab } from "@/lib/recipeBrowseData";
@@ -89,6 +90,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
   const menuRef = useRef<HTMLDivElement>(null);
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
   function toggleFilter(option: string) {
     setActiveFilters((prev) =>
@@ -100,6 +102,10 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
     () => recipes.filter((recipe) => recipeMatchesFilters(recipe, activeFilters)),
     [recipes, activeFilters]
   );
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -266,93 +272,96 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
 
   return (
     <section className="space-y-5">
-      {/* Desktop filters slide-in panel */}
-      {filtersPanelOpen ? (
-        <>
-          <div
-            className="fixed inset-0 z-40 hidden xl:block"
-            onClick={() => setFiltersPanelOpen(false)}
-          />
-          <div className="fixed left-2 top-1/2 z-50 hidden max-h-[calc(100vh-100px)] w-[300px] -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <p className="app-kicker">Filters</p>
-                <h2 className="mt-1.5 font-display text-[20px] font-semibold tracking-tight text-[color:var(--text)]">Filter your recipes</h2>
-                <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Select any combination — only recipes matching all selected filters will show.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFiltersPanelOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[rgba(141,169,187,0.14)] hover:text-[color:var(--text)]"
-                aria-label="Close filters"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
+      {isMounted
+        ? createPortal(
+            <>
+              {filtersPanelOpen ? (
+                <>
+                  <div
+                    className="fixed inset-0 z-40 hidden xl:block"
+                    onClick={() => setFiltersPanelOpen(false)}
+                  />
+                  <div className="fixed left-2 top-1/2 z-50 hidden max-h-[calc(100vh-100px)] w-[300px] -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
+                    <div className="mb-5 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="app-kicker">Filters</p>
+                        <h2 className="mt-1.5 font-display text-[20px] font-semibold tracking-tight text-[color:var(--text)]">Filter your recipes</h2>
+                        <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Select any combination — only recipes matching all selected filters will show.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFiltersPanelOpen(false)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[rgba(141,169,187,0.14)] hover:text-[color:var(--text)]"
+                        aria-label="Close filters"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                          <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
 
-            {activeFilters.length > 0 ? (
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-[color:var(--primary)]">{activeFilters.length} active</p>
+                    {activeFilters.length > 0 ? (
+                      <div className="mb-4 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-[color:var(--primary)]">{activeFilters.length} active</p>
+                        <button
+                          type="button"
+                          onClick={() => setActiveFilters([])}
+                          className="text-xs font-semibold text-[color:var(--muted)] underline underline-offset-2 hover:text-[color:var(--text)]"
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                    ) : null}
+
+                    <div className="space-y-5">
+                      {FILTER_GROUPS.map((group) => (
+                        <div key={group.label}>
+                          <p className="mb-2 text-[13px] font-semibold text-[color:var(--text)]">{group.label}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {group.options.map((option) => {
+                              const active = activeFilters.includes(option);
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => toggleFilter(option)}
+                                  className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                                    active
+                                      ? "bg-[color:var(--primary)] text-white"
+                                      : "border border-[rgba(79,54,33,0.1)] bg-[rgba(111,102,95,0.06)] text-[color:var(--text)] hover:bg-[rgba(111,102,95,0.1)]"
+                                  }`}
+                                >
+                                  {option}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setActiveFilters([])}
-                  className="text-xs font-semibold text-[color:var(--muted)] underline underline-offset-2 hover:text-[color:var(--text)]"
+                  onClick={() => setFiltersPanelOpen(true)}
+                  className="fixed left-0 top-1/2 z-40 hidden -translate-y-1/2 xl:flex"
+                  aria-label="Open filters panel"
                 >
-                  Clear all
-                </button>
-              </div>
-            ) : null}
-
-            <div className="space-y-5">
-              {FILTER_GROUPS.map((group) => (
-                <div key={group.label}>
-                  <p className="mb-2 text-[13px] font-semibold text-[color:var(--text)]">{group.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {group.options.map((option) => {
-                      const active = activeFilters.includes(option);
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => toggleFilter(option)}
-                          className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
-                            active
-                              ? "bg-[color:var(--primary)] text-white"
-                              : "border border-[rgba(79,54,33,0.1)] bg-[rgba(111,102,95,0.06)] text-[color:var(--text)] hover:bg-[rgba(111,102,95,0.1)]"
-                          }`}
-                        >
-                          {option}
-                        </button>
-                      );
-                    })}
+                  <div className="flex flex-col items-center gap-2 rounded-r-[16px] border border-l-0 border-[rgba(57,75,70,0.1)] bg-[rgba(255,253,249,0.96)] py-4 pl-2 pr-3 shadow-[2px_0_12px_rgba(52,70,63,0.08)] transition hover:bg-white">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[color:var(--primary)]">
+                      <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
+                      {activeFilters.length > 0 ? `${activeFilters.length} filter${activeFilters.length === 1 ? "" : "s"}` : "Filters"}
+                    </p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      ) : null}
-
-      {/* Desktop edge trigger */}
-      {!filtersPanelOpen ? (
-        <button
-          type="button"
-          onClick={() => setFiltersPanelOpen(true)}
-          className="fixed left-0 top-1/2 z-40 hidden -translate-y-1/2 xl:flex"
-          aria-label="Open filters panel"
-        >
-          <div className="flex flex-col items-center gap-2 rounded-r-[16px] border border-l-0 border-[rgba(57,75,70,0.1)] bg-[rgba(255,253,249,0.96)] py-4 pl-2 pr-3 shadow-[2px_0_12px_rgba(52,70,63,0.08)] transition hover:bg-white">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[color:var(--primary)]">
-              <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <p className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
-              {activeFilters.length > 0 ? `${activeFilters.length} filter${activeFilters.length === 1 ? "" : "s"}` : "Filters"}
-            </p>
-          </div>
-        </button>
-      ) : null}
+                </button>
+              )}
+            </>,
+            document.body
+          )
+        : null}
 
       <section className="app-panel polish-card animate-rise-in p-4 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

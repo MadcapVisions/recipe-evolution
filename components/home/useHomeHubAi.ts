@@ -246,6 +246,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const [smartCuisines, setSmartCuisines] = useState<string[]>([]);
   const [smartCookTimes, setSmartCookTimes] = useState<string[]>([]);
   const [smartPreferences, setSmartPreferences] = useState<string[]>([]);
+  const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
   const [smartIdeas, setSmartIdeas] = useState<RecipeIdea[]>([]);
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartGeneratingRecipe, setSmartGeneratingRecipe] = useState(false);
@@ -482,6 +483,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         prompt: latestUserPrompt,
         ingredients,
         conversationHistory,
+        conversationRails: appliedFilters,
       });
 
       const recipe = ((data.result as AiRecipeResult | undefined)?.recipe ?? data.recipe) as GeneratedRecipe;
@@ -630,6 +632,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         mode: "chef_chat",
         userMessage: trimmedPrompt,
         recipeContext,
+        conversationRails: appliedFilters,
         conversationHistory:
           startsNewDirection
             ? []
@@ -795,6 +798,22 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setSmartPreferences((current) => toggleSelection(current, value));
   };
 
+  const applyCurrentSmartFilters = () => {
+    const nextAppliedFilters = [...smartProteins, ...smartCuisines, ...smartCookTimes, ...smartPreferences].filter(
+      (filter) => filter.trim().toLowerCase() !== "no preference"
+    );
+    setAppliedFilters(nextAppliedFilters);
+    return nextAppliedFilters;
+  };
+
+  const removeAppliedFilter = (filterToRemove: string) => {
+    setAppliedFilters((current) => current.filter((filter) => filter !== filterToRemove));
+    setSmartProteins((current) => current.filter((filter) => filter !== filterToRemove));
+    setSmartCuisines((current) => current.filter((filter) => filter !== filterToRemove));
+    setSmartCookTimes((current) => current.filter((filter) => filter !== filterToRemove));
+    setSmartPreferences((current) => current.filter((filter) => filter !== filterToRemove));
+  };
+
   const handleGenerateSmartMeals = async () => {
     if (smartLoading) {
       return;
@@ -907,6 +926,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     smartCuisines,
     smartCookTimes,
     smartPreferences,
+    appliedFilters,
     smartIdeas,
     smartLoading,
     smartGeneratingRecipe,
@@ -933,6 +953,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     toggleSmartProtein,
     toggleSmartCuisine,
     toggleSmartCookTime,
+    applyCurrentSmartFilters,
+    removeAppliedFilter,
     handleGenerateSmartMeals,
     handleSelectSmartIdea,
   };

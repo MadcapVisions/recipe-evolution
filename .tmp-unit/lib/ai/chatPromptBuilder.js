@@ -7,7 +7,21 @@ const flavorAnalyzer_1 = require("./chefEngine/flavorAnalyzer");
 const flavorGraphEngine_1 = require("./flavorGraph/flavorGraphEngine");
 const substitutionEngine_1 = require("./substitutionEngine/substitutionEngine");
 const buildCookingContext_1 = require("./preprocessing/buildCookingContext");
-function buildChefChatPrompt(userMessage, recipeContext, conversationHistory = [], userTasteSummary) {
+function buildConversationRailsPrompt(conversationRails) {
+    if (conversationRails.length === 0) {
+        return null;
+    }
+    return `Active Conversation Rails:
+${conversationRails.map((rail) => `- ${rail}`).join("\n")}
+
+Rules for rails:
+- Treat these rails as active constraints for the current conversation.
+- If a rail already settles a choice, do not ask the user to choose outside that rail.
+- Do not suggest contradictory directions unless the user explicitly changes the rail.
+- If the rail says Chicken, stay in the chicken lane and do not ask whether they want vegetarian or another main protein.
+- Prefer to move the dish forward inside these rails instead of reopening already-resolved decisions.`;
+}
+function buildChefChatPrompt(userMessage, recipeContext, conversationHistory = [], userTasteSummary, conversationRails = []) {
     let contextText = "";
     if (recipeContext) {
         contextText = `
@@ -26,6 +40,7 @@ ${recipeContext.steps?.join("\n") ?? "None provided"}
     const flavorGraphContext = (0, flavorGraphEngine_1.generateFlavorContext)(recipeContext?.ingredients || []);
     const substitutionContext = (0, substitutionEngine_1.generateSubstitutionContext)(recipeContext?.ingredients || []);
     const cookingContext = (0, buildCookingContext_1.buildCookingContext)(recipeContext?.ingredients || []);
+    const railsPrompt = buildConversationRailsPrompt(conversationRails.map((rail) => rail.trim()).filter((rail) => rail.length > 0));
     return [
         {
             role: "system",
@@ -51,6 +66,8 @@ After that, add one short line that names the strongest option.
             role: "system",
             content: `
 ${contextText}
+
+${railsPrompt ? `${railsPrompt}\n` : ""}
 
 User Taste Profile:
 ${userTasteSummary?.trim() || "No user taste profile available."}
