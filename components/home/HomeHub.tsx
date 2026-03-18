@@ -255,6 +255,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
           heroChatReadyToApply={heroChatReadyToApply}
           activeChatRecipeIndex={activeChatRecipeIndex}
           error={error}
+          status={status}
             onPromptInputChange={setPromptInput}
             onPromptInputKeyDown={handleHeroInputKeyDown}
             onAskChef={() => void handleAskChefInHero()}

@@ -316,7 +316,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const describeAiOutage = (rawError: unknown, fallbackLabel: string) => {
     const message = rawError instanceof Error ? rawError.message : "";
     if (message.includes("(429)") || message.toLowerCase().includes("toomanyrequests")) {
-      return `${fallbackLabel} while Gemini is rate-limited.`;
+      return `${fallbackLabel} while Chef AI is rate-limited.`;
     }
     return `${fallbackLabel} while AI is unavailable.`;
   };
@@ -736,20 +736,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       title: option.title,
       summary: option.summary,
       tags: option.tags,
-    });
-    setHeroChatMessages((current) => {
-      const alreadyConfirmed = current.at(-1)?.kind === "direction_selected" && current.at(-1)?.text.includes(option.title);
-      if (alreadyConfirmed) {
-        return current;
-      }
-      return [
-        ...current,
-        {
-          role: "ai",
-          text: `Direction locked: ${option.title}. Keep refining this dish, or build the recipe when ready.`,
-          kind: "direction_selected",
-        },
-      ];
     });
     setHeroChatReadyToApply(true);
     setError(null);

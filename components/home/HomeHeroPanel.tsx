@@ -17,6 +17,7 @@ type HomeHeroPanelProps = {
   heroChatReadyToApply: boolean;
   activeChatRecipeIndex: number | null;
   error: string | null;
+  status: string | null;
   onPromptInputChange: (value: string) => void;
   onPromptInputKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onAskChef: () => void;
@@ -37,6 +38,7 @@ export function HomeHeroPanel({
   heroChatReadyToApply,
   activeChatRecipeIndex,
   error,
+  status,
   onPromptInputChange,
   onPromptInputKeyDown,
   onAskChef,
@@ -58,8 +60,8 @@ export function HomeHeroPanel({
   return (
     <section className="app-panel flex min-h-0 flex-col overflow-hidden">
       <div
-        className={`hidden overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-5 transition-[max-height,padding,opacity] duration-300 md:block md:px-6 lg:px-8 ${
-          hasConversation ? "md:max-h-0 md:border-b-0 md:py-0 md:opacity-0" : "md:max-h-[340px] md:py-6 md:opacity-100 lg:max-h-[360px] lg:py-8"
+        className={`overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-5 transition-[max-height,padding,opacity] duration-300 md:px-6 lg:px-8 ${
+          hasConversation ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-[420px] py-5 opacity-100 md:max-h-[340px] md:py-6 lg:max-h-[360px] lg:py-8"
         }`}
       >
           <div className="space-y-4">
@@ -272,19 +274,6 @@ export function HomeHeroPanel({
                             </div>
                           </div>
                         ) : null}
-                        {selectedFromThisMessage ? (
-                          <div className="rounded-[18px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] px-3 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-[14px] font-semibold text-[color:var(--text)]">{selectedFromThisMessage.title}</p>
-                                <p className="mt-1 text-[12px] leading-5 text-[color:var(--muted)]">{compactOptionSummary(selectedFromThisMessage.summary)}</p>
-                              </div>
-                              <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
-                                Selected
-                              </span>
-                            </div>
-                          </div>
-                        ) : null}
                         {!selectedFromThisMessage ? (
                           <button
                             type="button"
@@ -314,7 +303,7 @@ export function HomeHeroPanel({
                 ? "Refine this direction: flavor, texture, timing, substitutions..."
                 : "Describe a dish, ingredients, or a cooking constraint..."
             }
-            className="min-h-12 flex-1 rounded-full bg-white px-5 text-[16px]"
+            className="min-h-12 flex-1 rounded-full bg-white px-5 py-3 text-[16px]"
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
@@ -337,6 +326,7 @@ export function HomeHeroPanel({
         </div>
 
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+        {!error && status ? <p className="mt-3 text-sm text-[color:var(--muted)]">{status}</p> : null}
       </div>
     </section>
   );

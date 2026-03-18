@@ -16,6 +16,15 @@ function quickChip(active = false) {
     : "app-chip justify-center border border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.08)] hover:bg-[rgba(141,169,187,0.14)]";
 }
 
+const QUICK_ACTIONS = [
+  { label: "Improve Flavor", instruction: "Improve the flavor profile" },
+  { label: "Make Vegetarian", instruction: "Make this recipe vegetarian" },
+  { label: "Reduce Calories", instruction: "Reduce calories but keep flavor" },
+  { label: "Make Faster", instruction: "Make this recipe faster to cook" },
+  { label: "High Protein", instruction: "Make this recipe high protein" },
+  { label: "Make it Spicy", instruction: "Make this recipe spicy" },
+];
+
 export function ChefAiPanel({
   aiConversation,
   selectedDirection,
@@ -65,14 +74,7 @@ export function ChefAiPanel({
         <div className="mt-5">
           <p className="app-kicker">Quick actions</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {[
-              { label: "Improve Flavor", instruction: "Improve the flavor profile" },
-              { label: "Make Vegetarian", instruction: "Make this recipe vegetarian" },
-              { label: "Reduce Calories", instruction: "Reduce calories but keep flavor" },
-              { label: "Make Faster", instruction: "Make this recipe faster to cook" },
-              { label: "High Protein", instruction: "Make this recipe high protein" },
-              { label: "Make it Spicy", instruction: "Make this recipe spicy" },
-            ].map((item) => (
+            {QUICK_ACTIONS.map((item) => (
               <button key={item.label} type="button" onClick={() => onQuickAction(item.instruction)} disabled={isAskingAi || isGeneratingVersion} className={quickChip()}>
                 {item.label}
               </button>
@@ -91,14 +93,7 @@ export function ChefAiPanel({
         <details className="mt-5 rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] p-3">
           <summary className="cursor-pointer list-none text-sm font-semibold text-[color:var(--text)]">Quick actions</summary>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {[
-              { label: "Improve Flavor", instruction: "Improve the flavor profile" },
-              { label: "Make Vegetarian", instruction: "Make this recipe vegetarian" },
-              { label: "Reduce Calories", instruction: "Reduce calories but keep flavor" },
-              { label: "Make Faster", instruction: "Make this recipe faster to cook" },
-              { label: "High Protein", instruction: "Make this recipe high protein" },
-              { label: "Make it Spicy", instruction: "Make this recipe spicy" },
-            ].map((item) => (
+            {QUICK_ACTIONS.map((item) => (
               <button key={item.label} type="button" onClick={() => onQuickAction(item.instruction)} disabled={isAskingAi || isGeneratingVersion} className={quickChip()}>
                 {item.label}
               </button>
@@ -160,19 +155,7 @@ export function ChefAiPanel({
                   {message.text}
                 </div>
                 {message.role === "assistant" && (message.options?.length ?? 0) > 0 ? (
-                  selectedDirection?.messageId === message.id ? (
-                    <div className="rounded-[18px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] px-3 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-semibold text-[color:var(--text)]">{selectedDirection.title}</p>
-                          <p className="mt-1 text-[12px] leading-5 text-[color:var(--muted)]">{compactOptionSummary(selectedDirection.summary)}</p>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
-                          Selected
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
+                  selectedDirection?.messageId === message.id ? null : (
                     <div className="space-y-2">
                       <div className="space-y-2 sm:hidden">
                         {message.options?.map((option) => {
@@ -213,7 +196,7 @@ export function ChefAiPanel({
                           );
                         })}
                       </div>
-                      <div className="hidden gap-2 sm:grid">
+                      <div className="hidden gap-2 sm:grid sm:grid-cols-2">
                         {message.options?.map((option) => {
                           const selected =
                             selectedDirection?.messageId === message.id && selectedDirection.optionId === option.id;
