@@ -5,6 +5,19 @@ export type ChefDirectionOption = {
   tags: string[];
 };
 
+export function optionsTooSimilar(options: ChefDirectionOption[]): boolean {
+  for (let i = 0; i < options.length; i++) {
+    for (let j = i + 1; j < options.length; j++) {
+      const wordsA = new Set(options[i].title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2));
+      const wordsB = new Set(options[j].title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2));
+      const shared = Array.from(wordsA).filter((w: string) => wordsB.has(w)).length;
+      const maxSize = Math.max(wordsA.size, wordsB.size);
+      if (maxSize > 0 && shared / maxSize > 0.6) return true;
+    }
+  }
+  return false;
+}
+
 export type ChefChatEnvelope = {
   mode: "options" | "refine";
   reply: string;

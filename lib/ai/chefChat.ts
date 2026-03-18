@@ -1,6 +1,6 @@
 import { callAIForJson } from "./jsonResponse";
 import { buildChefChatPrompt, type AIMessage, type RecipeContext } from "./chatPromptBuilder";
-import { buildChefChatEnvelope, normalizeChefChatEnvelope, type ChefChatEnvelope, type ChefDirectionOption } from "./chefOptions";
+import { buildChefChatEnvelope, normalizeChefChatEnvelope, optionsTooSimilar, type ChefChatEnvelope, type ChefDirectionOption } from "./chefOptions";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
 import type { AiTaskSettingRecord } from "./taskSettings";
 
@@ -103,20 +103,6 @@ function looksIncompleteEnvelope(envelope: ChefChatEnvelope): boolean {
     return true;
   }
 
-  return false;
-}
-
-// --- Option diversity check (Item 9) ---
-function optionsTooSimilar(options: ChefDirectionOption[]): boolean {
-  for (let i = 0; i < options.length; i++) {
-    for (let j = i + 1; j < options.length; j++) {
-      const wordsA = new Set(options[i].title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2));
-      const wordsB = new Set(options[j].title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2));
-      const shared = Array.from(wordsA).filter((w: string) => wordsB.has(w)).length;
-      const maxSize = Math.max(wordsA.size, wordsB.size);
-      if (maxSize > 0 && shared / maxSize > 0.6) return true;
-    }
-  }
   return false;
 }
 
