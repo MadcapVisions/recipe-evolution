@@ -13,6 +13,53 @@ type RecipesBrowserProps = {
 
 const PAGE_SIZE = 24;
 
+// Filter chip definitions for the My Recipes filter panel
+const FILTER_GROUPS = [
+  {
+    label: "Protein",
+    options: ["Chicken", "Beef", "Fish", "Pork", "Tofu", "Beans", "Eggs"],
+  },
+  {
+    label: "Cook Time",
+    options: ["15 min", "30 min", "45 min", "1 hour"],
+  },
+  {
+    label: "Cuisine / Style",
+    options: ["Italian", "Mexican", "Asian", "Mediterranean", "Comfort Food", "Healthy"],
+  },
+];
+
+// Keyword aliases for fuzzy text matching (AND logic across all active filters)
+const FILTER_KEYWORDS: Record<string, string[]> = {
+  chicken: ["chicken", "pollo"],
+  beef: ["beef", "steak", "burger", "brisket"],
+  fish: ["fish", "salmon", "tuna", "cod", "halibut", "shrimp", "seafood", "prawn"],
+  pork: ["pork", "bacon", "ham", "prosciutto", "chorizo"],
+  tofu: ["tofu"],
+  beans: ["bean", "lentil", "chickpea", "legume"],
+  eggs: ["egg"],
+  "15 min": ["15 min", "15-min", "15 minute", "quick", "fast"],
+  "30 min": ["30 min", "30-min", "30 minute"],
+  "45 min": ["45 min", "45-min", "45 minute"],
+  "1 hour": ["1 hour", "1-hour", "60 min", "slow cook"],
+  italian: ["italian", "pasta", "risotto", "pizza", "lasagna"],
+  mexican: ["mexican", "taco", "burrito", "enchilada", "salsa", "guacamole"],
+  asian: ["asian", "thai", "chinese", "japanese", "korean", "ramen", "stir-fry", "stir fry"],
+  mediterranean: ["mediterranean", "greek", "hummus", "falafel"],
+  "comfort food": ["comfort", "mac and cheese", "casserole", "stew", "soup", "chili"],
+  healthy: ["healthy", "salad", "light", "vegan", "vegetarian", "grain bowl"],
+};
+
+function recipeMatchesFilters(recipe: RecipeBrowseItem, activeFilters: string[]): boolean {
+  if (activeFilters.length === 0) return true;
+  const haystack = [recipe.title, ...recipe.tags].join(" ").toLowerCase();
+  return activeFilters.every((filter) => {
+    const key = filter.toLowerCase();
+    const keywords = FILTER_KEYWORDS[key] ?? [key];
+    return keywords.some((kw) => haystack.includes(kw));
+  });
+}
+
 function getCoverAnnotation(recipe: RecipeBrowseItem) {
   if (recipe.is_favorite) {
     return "Worth keeping.";
@@ -40,6 +87,19 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
+
+  function toggleFilter(option: string) {
+    setActiveFilters((prev) =>
+      prev.includes(option) ? prev.filter((f) => f !== option) : [...prev, option]
+    );
+  }
+
+  const filteredRecipes = useMemo(
+    () => recipes.filter((recipe) => recipeMatchesFilters(recipe, activeFilters)),
+    [recipes, activeFilters]
+  );
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -206,6 +266,94 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
 
   return (
     <section className="space-y-5">
+      {/* Desktop filters slide-in panel */}
+      {filtersPanelOpen ? (
+        <>
+          <div
+            className="fixed inset-0 z-40 hidden xl:block"
+            onClick={() => setFiltersPanelOpen(false)}
+          />
+          <div className="fixed left-2 top-[76px] z-50 hidden h-[calc(100vh-76px-16px)] w-[300px] overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="app-kicker">Filters</p>
+                <h2 className="mt-1.5 font-display text-[20px] font-semibold tracking-tight text-[color:var(--text)]">Filter your recipes</h2>
+                <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">Select any combination — only recipes matching all selected filters will show.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersPanelOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[rgba(141,169,187,0.14)] hover:text-[color:var(--text)]"
+                aria-label="Close filters"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            {activeFilters.length > 0 ? (
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-[color:var(--primary)]">{activeFilters.length} active</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveFilters([])}
+                  className="text-xs font-semibold text-[color:var(--muted)] underline underline-offset-2 hover:text-[color:var(--text)]"
+                >
+                  Clear all
+                </button>
+              </div>
+            ) : null}
+
+            <div className="space-y-5">
+              {FILTER_GROUPS.map((group) => (
+                <div key={group.label}>
+                  <p className="mb-2 text-[13px] font-semibold text-[color:var(--text)]">{group.label}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {group.options.map((option) => {
+                      const active = activeFilters.includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => toggleFilter(option)}
+                          className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                            active
+                              ? "bg-[color:var(--primary)] text-white"
+                              : "border border-[rgba(79,54,33,0.1)] bg-[rgba(111,102,95,0.06)] text-[color:var(--text)] hover:bg-[rgba(111,102,95,0.1)]"
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {/* Desktop edge trigger */}
+      {!filtersPanelOpen ? (
+        <button
+          type="button"
+          onClick={() => setFiltersPanelOpen(true)}
+          className="fixed left-0 top-1/2 z-40 hidden -translate-y-1/2 xl:flex"
+          aria-label="Open filters panel"
+        >
+          <div className="flex flex-col items-center gap-2 rounded-r-[16px] border border-l-0 border-[rgba(57,75,70,0.1)] bg-[rgba(255,253,249,0.96)] py-4 pl-2 pr-3 shadow-[2px_0_12px_rgba(52,70,63,0.08)] transition hover:bg-white">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[color:var(--primary)]">
+              <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <p className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">
+              {activeFilters.length > 0 ? `${activeFilters.length} filter${activeFilters.length === 1 ? "" : "s"}` : "Filters"}
+            </p>
+          </div>
+        </button>
+      ) : null}
+
       <section className="app-panel polish-card animate-rise-in p-4 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -273,9 +421,14 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
         <div className="mt-4 flex flex-col gap-3 rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[15px] font-semibold text-[color:var(--text)]">
-              {recipes.length} recipe{recipes.length === 1 ? "" : "s"} on this shelf
+              {activeFilters.length > 0
+                ? `${filteredRecipes.length} of ${recipes.length} recipe${recipes.length === 1 ? "" : "s"} match`
+                : `${recipes.length} recipe${recipes.length === 1 ? "" : "s"} on this shelf`}
             </p>
             <p className="text-[14px] text-[color:var(--muted)]">
+              {activeFilters.length > 0
+                ? `${activeFilters.join(", ")} · `
+                : ""}
               {hasMore ? "Load more when you want to keep browsing." : "You have reached the end of this shelf."}
             </p>
           </div>
@@ -294,7 +447,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {recipes.map((recipe, index) => (
+        {filteredRecipes.map((recipe, index) => (
           <article
             key={recipe.id}
             className="recipe-cover-wrap polish-card animate-rise-in relative overflow-hidden rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] shadow-[0_12px_30px_rgba(52,70,63,0.07)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(52,70,63,0.08)]"
@@ -419,19 +572,29 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
         ))}
       </div>
 
-      {!isLoading && recipes.length === 0 ? (
+      {!isLoading && filteredRecipes.length === 0 ? (
         <div className="app-empty-state animate-rise-in px-6 py-10 text-center">
           <p className="app-kicker">My Recipes</p>
           <p className="mt-3 font-display text-[36px] font-semibold text-[color:var(--text)]">
-            {deferredSearch.trim() ? "No recipes match that search." : "Nothing is on this shelf yet."}
+            {activeFilters.length > 0
+              ? "No recipes match these filters."
+              : deferredSearch.trim()
+              ? "No recipes match that search."
+              : "Nothing is on this shelf yet."}
           </p>
           <p className="mx-auto mt-3 max-w-2xl text-[15px] leading-7 text-[color:var(--muted)]">
-            {deferredSearch.trim()
+            {activeFilters.length > 0
+              ? "Try removing a filter or two to widen the results."
+              : deferredSearch.trim()
               ? "Try a different word, switch to another shelf, or clear the search to browse everything."
               : "Try another shelf, or add a new dish to the cookbook so this section starts to fill with recipes worth revisiting."}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            {deferredSearch.trim() ? (
+            {activeFilters.length > 0 ? (
+              <button type="button" onClick={() => setActiveFilters([])} className="ui-btn ui-btn-solid">
+                Clear Filters
+              </button>
+            ) : deferredSearch.trim() ? (
               <button type="button" onClick={() => setSearch("")} className="ui-btn ui-btn-solid">
                 Clear Search
               </button>

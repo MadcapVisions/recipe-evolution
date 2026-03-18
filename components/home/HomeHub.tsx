@@ -54,6 +54,14 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
   } = useHomeHubAi(userTasteProfile);
 
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+  const chatStarted = heroChatMessages.length > 0;
+
+  // Close filters panel when the user starts a conversation
+  useEffect(() => {
+    if (chatStarted) {
+      setFiltersPanelOpen(false);
+    }
+  }, [chatStarted]);
 
   const activeFilterCount =
     smartProteins.length + smartCuisines.length + smartCookTimes.length + smartPreferences.length;
@@ -163,7 +171,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
             className="fixed inset-0 z-40 hidden xl:block"
             onClick={() => setFiltersPanelOpen(false)}
           />
-          <div className="fixed left-0 top-0 z-50 hidden h-full w-[320px] overflow-y-auto border-r border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_0_32px_rgba(52,70,63,0.10)] xl:block">
+          <div className="fixed left-2 top-[76px] z-50 hidden h-[calc(100vh-76px-16px)] w-[320px] overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <p className="app-kicker">Filters</p>
@@ -186,8 +194,8 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
         </>
       ) : null}
 
-      {/* Desktop edge trigger — filters, xl only */}
-      {!filtersPanelOpen ? (
+      {/* Desktop edge trigger — filters, xl only, hidden once chat started */}
+      {!filtersPanelOpen && !chatStarted ? (
         <button
           type="button"
           onClick={() => setFiltersPanelOpen(true)}
