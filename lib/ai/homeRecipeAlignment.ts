@@ -52,7 +52,17 @@ function detectRequestedProtein(context: string) {
 
 function detectRequestedAnchorIngredient(context: string) {
   const normalized = normalizeText(context);
-  const anchors = ["eggplant", "aubergine", "vinete", "zucchini", "broccoli", "tomato", "tomatoes", "mushroom", "mushrooms"];
+  const anchors = [
+    "eggplant", "aubergine", "vinete",
+    "zucchini", "courgette",
+    "broccoli", "cauliflower",
+    "tomato", "tomatoes",
+    "mushroom", "mushrooms",
+    "sweet potato", "squash", "butternut",
+    "spinach", "kale",
+    "corn", "asparagus", "leek", "leeks",
+    "cabbage", "fennel", "beet", "beets",
+  ];
   return anchors.find((item) => normalized.includes(item)) ?? null;
 }
 
@@ -122,7 +132,7 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
   if (requestedFamily === "pasta" && !includesAny(recipeText, ["pasta", "linguine", "fettuccine", "spaghetti", "penne", "rigatoni", "noodle", "noodles"])) {
     return false;
   }
-  if (requestedFamily === "bowl" && !includesAny(recipeText, ["bowl"])) {
+  if (requestedFamily === "bowl" && !includesAny(recipeText, ["bowl", "rice", "grain", "quinoa", "farro", "serve over", "served over", "topped with", "over rice", "over grains", "base"])) {
     return false;
   }
   if (requestedFamily === "salad" && !includesAny(recipeText, ["salad", "greens", "vinaigrette"])) {
@@ -149,8 +159,17 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
     return false;
   }
 
-  if (requestedAnchor === "eggplant" || requestedAnchor === "aubergine" || requestedAnchor === "vinete") {
-    if (!includesAny(recipeText, ["eggplant", "aubergine", "vinete"])) {
+  if (requestedAnchor) {
+    const anchorAliases: Record<string, string[]> = {
+      eggplant: ["eggplant", "aubergine", "vinete"],
+      aubergine: ["eggplant", "aubergine", "vinete"],
+      vinete: ["eggplant", "aubergine", "vinete"],
+      courgette: ["zucchini", "courgette"],
+      "sweet potato": ["sweet potato"],
+      butternut: ["butternut", "squash"],
+    };
+    const aliases = anchorAliases[requestedAnchor] ?? [requestedAnchor];
+    if (!includesAny(recipeText, aliases)) {
       return false;
     }
   }

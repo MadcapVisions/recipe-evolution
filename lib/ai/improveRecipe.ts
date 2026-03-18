@@ -115,7 +115,15 @@ When asked to improve a recipe, you must return ONLY valid JSON with no markdown
 }
 
 Rules:
-- Always make meaningful changes for the instruction.
+- Always make changes that directly and visibly address the instruction. Vague rewrites are not acceptable.
+- For "spicier" or "more heat": increase or add chili, cayenne, jalapeño, gochujang, or hot sauce — make at least 2 ingredient-level changes.
+- For "simpler" or "fewer ingredients": reduce the ingredient count by at least 2-3 items and combine or cut steps.
+- For "faster" or "quicker": lower cook_time_min meaningfully, prefer high-heat techniques over braises, and cut prep steps.
+- For "healthier" or "lighter": reduce butter, oil, cream, and cheese; add vegetables or lean protein; lower calorie density.
+- For "richer" or "creamier": add cream, butter, or cheese; deepen the sauce base; use fond or stock reduction.
+- For "more flavor" or "bolder": amplify aromatics (garlic, onion, shallot), add acid (lemon, vinegar), or add umami (parmesan, soy, miso, fish sauce).
+- For "vegetarian" or "vegan": swap meat proteins for legumes, tofu, or tempeh; ensure the swap preserves texture and flavor weight.
+- Preserve the core dish identity and format unless the instruction explicitly says to change it.
 - Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
 - Keep steps practical and home-cook friendly.
 - Do not include any text outside the JSON object.`,

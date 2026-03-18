@@ -91,7 +91,7 @@ function parseStructuredRecipe(value: unknown): StructuredRecipe | null {
       if (!name) {
         return null;
       }
-      if (typeof ingredient.quantity !== "number" || !Number.isFinite(ingredient.quantity)) {
+      if (typeof ingredient.quantity !== "number" || !Number.isFinite(ingredient.quantity) || ingredient.quantity <= 0) {
         return null;
       }
       return {

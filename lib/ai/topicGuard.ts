@@ -156,8 +156,6 @@ const OFF_TOPIC_KEYWORDS = [
   "politics",
   "election",
   "president",
-  "stock",
-  "stocks",
   "mortgage",
   "mortgage rates",
   "crypto",
@@ -304,7 +302,7 @@ function looksLikeIngredientList(text: string) {
     return false;
   }
 
-  return parts.every((item) => item.split(/\s+/).length <= 4 && !/\b(?:react|mortgage|flight|stock|bitcoin)\b/.test(item));
+  return parts.every((item) => item.split(/\s+/).length <= 4 && !/\b(?:react|mortgage|flight|bitcoin)\b/.test(item));
 }
 
 function hasStrongOffTopicIntent(text: string) {

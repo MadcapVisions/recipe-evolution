@@ -340,7 +340,7 @@ function recipeMatchesConversation(recipe: HomeGeneratedRecipe, input: { ideaTit
 }
 
 function buildIdeasPrompt(input: IdeaInput) {
-  const requestedCount = Math.max(1, Math.min(input.requestedCount ?? 2, 2));
+  const requestedCount = Math.max(1, Math.min(input.requestedCount ?? 6, 6));
   const conversation = formatConversation(input.conversationHistory);
   const excludeTitles = JSON.stringify(input.excludeTitles ?? []);
 
