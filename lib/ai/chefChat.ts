@@ -1,6 +1,6 @@
 import { callAIForJson } from "./jsonResponse";
 import { buildChefChatPrompt, type AIMessage, type RecipeContext } from "./chatPromptBuilder";
-import { buildChefChatEnvelope, normalizeChefChatEnvelope, type ChefChatEnvelope } from "./chefOptions";
+import { buildChefChatEnvelope, normalizeChefChatEnvelope, type ChefChatEnvelope, type ChefDirectionOption } from "./chefOptions";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
 import type { AiTaskSettingRecord } from "./taskSettings";
 
@@ -106,6 +106,20 @@ function looksIncompleteEnvelope(envelope: ChefChatEnvelope): boolean {
   return false;
 }
 
+// --- Option diversity check (Item 9) ---
+function optionsTooSimilar(options: ChefDirectionOption[]): boolean {
+  for (let i = 0; i < options.length; i++) {
+    for (let j = i + 1; j < options.length; j++) {
+      const wordsA = new Set(options[i].title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2));
+      const wordsB = new Set(options[j].title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2));
+      const shared = Array.from(wordsA).filter((w: string) => wordsB.has(w)).length;
+      const maxSize = Math.max(wordsA.size, wordsB.size);
+      if (maxSize > 0 && shared / maxSize > 0.6) return true;
+    }
+  }
+  return false;
+}
+
 function buildStructuredMessages(
   userMessage: string,
   recipeContext: RecipeContext,
@@ -173,7 +187,12 @@ export async function chefChat(
   const firstEnvelope = normalizeOrBuildEnvelope(firstAttempt.parsed, firstAttempt.text);
   const firstReply = firstEnvelope.reply;
 
-  if (!looksIncompleteEnvelope(firstEnvelope)) {
+  const hasWeakOptions =
+    firstEnvelope.mode === "options" &&
+    firstEnvelope.options.length >= 2 &&
+    optionsTooSimilar(firstEnvelope.options);
+
+  if (!looksIncompleteEnvelope(firstEnvelope) && !hasWeakOptions) {
     return {
       envelope: firstEnvelope,
       repaired: false,
@@ -183,6 +202,10 @@ export async function chefChat(
     };
   }
 
+  const repairReason = hasWeakOptions && !looksIncompleteEnvelope(firstEnvelope)
+    ? "Two or more of your option titles share too many words — they read as the same direction with minor wording variation. Return new options where each has a clearly different flavor angle, technique, or key ingredient. Keep the reply and recommended_option_id."
+    : "Your previous JSON reply was incomplete or weak. Return a complete JSON response now. If mode is options, include exactly 2 or 3 concrete options with distinct flavor angles and a recommended_option_id. If mode is refine, return no options.";
+
   const repairMessages: AIMessage[] = [
     ...messages,
     {
@@ -191,8 +214,7 @@ export async function chefChat(
     },
     {
       role: "user",
-      content:
-        "Your previous JSON reply was incomplete or weak. Return a complete JSON response now. If mode is options, include exactly 2 or 3 concrete options with distinct flavor angles and a recommended_option_id. If mode is refine, return no options.",
+      content: repairReason,
     },
   ];
 

@@ -47,6 +47,37 @@ type AiCacheContext = {
   userId: string;
 };
 
+// --- Step quality helpers (Item 7) ---
+const ACTIONABLE_COOKING_VERBS = new Set([
+  "add", "heat", "cook", "stir", "mix", "season", "chop", "dice", "slice", "mince",
+  "saute", "sauté", "fry", "boil", "simmer", "bake", "roast", "grill", "broil", "steam",
+  "drain", "rinse", "pour", "combine", "whisk", "beat", "fold", "toss", "coat", "brush",
+  "spread", "place", "transfer", "remove", "cover", "reduce", "thicken", "brown",
+  "caramelize", "marinate", "taste", "adjust", "serve", "rest", "cool", "preheat",
+  "melt", "sear", "deglaze", "blend", "puree", "press", "squeeze", "peel", "cut",
+  "trim", "score", "pound", "flatten", "roll", "knead", "refrigerate", "freeze", "let",
+]);
+
+function isVagueStep(text: string): boolean {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 10) return true;
+  const lower = text.toLowerCase();
+  return !Array.from(ACTIONABLE_COOKING_VERBS).some((verb) => lower.includes(verb));
+}
+
+// --- Taste profile helpers (Item 8) ---
+function extractDislikedFromSummary(tasteSummary: string): string[] {
+  const match = tasteSummary.match(/\bAvoid\s+([^.]+)\./i);
+  if (!match?.[1]) return [];
+  return match[1].split(/,\s+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+function findTasteViolations(recipe: HomeGeneratedRecipe, disliked: string[]): string[] {
+  if (disliked.length === 0) return [];
+  const ingredientText = recipe.ingredients.map((ing) => ing.name.toLowerCase()).join(" ");
+  return disliked.filter((d) => ingredientText.includes(d));
+}
+
 const STOP_WORDS = new Set([
   "i",
   "a",
@@ -574,14 +605,15 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
   if (!taskSetting.enabled) {
     throw new Error("Home recipe AI task is disabled.");
   }
-  const result = await callAIForJson(messages, {
+  const aiCallOptions = {
     max_tokens: taskSetting.maxTokens,
     temperature: taskSetting.temperature,
     model: taskSetting.primaryModel,
     fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
-  });
+  };
+  const result = await callAIForJson(messages, aiCallOptions);
   const { parsed } = result;
-  const recipe = normalizeRecipe(parsed, input.ideaTitle);
+  let recipe = normalizeRecipe(parsed, input.ideaTitle);
 
   if (!recipe) {
     throw new Error("AI returned invalid recipe payload.");
@@ -589,6 +621,42 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
 
   if (!recipeMatchesConversation(recipe, input)) {
     throw new Error("AI recipe drifted from the chef conversation.");
+  }
+
+  // Quality repair pass: fix vague steps (Item 7) and taste violations (Item 8)
+  const vagueSteps = recipe.steps.filter((s) => isVagueStep(s.text));
+  const disliked = userTasteSummary ? extractDislikedFromSummary(userTasteSummary) : [];
+  const violations = findTasteViolations(recipe, disliked);
+
+  if (vagueSteps.length > 0 || violations.length > 0) {
+    const repairs: string[] = [];
+    if (vagueSteps.length > 0) {
+      repairs.push(
+        `Expand these vague steps — each must include an actionable verb, technique, and timing or doneness cues (minimum 10 words): ${vagueSteps.map((s) => `"${s.text}"`).join("; ")}.`
+      );
+    }
+    if (violations.length > 0) {
+      repairs.push(
+        `The user dislikes: ${violations.join(", ")}. Remove these ingredients and substitute a compatible alternative that preserves the dish format and flavor direction.`
+      );
+    }
+    try {
+      const repairMessages = [
+        ...messages,
+        { role: "assistant" as const, content: JSON.stringify(parsed) },
+        {
+          role: "user" as const,
+          content: `Fix these quality issues in the recipe:\n${repairs.join("\n")}\nReturn the corrected recipe using the same JSON format.`,
+        },
+      ];
+      const repairResult = await callAIForJson(repairMessages, aiCallOptions);
+      const repairedRecipe = normalizeRecipe(repairResult.parsed, input.ideaTitle);
+      if (repairedRecipe) {
+        recipe = repairedRecipe;
+      }
+    } catch {
+      // fail soft — use original recipe
+    }
   }
 
   const aiRecipeResult = createAiRecipeResult({

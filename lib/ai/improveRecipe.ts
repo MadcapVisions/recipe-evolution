@@ -126,6 +126,8 @@ Rules:
 - Preserve the core dish identity and format unless the instruction explicitly says to change it.
 - Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
 - Keep steps practical and home-cook friendly.
+- Each step must contain an actionable cooking verb and enough detail to be unambiguous — include timing, temperature, or doneness cues where relevant. Never write vague steps like "Cook until done" or "Add ingredients."
+- Produce a complete recipe, not notes. Every step should be executable without guessing.
 - Do not include any text outside the JSON object.`,
     },
     {
