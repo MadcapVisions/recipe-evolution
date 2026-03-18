@@ -20,6 +20,12 @@ type TaskRecommendation = {
   matches: (modelId: string) => boolean;
 };
 
+// Use startsWith for flexible model ID matching (OpenRouter may append version suffixes)
+function matchesAny(id: string, prefixes: string[]): boolean {
+  const normalized = id.toLowerCase();
+  return prefixes.some((p) => normalized === p || normalized.startsWith(p + "-") || normalized.startsWith(p + ":") || normalized.startsWith(p + "/"));
+}
+
 const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
   chef_chat: [
     {
@@ -27,23 +33,17 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
       // at same cost — ideal for chat responsiveness. GPT-4o mini and DeepSeek also solid.
       prefix: "🟢",
       note: "best value — fast & reliable for chat",
-      matches: (id) =>
-        id === "openai/gpt-4o-mini" ||
-        id === "google/gemini-2.5-flash" ||
-        id === "deepseek/deepseek-chat" ||
-        id === "deepseek/deepseek-chat-v3.1" ||
-        id === "deepseek/deepseek-chat-v3-0324" ||
-        id === "google/gemini-2.0-flash",
+      matches: (id) => matchesAny(id, ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-chat", "google/gemini-2.0-flash"]),
     },
     {
       prefix: "🟡",
       note: "more expensive, marginal gain for chat",
-      matches: (id) => id === "anthropic/claude-3.5-haiku",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-haiku"]),
     },
     {
       prefix: "🔴",
       note: "premium and expensive",
-      matches: (id) => id === "anthropic/claude-3.5-sonnet",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
     },
   ],
   home_ideas: [
@@ -51,23 +51,17 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
       // Benchmark: all 3 scored 10/10. GPT-4o mini cheapest, Gemini fastest.
       prefix: "🟢",
       note: "best value — all scored 10/10 in benchmark",
-      matches: (id) =>
-        id === "openai/gpt-4o-mini" ||
-        id === "google/gemini-2.5-flash" ||
-        id === "deepseek/deepseek-chat" ||
-        id === "deepseek/deepseek-chat-v3.1" ||
-        id === "deepseek/deepseek-chat-v3-0324" ||
-        id === "google/gemini-2.0-flash",
+      matches: (id) => matchesAny(id, ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-chat", "google/gemini-2.0-flash"]),
     },
     {
       prefix: "🟡",
       note: "more expensive, no quality gain here",
-      matches: (id) => id === "anthropic/claude-3.5-haiku",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-haiku"]),
     },
     {
       prefix: "🔴",
       note: "premium and expensive",
-      matches: (id) => id === "anthropic/claude-3.5-sonnet",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
     },
   ],
   home_recipe: [
@@ -76,22 +70,17 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
       // Gemini 2.5 Flash 3x faster and same quality. DeepSeek slowest (19s).
       prefix: "🟢",
       note: "best value — all scored 10/10 in benchmark",
-      matches: (id) =>
-        id === "openai/gpt-4o-mini" ||
-        id === "google/gemini-2.5-flash" ||
-        id === "deepseek/deepseek-chat" ||
-        id === "deepseek/deepseek-chat-v3.1" ||
-        id === "deepseek/deepseek-chat-v3-0324",
+      matches: (id) => matchesAny(id, ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-chat"]),
     },
     {
       prefix: "🟡",
       note: "higher cost, comparable quality",
-      matches: (id) => id === "anthropic/claude-3.5-haiku" || id === "google/gemini-2.0-flash",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-haiku", "google/gemini-2.0-flash"]),
     },
     {
       prefix: "🔴",
       note: "premium and expensive",
-      matches: (id) => id === "anthropic/claude-3.5-sonnet",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
     },
   ],
   recipe_improvement: [
@@ -100,23 +89,18 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
       // Do not use Gemini 2.5 Flash for this task.
       prefix: "🟢",
       note: "best value — 10/10 in benchmark",
-      matches: (id) =>
-        id === "openai/gpt-4o-mini" ||
-        id === "deepseek/deepseek-chat" ||
-        id === "deepseek/deepseek-chat-v3.1" ||
-        id === "deepseek/deepseek-chat-v3-0324" ||
-        id === "deepseek/deepseek-r1-distill-qwen-32b",
+      matches: (id) => matchesAny(id, ["openai/gpt-4o-mini", "deepseek/deepseek-chat", "deepseek/deepseek-r1-distill-qwen-32b"]),
     },
     {
       // Gemini 2.5 Flash failed JSON on recipe improvement — avoid as primary
       prefix: "🟡",
       note: "use as fallback only — Gemini failed JSON here",
-      matches: (id) => id === "google/gemini-2.5-flash" || id === "anthropic/claude-3.5-haiku" || id === "deepseek/deepseek-r1-0528",
+      matches: (id) => matchesAny(id, ["google/gemini-2.5-flash", "anthropic/claude-3.5-haiku", "deepseek/deepseek-r1-0528"]),
     },
     {
       prefix: "🔴",
       note: "premium and expensive",
-      matches: (id) => id === "anthropic/claude-3.5-sonnet",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
     },
   ],
   recipe_structure: [
@@ -124,23 +108,17 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
       // Benchmark: all 3 scored 10/10. GPT-4o mini cheapest, Gemini 2.5 Flash fastest (4s vs 7s).
       prefix: "🟢",
       note: "best value — all scored 10/10 in benchmark",
-      matches: (id) =>
-        id === "openai/gpt-4o-mini" ||
-        id === "google/gemini-2.5-flash" ||
-        id === "deepseek/deepseek-chat" ||
-        id === "deepseek/deepseek-chat-v3.1" ||
-        id === "deepseek/deepseek-chat-v3-0324" ||
-        id === "google/gemini-2.0-flash",
+      matches: (id) => matchesAny(id, ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-chat", "google/gemini-2.0-flash"]),
     },
     {
       prefix: "🟡",
       note: "worth it for stricter JSON reliability",
-      matches: (id) => id === "deepseek/deepseek-r1-distill-qwen-32b" || id === "anthropic/claude-3.5-haiku",
+      matches: (id) => matchesAny(id, ["deepseek/deepseek-r1-distill-qwen-32b", "anthropic/claude-3.5-haiku"]),
     },
     {
       prefix: "🔴",
       note: "premium and expensive",
-      matches: (id) => id === "anthropic/claude-3.5-sonnet",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
     },
   ],
 };
