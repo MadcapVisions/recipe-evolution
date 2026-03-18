@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import { PhotoGallery } from "@/components/PhotoGallery";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { Button } from "@/components/Button";
@@ -121,17 +122,7 @@ export function VersionMainPanels({
         </div>
       </section>
 
-      <section className="app-panel p-4 sm:p-6">
-        <h2 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Ingredients</h2>
-        <ul className="mt-4 flex flex-col gap-3">
-          {ingredients.map((ingredient, index) => (
-            <li key={`${ingredient.name}-${index}`} className="flex items-start gap-3 rounded-[20px] bg-[rgba(141,169,187,0.06)] p-4 text-[15px] leading-7 text-[color:var(--text)]">
-              <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 rounded-full" />
-              <span>{ingredient.name}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <IngredientList ingredients={ingredients} />
 
       <section className="app-panel p-4 sm:p-6">
         <h2 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Cooking Steps</h2>
@@ -160,6 +151,72 @@ export function VersionMainPanels({
           <PhotoGallery recipeId={recipe.id} versionId={version.id} photos={photosWithUrls} />
         </div>
       </section>
+    </section>
+  );
+}
+
+function IngredientList({ ingredients }: { ingredients: IngredientItem[] }) {
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+
+  function toggle(index: number) {
+    setChecked((current) => {
+      const next = new Set(current);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <section className="app-panel p-4 sm:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Ingredients</h2>
+        {checked.size > 0 ? (
+          <button
+            type="button"
+            onClick={() => setChecked(new Set())}
+            className="text-[13px] font-semibold text-[color:var(--muted)] hover:text-[color:var(--text)]"
+          >
+            Clear ({checked.size})
+          </button>
+        ) : null}
+      </div>
+      <ul className="mt-4 flex flex-col gap-3">
+        {ingredients.map((ingredient, index) => {
+          const isChecked = checked.has(index);
+          return (
+            <li key={`${ingredient.name}-${index}`}>
+              <button
+                type="button"
+                onClick={() => toggle(index)}
+                className={`flex w-full items-start gap-3 rounded-[20px] p-4 text-left text-[15px] leading-7 transition ${
+                  isChecked
+                    ? "bg-[rgba(142,168,141,0.15)] text-[color:var(--muted)] line-through"
+                    : "bg-[rgba(141,169,187,0.06)] text-[color:var(--text)] hover:bg-[rgba(141,169,187,0.12)]"
+                }`}
+              >
+                <span
+                  className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
+                    isChecked
+                      ? "border-[color:var(--primary)] bg-[color:var(--primary)]"
+                      : "border-[rgba(57,75,70,0.2)] bg-white"
+                  }`}
+                >
+                  {isChecked ? (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : null}
+                </span>
+                <span>{ingredient.name}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

@@ -274,8 +274,12 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
         {actionError ? <p className="mt-3 text-sm text-red-600">{actionError}</p> : null}
       </section>
 
-      {loadError ? <p className="text-sm text-red-600">{loadError}</p> : null}
-      {isLoading ? <p className="text-sm text-[color:var(--muted)]">Refreshing cookbook...</p> : null}
+      {loadError ? (
+        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{loadError}</div>
+      ) : null}
+      {isLoading ? (
+        <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] px-5 py-4 text-sm text-[color:var(--muted)]">Refreshing cookbook...</div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {recipes.map((recipe, index) => (
@@ -344,16 +348,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                 </Link>
               </div>
               <div className="flex flex-wrap gap-2">
-                {tab === "hidden" ? (
-                  <button
-                    type="button"
-                    onClick={() => void clearRecipeVisibility(recipe.id)}
-                    disabled={savingRecipeId === recipe.id}
-                    className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
-                  >
-                    {savingRecipeId === recipe.id ? "Saving..." : "Return to Cookbook"}
-                  </button>
-                ) : tab === "archived" ? (
+                {tab === "hidden" || tab === "archived" ? (
                   <button
                     type="button"
                     onClick={() => void clearRecipeVisibility(recipe.id)}

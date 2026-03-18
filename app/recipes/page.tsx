@@ -31,7 +31,11 @@ export default async function RecipesPage() {
   }
 
   if (loadError) {
-    return <p className="text-sm text-red-700">{loadError}</p>;
+    return (
+      <div className="mx-auto max-w-[1380px] p-6">
+        <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{loadError}</div>
+      </div>
+    );
   }
 
   return (
