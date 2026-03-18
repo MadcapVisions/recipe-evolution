@@ -156,7 +156,7 @@ export function VersionMainPanels({
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <p className="app-kicker">Photos</p>
-            <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Cookbook gallery</h2>
+            <h2 className="mt-2 text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[30px]">Recipe photos</h2>
           </div>
           <div>{userId ? <PhotoUpload recipeId={recipe.id} userId={userId} versionId={version.id} compact /> : null}</div>
         </div>

@@ -1068,12 +1068,12 @@ export function VersionDetailClient({
           href="/recipes"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
         >
-          <span aria-hidden="true">←</span> Cookbook
+          <span aria-hidden="true">←</span> My Recipes
         </Link>
       </div>
       <ShellContextPanel
         side="left"
-        label="Cookbook"
+        label="My Recipes"
         title="Recipe navigation"
         description="Jump across recipes and versions without leaving the current detail workspace."
       >
@@ -1086,7 +1086,7 @@ export function VersionDetailClient({
                 leftSidebarMode === "recipe-nav" ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
               }`}
             >
-              Cookbook
+              My Recipes
             </button>
             <button
               type="button"

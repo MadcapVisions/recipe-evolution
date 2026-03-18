@@ -42,9 +42,9 @@ export default async function RootLayout({
       : user?.email?.trim().charAt(0).toUpperCase() ?? "U";
   const navLinks = user
       ? [
-          { href: "/dashboard", label: "Dashboard" },
-          { href: "/recipes", label: "Cookbook" },
-          { href: "/planner", label: "Meal Plan" },
+          { href: "/dashboard", label: "Create" },
+          { href: "/recipes", label: "My Recipes" },
+          { href: "/planner", label: "Weekly Planner" },
           { href: "/settings", label: "Settings" },
           ...(canAccessAdmin(user.email) ? [{ href: "/admin", label: "Admin" }] : []),
         ]

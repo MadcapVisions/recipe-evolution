@@ -85,7 +85,7 @@ export default async function DashboardPage() {
               href="/recipes"
               className="inline-flex min-h-10 items-center rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-[color:var(--text)] ring-1 ring-[rgba(79,54,33,0.12)] transition hover:bg-[rgba(255,252,246,0.8)]"
             >
-              Go to Cookbook
+              My Recipes
             </a>
           </div>
         </div>

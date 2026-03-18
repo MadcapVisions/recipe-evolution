@@ -209,12 +209,12 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
       <section className="app-panel polish-card animate-rise-in p-4 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="app-kicker">Cookbook</p>
+            <p className="app-kicker">My Recipes</p>
             <h1 className="mt-2 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)] min-[380px]:text-[34px] sm:text-[44px]">
               The dishes worth keeping live here.
             </h1>
             <p className="mt-3 text-[16px] leading-7 text-[color:var(--muted)]">
-              Browse the recipes you have developed, revisit strong versions, and keep your personal cookbook organized around what actually works in your kitchen.
+              Browse the recipes you have developed, revisit strong versions, and keep your collection organized around what actually works in your kitchen.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
@@ -222,7 +222,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
               href="/dashboard"
               className="inline-flex min-h-11 justify-center rounded-full bg-[color:var(--primary)] px-4 py-2 text-[14px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)]"
             >
-              Develop with Chef
+              Create New Dish
             </Link>
             <Link
               href="/import"
@@ -237,7 +237,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
       <section className="app-panel p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
           <label className="block xl:min-w-0 xl:flex-1">
-            <span className="mb-2 block text-[15px] font-medium text-[color:var(--text)]">Search the cookbook</span>
+            <span className="mb-2 block text-[15px] font-medium text-[color:var(--text)]">Search my recipes</span>
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search dishes, ideas, or titles..." className="w-full" />
           </label>
           <div className="w-full xl:w-auto xl:min-w-[250px]">
@@ -290,7 +290,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
         <div className="rounded-[24px] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{loadError}</div>
       ) : null}
       {isLoading ? (
-        <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] px-5 py-4 text-sm text-[color:var(--muted)]">Refreshing cookbook...</div>
+        <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.72)] px-5 py-4 text-sm text-[color:var(--muted)]">Refreshing...</div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -389,7 +389,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                         disabled={savingRecipeId === recipe.id}
                         className="block w-full px-4 py-3 text-left text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.06)] disabled:opacity-60"
                       >
-                        {savingRecipeId === recipe.id ? "Saving..." : "Return to Cookbook"}
+                        {savingRecipeId === recipe.id ? "Saving..." : "Restore to My Recipes"}
                       </button>
                     ) : (
                       <>
@@ -421,7 +421,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
 
       {!isLoading && recipes.length === 0 ? (
         <div className="app-empty-state animate-rise-in px-6 py-10 text-center">
-          <p className="app-kicker">Cookbook shelf</p>
+          <p className="app-kicker">My Recipes</p>
           <p className="mt-3 font-display text-[36px] font-semibold text-[color:var(--text)]">
             {deferredSearch.trim() ? "No recipes match that search." : "Nothing is on this shelf yet."}
           </p>
@@ -437,7 +437,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
               </button>
             ) : (
               <Link href="/dashboard" className="ui-btn ui-btn-solid">
-                Develop with Chef
+                Create New Dish
               </Link>
             )}
             <Link href="/import" className="ui-btn ui-btn-light">
@@ -459,7 +459,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                 : "bg-[color:var(--primary)] text-white hover:opacity-90"
             }`}
           >
-            {isLoadingMore ? "Loading more..." : "Load More from the Cookbook"}
+            {isLoadingMore ? "Loading more..." : "Load More"}
           </button>
         </div>
       ) : null}

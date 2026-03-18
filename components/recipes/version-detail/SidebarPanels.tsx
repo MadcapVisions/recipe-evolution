@@ -153,7 +153,7 @@ export function RecipeNavigationSection({
 
   return (
     <section className="app-panel p-4 sm:p-5">
-      <p className="app-kicker">Cookbook</p>
+      <p className="app-kicker">My Recipes</p>
       <p className="mt-2 font-display text-[22px] font-semibold leading-tight text-[color:var(--text)] sm:text-[26px]">{recipe.title}</p>
       <p className="mt-2 text-sm text-[color:var(--muted)]">Move across your saved dishes without losing the version context of this one.</p>
       <input
@@ -165,7 +165,7 @@ export function RecipeNavigationSection({
       />
       <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1 sm:max-h-80 sm:space-y-3">
         {recipeSearch.trim().length > 0 && searchResults.length === 0 ? (
-          <p className="text-sm text-[color:var(--muted)]">No matches in this quick list. Open the cookbook to search everything.</p>
+          <p className="text-sm text-[color:var(--muted)]">No matches. Open My Recipes to search everything.</p>
         ) : null}
         {searchResults.map((userRecipe) => {
           const isActive = userRecipe.id === currentRecipeId;
@@ -218,7 +218,7 @@ export function RecipeNavigationSection({
       {sidebarActionError ? <p className="mt-3 text-sm text-red-600">{sidebarActionError}</p> : null}
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button onClick={goToCookbook} variant="secondary" className="w-full justify-center">
-          Cookbook
+          My Recipes
         </Button>
         <Button onClick={goToAskChef} variant="secondary" className="w-full justify-center">
           Ask Chef

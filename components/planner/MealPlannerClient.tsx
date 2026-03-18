@@ -183,7 +183,7 @@ export function MealPlannerClient({
           {leftSidebarMode === "selection" ? (
             <>
               <section className="artifact-sheet p-4">
-                <p className="app-kicker">Meal planning</p>
+                <p className="app-kicker">Weekly planner</p>
                 <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)]">
                   Build your week from saved versions.
                 </h2>
@@ -259,7 +259,7 @@ export function MealPlannerClient({
                     </p>
                   </div>
                   <Button href="/recipes" variant="secondary" className="min-h-10 px-4">
-                    Cookbook
+                    My Recipes
                   </Button>
                 </div>
                 {plan.recipeCount > 0 ? (

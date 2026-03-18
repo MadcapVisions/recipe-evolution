@@ -25,7 +25,7 @@ function CompactRecentRecipes({
           <h2 className="mt-2 font-display text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Back to something you already trust.</h2>
         </div>
         <Link href="/recipes" className="app-chip justify-center">
-          View cookbook
+          My Recipes
         </Link>
       </div>
       {recentRecipes.length > 0 ? (
@@ -78,15 +78,15 @@ function DashboardRecentRecipesPanel({
   return (
     <div className="space-y-4">
       <section className="app-panel p-4 sm:p-5">
-        <p className="app-kicker">Cookbook</p>
+        <p className="app-kicker">My Recipes</p>
         <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)]">Recent dishes</h2>
-        <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">Jump back into recipes you already built without leaving the dashboard.</p>
+        <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">Jump back into recipes you already built.</p>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Link href="/recipes" className="app-chip justify-center">
-            View cookbook
+            My Recipes
           </Link>
           <Link href="/planner" className="app-chip justify-center">
-            Open planner
+            Weekly Planner
           </Link>
         </div>
       </section>
@@ -215,7 +215,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
         side="left"
         label="Recents"
         title="Recent dishes"
-        description="Browse recently updated recipes and jump back into your cookbook without leaving the dashboard."
+        description="Browse recently updated recipes and jump back into one without leaving Create."
       >
         <DashboardRecentRecipesPanel recentRecipes={recentRecipes} />
       </ShellContextPanel>
@@ -332,8 +332,8 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
       <section className="hidden xl:block">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p className="app-kicker">Cookbook</p>
-            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Recent dishes in your system</h2>
+            <p className="app-kicker">My Recipes</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[color:var(--text)]">Recent dishes</h2>
           </div>
         </div>
         {recentRecipes.length > 0 ? (
@@ -380,7 +380,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
           </div>
         ) : (
           <div className="app-empty-state animate-rise-in px-6 py-10">
-            <p className="app-kicker">Cookbook</p>
+            <p className="app-kicker">My Recipes</p>
             <h3 className="mt-3 font-display text-[34px] font-semibold tracking-tight text-[color:var(--text)]">Your first saved dish will live here.</h3>
             <p className="mt-3 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
               Start with Chef, import an old favorite, or capture a new recipe from scratch. Once you save it, the cookbook begins to take shape.
