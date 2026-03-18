@@ -148,6 +148,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
+    handleStartOver,
     handleGenerateMoreIdeas,
     handleSelectIdea,
     generateRecipeFromIdea,
@@ -263,6 +264,7 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
             onCreateRecipeFromReply={(replyIndex) => void handleCreateRecipeFromReply(replyIndex)}
             onSelectChefDirection={handleSelectChefDirection}
             onClearChefDirection={handleClearChefDirection}
+            onStartOver={handleStartOver}
             heroChatFrameRef={heroChatFrameRef}
             heroChatViewportRef={heroChatViewportRef}
           />

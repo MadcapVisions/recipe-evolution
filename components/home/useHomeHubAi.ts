@@ -748,6 +748,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setTransientStatus("Direction cleared. Choose another option or ask Chef for a new one.");
   };
 
+  const handleStartOver = () => {
+    setHeroChatMessages([]);
+    setSelectedChefDirection(null);
+    setHeroChatReadyToApply(false);
+    setError(null);
+    setTransientStatus(null);
+  };
+
   const handleHeroInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter" || event.shiftKey) {
       return;
@@ -903,6 +911,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
+    handleStartOver,
     handleGenerateMoreIdeas,
     handleSelectIdea: handleTrackedSelectIdea,
     generateRecipeFromIdea,

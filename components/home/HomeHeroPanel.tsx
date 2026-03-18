@@ -25,6 +25,7 @@ type HomeHeroPanelProps = {
   onCreateRecipeFromReply: (replyIndex: number) => void;
   onSelectChefDirection: (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => void;
   onClearChefDirection: () => void;
+  onStartOver: () => void;
   heroChatFrameRef: RefObject<HTMLDivElement | null>;
   heroChatViewportRef: RefObject<HTMLDivElement | null>;
 };
@@ -46,6 +47,7 @@ export function HomeHeroPanel({
   onCreateRecipeFromReply,
   onSelectChefDirection,
   onClearChefDirection,
+  onStartOver,
   heroChatFrameRef,
   heroChatViewportRef,
 }: HomeHeroPanelProps) {
@@ -104,40 +106,26 @@ export function HomeHeroPanel({
               {isRefining ? "Refine the selected direction." : hasConversation ? "Keep shaping the dish." : "Give Chef a starting point."}
             </p>
           </div>
+          {hasConversation ? (
+            <button
+              type="button"
+              onClick={onStartOver}
+              className="self-start rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--text)] sm:self-auto"
+            >
+              Start over
+            </button>
+          ) : null}
         </div>
 
         {selectedChefDirection ? (
           <div className="mb-4 rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] p-4 shadow-[inset_3px_0_0_var(--primary)]">
-            <div className="flex flex-col gap-3 md:hidden">
-              <div>
-                <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
-                <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">{selectedChefDirection.title}</p>
-                <p className="mt-2 text-[14px] leading-6 text-[color:var(--muted)]">{selectedChefDirection.summary}</p>
-              </div>
-              {selectedChefDirection.tags.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {selectedChefDirection.tags.map((tag) => (
-                    <span key={tag} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-xs font-medium text-[color:var(--muted)]">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <button
-                type="button"
-                onClick={onClearChefDirection}
-                className="self-start rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
-              >
-                Change direction
-              </button>
-            </div>
-            <div className="hidden items-start justify-between gap-4 md:flex">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
               <div className="min-w-0">
                 <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
-                <p className="mt-2 text-[20px] font-semibold text-[color:var(--text)]">{selectedChefDirection.title}</p>
-                <p className="mt-2 max-w-3xl text-[15px] leading-7 text-[color:var(--muted)]">{selectedChefDirection.summary}</p>
+                <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)] md:text-[20px]">{selectedChefDirection.title}</p>
+                <p className="mt-2 text-[14px] leading-6 text-[color:var(--muted)] md:max-w-3xl md:text-[15px] md:leading-7">{selectedChefDirection.summary}</p>
                 {selectedChefDirection.tags.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2 md:mt-3">
                     {selectedChefDirection.tags.map((tag) => (
                       <span key={tag} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-xs font-medium text-[color:var(--muted)]">
                         {tag}
@@ -149,7 +137,7 @@ export function HomeHeroPanel({
               <button
                 type="button"
                 onClick={onClearChefDirection}
-                className="shrink-0 rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
+                className="self-start shrink-0 rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
               >
                 Change direction
               </button>
