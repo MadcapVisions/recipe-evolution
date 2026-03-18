@@ -106,7 +106,7 @@ export function SmartMealBuilder({
             disabled={smartLoading}
             className="w-full rounded-full bg-[color:var(--primary)] py-3.5 text-[16px] font-semibold text-[#f8fcfb] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {smartLoading ? "Developing..." : "Develop Directions"}
+            {smartLoading ? "Applying..." : "Apply Filters"}
           </button>
         </div>
 

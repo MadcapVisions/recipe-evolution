@@ -54,6 +54,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
   } = useHomeHubAi(userTasteProfile);
 
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
   const chatStarted = heroChatMessages.length > 0;
 
   // Close filters panel when the user starts a conversation
@@ -62,6 +63,17 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
       setFiltersPanelOpen(false);
     }
   }, [chatStarted]);
+
+  function handleApplyFilters() {
+    const all = [...smartProteins, ...smartCuisines, ...smartCookTimes, ...smartPreferences];
+    setAppliedFilters(all);
+    setFiltersPanelOpen(false);
+    void handleGenerateSmartMeals();
+  }
+
+  function handleRemoveAppliedFilter(filter: string) {
+    setAppliedFilters((prev) => prev.filter((f) => f !== filter));
+  }
 
   const activeFilterCount =
     smartProteins.length + smartCuisines.length + smartCookTimes.length + smartPreferences.length;
@@ -119,7 +131,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
       onToggleCuisine={toggleSmartCuisine}
       onToggleCookTime={toggleSmartCookTime}
       onTogglePreference={toggleSmartPreference}
-      onGenerateRecipes={() => void handleGenerateSmartMeals()}
+      onGenerateRecipes={handleApplyFilters}
     />
   );
 
@@ -234,6 +246,8 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
           onStartOver={handleStartOver}
           heroChatFrameRef={heroChatFrameRef}
           heroChatViewportRef={heroChatViewportRef}
+          appliedFilters={appliedFilters}
+          onRemoveFilter={handleRemoveAppliedFilter}
         />
 
         {activeIdeaPanel === "ideas" ? (
