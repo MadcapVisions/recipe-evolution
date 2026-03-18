@@ -69,11 +69,11 @@ export default async function GroceryPage({ params }: GroceryPageProps) {
 
   return (
     <div className="page-shell">
-      <div className="saas-card space-y-1 p-5">
-        <p className="text-sm text-slate-500">{recipe.title}</p>
+      <div className="app-panel space-y-1 p-5">
+        <p className="text-sm text-[color:var(--muted)]">{recipe.title}</p>
         <h1 className="page-title">Grocery List</h1>
-        <p className="text-sm text-slate-600">Version {version.version_number}</p>
-        <p className="text-sm text-slate-600">Serves {typeof version.servings === "number" ? version.servings : "-"}</p>
+        <p className="text-sm text-[color:var(--muted)]">Version {version.version_number}</p>
+        <p className="text-sm text-[color:var(--muted)]">Serves {typeof version.servings === "number" ? version.servings : "-"}</p>
       </div>
 
       <GroceryListClient

@@ -554,8 +554,8 @@ export function CookingModeClient({
 
   if (totalSteps === 0) {
     return (
-      <div className="space-y-4 rounded-lg border bg-white p-4">
-        <p className="text-base text-slate-700">No cooking steps were saved for this version.</p>
+      <div className="app-panel space-y-4 p-5">
+        <p className="text-base text-[color:var(--muted)]">No cooking steps were saved for this version.</p>
         <Button
           onClick={() => router.push(`/recipes/${recipeId}`)}
           variant="secondary"

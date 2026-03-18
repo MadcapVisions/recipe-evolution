@@ -156,6 +156,7 @@ export function GroceryListClient({
   const [savingPantryItem, setSavingPantryItem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modalText, setModalText] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (existingListId || existingItems) {
@@ -242,6 +243,8 @@ export function GroceryListClient({
   const copyList = async () => {
     try {
       await navigator.clipboard.writeText(listText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       setModalText(listText);
     }
@@ -305,7 +308,7 @@ export function GroceryListClient({
           variant="secondary"
           className="min-h-12"
         >
-          Copy Plan
+          {copied ? "Copied!" : "Copy Plan"}
         </Button>
         <Button
           onClick={shareList}
@@ -324,7 +327,7 @@ export function GroceryListClient({
       <div className="space-y-4">
         {groceryPlan.groupedItems.map((group) => (
           <section key={group.aisle} className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{group.aisle}</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--muted)]">{group.aisle}</h2>
             <ul className="space-y-2">
               {group.items.map((item) => (
                 <li key={item.id}>
@@ -343,7 +346,7 @@ export function GroceryListClient({
 
         {groceryPlan.flexibleItems.length > 0 ? (
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Flexible items</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--muted)]">Flexible items</h2>
             <ul className="space-y-2">
               {groceryPlan.flexibleItems.map((item) => (
                 <li key={item.id}>
@@ -356,7 +359,7 @@ export function GroceryListClient({
 
         {!hidePantryItems && groceryPlan.pantryItems.length > 0 ? (
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Pantry / already have</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--muted)]">Pantry / already have</h2>
             <ul className="space-y-2">
               {groceryPlan.pantryItems.map((item) => (
                 <li key={item.id}>
@@ -369,8 +372,8 @@ export function GroceryListClient({
       </div>
 
       {modalText ? (
-        <div className="rounded-md border bg-white p-4">
-          <p className="mb-2 text-sm font-medium">Manual copy</p>
+        <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-5">
+          <p className="mb-3 text-sm font-semibold text-[color:var(--text)]">Copy manually</p>
           <textarea value={modalText} readOnly className="min-h-40 w-full" />
           <Button
             onClick={() => setModalText(null)}
@@ -382,7 +385,9 @@ export function GroceryListClient({
         </div>
       ) : null}
 
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <div className="rounded-[20px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
     </div>
   );
 }
@@ -411,7 +416,7 @@ function GroceryRow({
       >
         <span className="text-base">
           <span className="block">{formatted.primary}</span>
-          {formatted.secondary ? <span className="mt-1 block text-sm text-slate-500">{formatted.secondary}</span> : null}
+          {formatted.secondary ? <span className="mt-1 block text-sm text-[color:var(--muted)]">{formatted.secondary}</span> : null}
         </span>
         <span className="text-sm">{actionLabel}</span>
       </Button>
@@ -435,7 +440,7 @@ function PantryRow({ item, label }: { item: GroceryItem; label: string }) {
       <span className="text-base">
         <span className="block">{formatted.primary}</span>
       </span>
-      <span className="text-sm text-slate-500">{label}</span>
+      <span className="text-sm text-[color:var(--muted)]">{label}</span>
     </div>
   );
 }

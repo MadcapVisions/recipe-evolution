@@ -326,8 +326,12 @@ export function PreferencesForm({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {message ? <p className="text-sm text-green-700">{message}</p> : null}
-          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          {message ? (
+            <div className="rounded-[18px] border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{message}</div>
+          ) : null}
+          {error ? (
+            <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          ) : null}
         </div>
         <Button onClick={handleSave} disabled={saving} className="min-h-12 w-full sm:w-auto">
           {saving ? "Saving..." : "Save Kitchen Profile"}
