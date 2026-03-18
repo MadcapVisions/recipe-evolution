@@ -778,26 +778,6 @@ export function VersionDetailClient({
     });
     assistant.setSuggestedChange(null);
     assistant.setAiError(null);
-    assistant.setAiConversation((current) => {
-      const alreadyConfirmed =
-        current.at(-1)?.kind === "direction_selected" &&
-        current.at(-1)?.text.includes(option.title);
-
-      if (alreadyConfirmed) {
-        return current;
-      }
-
-      return [
-        ...current,
-        {
-          id: `${Date.now()}-direction-selected`,
-          role: "assistant",
-          text: `Locked direction: ${option.title}. I’ll refine only this path from here.`,
-          createdAt: new Date().toISOString(),
-          kind: "direction_selected",
-        },
-      ];
-    });
   }
 
   function handleClearAssistantDirection() {

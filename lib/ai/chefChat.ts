@@ -33,6 +33,18 @@ function extractLockedDirectionTitle(conversationHistory: AIMessage[]) {
   return match?.[1]?.trim() ?? null;
 }
 
+function buildFallbackRefineReply(userMessage: string, lockedDirectionTitle?: string | null) {
+  const normalized = userMessage.toLowerCase();
+  const dislikeMatch = normalized.match(/i (?:don't|do not) like ([a-z][a-z -]+)/i);
+
+  if (dislikeMatch?.[1]) {
+    const ingredient = dislikeMatch[1].trim();
+    return `${lockedDirectionTitle ? `Stay with ${lockedDirectionTitle}. ` : ""}Leave out ${ingredient} and rebalance with another ingredient that fills the same role. If you want, I can suggest the best swap while keeping the same flavor direction.`;
+  }
+
+  return `${lockedDirectionTitle ? `Stay with ${lockedDirectionTitle}. ` : ""}Keep refining this same dish and adjust the flavor, heat, texture, or ingredients from here.`;
+}
+
 function looksIncompleteEnvelope(envelope: ChefChatEnvelope): boolean {
   const normalized = envelope.reply.trim().toLowerCase();
 
@@ -156,7 +168,21 @@ Rules:
 }
 
 function normalizeOrBuildEnvelope(parsed: unknown, rawText: string) {
-  return normalizeChefChatEnvelope(parsed) ?? buildChefChatEnvelope(rawText);
+  const normalized = normalizeChefChatEnvelope(parsed);
+  if (normalized) {
+    return normalized;
+  }
+
+  if (parsed && typeof parsed === "object") {
+    return {
+      mode: "refine" as const,
+      reply: "",
+      options: [],
+      recommended_option_id: null,
+    };
+  }
+
+  return buildChefChatEnvelope(rawText);
 }
 
 export async function chefChat(
@@ -222,10 +248,20 @@ export async function chefChat(
         }
       : null;
 
+  const emptyReplyFallback =
+    forceRefine && repairedEnvelope.reply.trim().length === 0
+      ? {
+          mode: "refine" as const,
+          reply: buildFallbackRefineReply(userMessage, lockedDirectionTitle),
+          options: [],
+          recommended_option_id: null,
+        }
+      : null;
+
   return {
     envelope: repairedUsable
       ? repairedEnvelope
-      : forcedRefineFallback ?? (firstUsable ? firstEnvelope : repairedEnvelope.reply.trim().length > 0 ? repairedEnvelope : firstEnvelope),
+      : forcedRefineFallback ?? emptyReplyFallback ?? (firstUsable ? firstEnvelope : repairedEnvelope.reply.trim().length > 0 ? repairedEnvelope : firstEnvelope),
     repaired: true,
     initialReply: firstReply,
     provider: repairedAttempt.provider,
