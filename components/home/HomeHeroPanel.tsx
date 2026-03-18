@@ -162,133 +162,145 @@ export function HomeHeroPanel({
             ref={heroChatViewportRef}
             className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-4"
           >
-            {heroChatMessages.length === 0 ? (
+            {heroChatMessages.length === 0 && !loading ? (
               <div className="space-y-3">
                 <p className="text-[14px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Start with a prompt like this</p>
-                <p className="text-[18px] font-semibold text-[color:var(--text)]">“I want a bright, quick dinner with chicken, lemon, and some crunch.”</p>
+                <p className="text-[18px] font-semibold text-[color:var(--text)]">"I want a bright, quick dinner with chicken, lemon, and some crunch."</p>
                 <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
                   Ask for structure, technique, substitutions, timing, or flavor balance before you turn it into a saved recipe.
                 </p>
               </div>
             ) : (
-              heroChatMessages.map((message, index) => {
-                const options = message.role === "ai" ? message.options ?? [] : [];
-                const selectedFromThisMessage = selectedChefDirection?.replyIndex === index ? selectedChefDirection : null;
-                return (
-                <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[88%] ${message.role === "user" ? "" : "space-y-2"}`}>
-                    <div
-                      className={`rounded-[22px] px-4 py-3 text-[15px] leading-6 ${
-                        message.kind === "direction_selected"
-                          ? "border border-[rgba(74,106,96,0.12)] bg-[rgba(247,250,248,0.95)] text-[color:var(--text)] shadow-[inset_3px_0_0_var(--primary)]"
-                          : message.role === "user"
-                          ? "bg-[color:var(--primary)] text-white"
-                          : "border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] text-[color:var(--text)]"
-                      }`}
-                    >
-                      {message.text}
-                    </div>
-                    {message.role === "ai" ? (
-                      <div className="space-y-2">
-                        {options.length > 0 && !selectedFromThisMessage ? (
-                          <div className="space-y-2">
-                            <div className="space-y-2 md:hidden">
+              <>
+                {heroChatMessages.map((message, index) => {
+                  const isLastAiMessage =
+                    message.role === "ai" &&
+                    heroChatMessages.slice(index + 1).every((m) => m.role !== "ai");
+                  const options = message.role === "ai" ? message.options ?? [] : [];
+                  const selectedFromThisMessage = selectedChefDirection?.replyIndex === index ? selectedChefDirection : null;
+                  return (
+                  <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[88%] ${message.role === "user" ? "" : "space-y-2"}`}>
+                      <div
+                        className={`rounded-[22px] px-4 py-3 text-[15px] leading-6 ${
+                          message.kind === "direction_selected"
+                            ? "border border-[rgba(74,106,96,0.12)] bg-[rgba(247,250,248,0.95)] text-[color:var(--text)] shadow-[inset_3px_0_0_var(--primary)]"
+                            : message.role === "user"
+                            ? "bg-[color:var(--primary)] text-white"
+                            : "border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] text-[color:var(--text)]"
+                        }`}
+                      >
+                        {message.text}
+                      </div>
+                      {message.role === "ai" ? (
+                        <div className="space-y-2">
+                          {options.length > 0 && !selectedFromThisMessage ? (
+                            <div className="space-y-2">
+                              <div className="space-y-2 md:hidden">
+                                {options.map((option) => {
+                                  const recommended = message.recommendedOptionId === option.id;
+                                  return (
+                                    <button
+                                      key={option.id}
+                                      type="button"
+                                      onClick={() => onSelectChefDirection(index, option)}
+                                      className="w-full rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-white px-3 py-3 text-left transition hover:bg-[rgba(74,106,96,0.05)]"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <p className="text-[14px] font-semibold text-[color:var(--text)]">{option.title}</p>
+                                            {recommended ? (
+                                              <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
+                                                Best pick
+                                              </span>
+                                            ) : null}
+                                          </div>
+                                          <p className="mt-1 text-[12px] leading-5 text-[color:var(--muted)]">{compactOptionSummary(option.summary)}</p>
+                                          {option.tags.length > 0 ? (
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                              {option.tags.slice(0, 2).map((tag) => (
+                                                <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted)]">
+                                                  {tag}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
+                                          Choose
+                                        </span>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div className="hidden gap-2 md:grid md:grid-cols-2">
                               {options.map((option) => {
+                                const selected =
+                                  selectedChefDirection?.replyIndex === index && selectedChefDirection.optionId === option.id;
                                 const recommended = message.recommendedOptionId === option.id;
                                 return (
                                   <button
                                     key={option.id}
                                     type="button"
                                     onClick={() => onSelectChefDirection(index, option)}
-                                    className="w-full rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-white px-3 py-3 text-left transition hover:bg-[rgba(74,106,96,0.05)]"
+                                    className={`rounded-[20px] border px-4 py-3 text-left transition ${
+                                      selected
+                                        ? "border-[rgba(74,106,96,0.28)] bg-[rgba(247,250,248,0.95)] shadow-[inset_3px_0_0_var(--primary)]"
+                                        : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(74,106,96,0.05)]"
+                                    }`}
                                   >
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
-                                          <p className="text-[14px] font-semibold text-[color:var(--text)]">{option.title}</p>
-                                          {recommended ? (
-                                            <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
-                                              Best pick
-                                            </span>
-                                          ) : null}
-                                        </div>
-                                        <p className="mt-1 text-[12px] leading-5 text-[color:var(--muted)]">{compactOptionSummary(option.summary)}</p>
-                                        {option.tags.length > 0 ? (
-                                          <div className="mt-2 flex flex-wrap gap-1.5">
-                                            {option.tags.slice(0, 2).map((tag) => (
-                                              <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[10px] font-medium text-[color:var(--muted)]">
-                                                {tag}
-                                              </span>
-                                            ))}
-                                          </div>
-                                        ) : null}
-                                      </div>
-                                      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
-                                        Choose
-                                      </span>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <p className="text-[15px] font-semibold text-[color:var(--text)]">{option.title}</p>
+                                      {recommended ? (
+                                        <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                                          Best pick
+                                        </span>
+                                      ) : null}
                                     </div>
+                                    <p className="mt-1 text-[13px] leading-6 text-[color:var(--muted)]">{compactOptionSummary(option.summary)}</p>
+                                    {option.tags.length > 0 ? (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {option.tags.slice(0, 3).map((tag) => (
+                                          <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[11px] font-medium text-[color:var(--muted)]">
+                                            {tag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                    <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                                      {selected ? "Selected direction" : "Choose this direction"}
+                                    </p>
                                   </button>
                                 );
                               })}
+                              </div>
                             </div>
-                            <div className="hidden gap-2 md:grid md:grid-cols-2">
-                            {options.map((option) => {
-                              const selected =
-                                selectedChefDirection?.replyIndex === index && selectedChefDirection.optionId === option.id;
-                              const recommended = message.recommendedOptionId === option.id;
-                              return (
-                                <button
-                                  key={option.id}
-                                  type="button"
-                                  onClick={() => onSelectChefDirection(index, option)}
-                                  className={`rounded-[20px] border px-4 py-3 text-left transition ${
-                                    selected
-                                      ? "border-[rgba(74,106,96,0.28)] bg-[rgba(247,250,248,0.95)] shadow-[inset_3px_0_0_var(--primary)]"
-                                      : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(74,106,96,0.05)]"
-                                  }`}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <p className="text-[15px] font-semibold text-[color:var(--text)]">{option.title}</p>
-                                    {recommended ? (
-                                      <span className="shrink-0 rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
-                                        Best pick
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <p className="mt-1 text-[13px] leading-6 text-[color:var(--muted)]">{compactOptionSummary(option.summary)}</p>
-                                  {option.tags.length > 0 ? (
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {option.tags.slice(0, 3).map((tag) => (
-                                        <span key={`${option.id}-${tag}`} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2 py-1 text-[11px] font-medium text-[color:var(--muted)]">
-                                          {tag}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                  <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
-                                    {selected ? "Selected direction" : "Choose this direction"}
-                                  </p>
-                                </button>
-                              );
-                            })}
-                            </div>
-                          </div>
-                        ) : null}
-                        {!selectedFromThisMessage ? (
-                          <button
-                            type="button"
-                            onClick={() => onCreateRecipeFromReply(index)}
-                            disabled={loading || generatingRecipe}
-                            className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
-                          >
-                            {activeChatRecipeIndex === index && generatingRecipe ? "Building recipe..." : options.length > 0 ? "Build from this reply" : "Build recipe from this direction"}
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
+                          ) : null}
+                          {!selectedFromThisMessage && isLastAiMessage ? (
+                            <button
+                              type="button"
+                              onClick={() => onCreateRecipeFromReply(index)}
+                              disabled={loading || generatingRecipe}
+                              className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
+                            >
+                              {activeChatRecipeIndex === index && generatingRecipe ? "Building recipe..." : options.length > 0 ? "Build from this reply" : "Build recipe from this direction"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              )})
+                )})}
+                {loading ? (
+                  <div className="flex justify-start">
+                    <div className="rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] px-4 py-3 text-[15px] text-[color:var(--muted)]">
+                      Chef is thinking...
+                    </div>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </div>
@@ -325,6 +337,9 @@ export function HomeHeroPanel({
           </div>
         </div>
 
+        {!heroChatReadyToApply && !hasConversation && !error && !loading ? (
+          <p className="mt-3 text-sm text-[color:var(--muted)]">Talk to Chef first, then build the recipe when the direction feels right.</p>
+        ) : null}
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
         {!error && status ? <p className="mt-3 text-sm text-[color:var(--muted)]">{status}</p> : null}
       </div>

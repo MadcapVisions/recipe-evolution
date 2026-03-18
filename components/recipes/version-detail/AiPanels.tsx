@@ -271,6 +271,7 @@ export function ChefAiPanel({
           ) : null}
           <div ref={conversationEndRef} />
         </div>
+        {aiError ? <p className="mt-3 text-sm text-red-600">{aiError}</p> : null}
         <div className="mt-3 flex gap-2">
           <input
             id="custom-ai-instruction"
