@@ -45,7 +45,6 @@ export default async function RootLayout({
           { href: "/dashboard", label: "Dashboard" },
           { href: "/recipes", label: "Cookbook" },
           { href: "/planner", label: "Meal Plan" },
-          { href: "/import", label: "Import Recipe" },
           { href: "/settings", label: "Settings" },
           ...(canAccessAdmin(user.email) ? [{ href: "/admin", label: "Admin" }] : []),
         ]

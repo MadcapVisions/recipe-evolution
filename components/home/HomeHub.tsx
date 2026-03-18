@@ -223,8 +223,8 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
       <ShellContextPanel
         side="right"
         label="Filters"
-        title="Constraint filters"
-        description="Use filters when you already know the shape of the meal and want Chef to return tighter directions."
+        title="Quick filters"
+        description="Already know the protein, time, or style? Set it here and Chef returns tighter directions."
       >
         <SmartMealBuilder
           smartProteins={smartProteins}
@@ -267,24 +267,6 @@ export function HomeHub({ recentRecipes, totalVersionCount, userTasteProfile }: 
             heroChatFrameRef={heroChatFrameRef}
             heroChatViewportRef={heroChatViewportRef}
           />
-
-          <section className="app-panel polish-card animate-rise-in flex flex-col gap-4 p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="app-kicker">Start paths</p>
-                <h2 className="mt-2 font-display text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Choose the fastest path into the next dish.</h2>
-                <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">Use Chef for open-ended ideas, filters for tighter constraints, or jump back into recipes you already trust.</p>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:min-w-[220px]">
-                <Link href="/recipes" className="app-chip justify-center">
-                  Open cookbook
-                </Link>
-                <Link href="/planner" className="app-chip app-chip-active justify-center">
-                  Open planner
-                </Link>
-              </div>
-            </div>
-          </section>
 
           {activeIdeaPanel === "ideas" ? (
             <RecipeIdeasPanel

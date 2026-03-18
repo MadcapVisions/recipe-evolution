@@ -39,9 +39,9 @@ export function SmartMealBuilder({
   return (
     <aside className="app-panel h-full">
       <div className="flex h-full flex-col p-6">
-        <p className="app-kicker">Constraint-first path</p>
-        <h2 className="mt-3 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Set the boundaries when you already know the shape of the meal.</h2>
-        <p className="mt-2 max-w-md text-[16px] leading-7 text-[color:var(--muted)]">Skip the conversation and define the edges first. Chef will return a tighter set of directions to develop from there.</p>
+        <p className="app-kicker">Quick filters</p>
+        <h2 className="mt-3 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)]">Filter by what you already know.</h2>
+        <p className="mt-2 max-w-md text-[16px] leading-7 text-[color:var(--muted)]">Already know the protein, time, or style? Set it here and Chef returns tighter directions to develop from there.</p>
 
         <div className="mt-6 space-y-5">
           <div>

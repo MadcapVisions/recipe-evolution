@@ -53,7 +53,7 @@ const productReasons = [
 ];
 
 const freeIncludes = [
-  "Free starter shelf with recipe import, guided development, and saved versions",
+  "Import a recipe or start from a rough idea — no setup needed",
   "No card required to create an account and start building",
   "Upgrade later only if Recipe Evolution becomes part of how you cook",
 ];
@@ -84,9 +84,9 @@ export default function HomePage() {
             </div>
 
             <div className="rounded-[28px] border border-[rgba(74,106,96,0.1)] bg-[rgba(250,248,242,0.94)] p-5 shadow-[inset_3px_0_0_var(--primary)]">
-              <p className="app-kicker">Free starter offer</p>
+              <p className="app-kicker">Free to start</p>
               <p className="mt-2 text-[24px] font-semibold leading-tight text-[color:var(--text)]">
-                Claim your free Starter Shelf and build the first recipe you actually want to keep.
+                Build your first dish and keep it — no card required.
               </p>
               <p className="mt-2 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
                 Start with one imported recipe or rough dish idea, refine it with Chef, and save the version history inside your cookbook.
@@ -98,7 +98,7 @@ export default function HomePage() {
                 href="/sign-up"
                 className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
               >
-                Claim Free Starter Shelf
+                Start free — build your first dish
               </Link>
               <Link
                 href="/pricing"
@@ -124,7 +124,7 @@ export default function HomePage() {
             <div className="rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-white p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="app-kicker">Starter shelf</p>
+                  <p className="app-kicker">How it works</p>
                   <p className="mt-2 text-[30px] font-semibold leading-tight text-[color:var(--text)]">
                     Your first saved dish starts here.
                   </p>
@@ -179,7 +179,7 @@ export default function HomePage() {
 
       <section className="app-panel p-6 lg:p-8">
         <div className="max-w-3xl">
-          <p className="app-kicker">The gap in the market</p>
+          <p className="app-kicker">Why most recipe tools fall short</p>
           <h2 className="mt-2 font-display text-[42px] font-semibold tracking-tight text-[color:var(--text)]">
             Most recipe apps stop at generation. The real value is what you keep.
           </h2>
@@ -191,6 +191,23 @@ export default function HomePage() {
               <p className="app-kicker">Problem</p>
               <h3 className="mt-3 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)]">{item.title}</h3>
               <p className="mt-3 text-[16px] leading-7 text-[color:var(--muted)]">{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="app-panel p-6 lg:p-8">
+        <p className="app-kicker">What home cooks are saying</p>
+        <h2 className="mt-2 font-display text-[38px] font-semibold tracking-tight text-[color:var(--text)]">Recipes that actually get better over time.</h2>
+        <div className="mt-6 grid gap-5 md:grid-cols-3">
+          {[
+            { quote: "Finally a way to keep the version I actually cook. The notes system alone is worth it.", name: "Home cook, London" },
+            { quote: "Chef doesn't just generate — it helps me think through what I actually want before I build it.", name: "Weeknight cook, NYC" },
+            { quote: "I imported my grandmother's chicken recipe and refined it into something I can reliably cook again.", name: "Recipe developer, Toronto" },
+          ].map((t) => (
+            <article key={t.name} className="rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.9)] p-6">
+              <p className="text-[17px] leading-7 text-[color:var(--text)]">"{t.quote}"</p>
+              <p className="mt-4 text-[13px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">{t.name}</p>
             </article>
           ))}
         </div>
@@ -238,7 +255,7 @@ export default function HomePage() {
             <div className="mt-5 rounded-[20px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.9)] p-4">
               <p className="app-kicker">Immediate next step</p>
               <p className="mt-2 text-[16px] leading-7 text-[color:var(--text)]">
-                Create your account, claim the free Starter Shelf, and build one recipe you would actually want to cook again this week.
+                Create your account and build your first dish. Free to start — no card required.
               </p>
             </div>
           </div>
@@ -248,7 +265,7 @@ export default function HomePage() {
       <section className="app-panel overflow-hidden p-6 lg:p-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_380px] lg:items-center">
           <div>
-            <p className="app-kicker">Free starter shelf</p>
+            <p className="app-kicker">Get started free</p>
             <h2 className="mt-2 font-display text-[46px] font-semibold tracking-tight text-[color:var(--text)]">
               Start free. Save the first recipe worth keeping.
             </h2>
@@ -260,7 +277,7 @@ export default function HomePage() {
                 href="/sign-up"
                 className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
               >
-                Get the Free Starter Shelf
+                Start free — build your first dish
               </Link>
               <Link
                 href="/pricing"

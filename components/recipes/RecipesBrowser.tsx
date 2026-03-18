@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeBrowseItem, RecipeBrowseSort, RecipeBrowseTab } from "@/lib/recipeBrowseData";
 
@@ -38,6 +38,19 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [openMenuId]);
 
   const favorites = useMemo(
     () => recipes.filter((recipe) => recipe.is_favorite).sort((a, b) => a.title.localeCompare(b.title)).slice(0, 8),
@@ -228,7 +241,6 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search dishes, ideas, or titles..." className="w-full" />
           </label>
           <div className="w-full xl:w-auto xl:min-w-[250px]">
-            <p className="mb-2 text-[15px] font-medium text-[color:var(--text)]">Shelf</p>
             <div className="grid grid-cols-3 gap-2 rounded-[24px] border border-[rgba(57,75,70,0.06)] bg-[rgba(250,248,242,0.92)] p-1.5">
               {(["active", "hidden", "archived"] as RecipeBrowseTab[]).map((value) => (
                 <button
@@ -285,9 +297,13 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
         {recipes.map((recipe, index) => (
           <article
             key={recipe.id}
-            className="recipe-cover-wrap polish-card animate-rise-in overflow-hidden rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] shadow-[0_12px_30px_rgba(52,70,63,0.07)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(52,70,63,0.08)]"
+            className="recipe-cover-wrap polish-card animate-rise-in relative overflow-hidden rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.92)] shadow-[0_12px_30px_rgba(52,70,63,0.07)] transition hover:-translate-y-px hover:shadow-[0_18px_36px_rgba(52,70,63,0.08)]"
           >
-            <Link href={`/recipes/${recipe.id}`} className="block">
+            {/* Stretched link covers the whole card */}
+            <Link href={`/recipes/${recipe.id}`} className="absolute inset-0 z-0" aria-label={`Open ${recipe.title}`} />
+
+            {/* Card content — pointer-events-none so clicks fall through to the link */}
+            <div className="pointer-events-none">
               {recipe.cover_image_url ? (
                 <Image src={recipe.cover_image_url} alt={`${recipe.title} cover`} width={640} height={480} unoptimized className="recipe-cover aspect-[4/3] w-full object-cover" />
               ) : (
@@ -303,9 +319,6 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
               )}
               <div className="space-y-3 p-5">
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
-                    Cookbook entry
-                  </span>
                   {recipe.is_favorite ? (
                     <span className="rounded-full bg-[rgba(201,123,66,0.12)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
                       Favorite
@@ -321,62 +334,85 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                   <p>Serves {typeof recipe.servings === "number" ? recipe.servings : "-"}</p>
                 </div>
               </div>
-            </Link>
-            <div className="artifact-divider space-y-3 px-5 py-4">
-              <div className="flex flex-wrap gap-2">
-                {recipe.latest_version_id ? (
-                  <Link
-                    href={`/recipes/${recipe.id}/versions/${recipe.latest_version_id}`}
-                    className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
-                  >
-                    Open Latest Version
-                  </Link>
-                ) : null}
-                {recipe.latest_version_id ? (
-                  <Link
-                    href={`/recipes/${recipe.id}/versions/${recipe.latest_version_id}/grocery`}
-                    className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
-                  >
-                    Shopping List
-                  </Link>
-                ) : null}
-                <Link
-                  href={`/planner?recipe=${recipe.id}`}
-                  className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
+            </div>
+
+            {/* Actions row — z-10 so it sits above the stretched link */}
+            <div className="artifact-divider relative z-10 flex items-center justify-between gap-3 px-5 py-4" ref={openMenuId === recipe.id ? menuRef : null}>
+              <Link
+                href={`/recipes/${recipe.id}`}
+                className="rounded-full bg-[color:var(--primary)] px-4 py-2 text-[14px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)]"
+              >
+                Open
+              </Link>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="More actions"
+                  aria-expanded={openMenuId === recipe.id}
+                  onClick={() => setOpenMenuId(openMenuId === recipe.id ? null : recipe.id)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[rgba(57,75,70,0.12)] bg-white text-[color:var(--muted)] transition hover:bg-[rgba(74,106,96,0.08)] hover:text-[color:var(--text)]"
                 >
-                  Add to Plan
-                </Link>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {tab === "hidden" || tab === "archived" ? (
-                  <button
-                    type="button"
-                    onClick={() => void clearRecipeVisibility(recipe.id)}
-                    disabled={savingRecipeId === recipe.id}
-                    className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
-                  >
-                    {savingRecipeId === recipe.id ? "Saving..." : "Return to Cookbook"}
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void hideRecipe(recipe.id)}
-                      disabled={savingRecipeId === recipe.id}
-                      className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
+                  •••
+                </button>
+                {openMenuId === recipe.id ? (
+                  <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[190px] overflow-hidden rounded-[20px] border border-[rgba(57,75,70,0.1)] bg-white shadow-[0_16px_36px_rgba(52,70,63,0.14)]">
+                    {recipe.latest_version_id ? (
+                      <Link
+                        href={`/recipes/${recipe.id}/versions/${recipe.latest_version_id}`}
+                        className="block px-4 py-3 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.06)]"
+                        onClick={() => setOpenMenuId(null)}
+                      >
+                        Open Latest Version
+                      </Link>
+                    ) : null}
+                    {recipe.latest_version_id ? (
+                      <Link
+                        href={`/recipes/${recipe.id}/versions/${recipe.latest_version_id}/grocery`}
+                        className="block px-4 py-3 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.06)]"
+                        onClick={() => setOpenMenuId(null)}
+                      >
+                        Shopping List
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/planner?recipe=${recipe.id}`}
+                      className="block px-4 py-3 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.06)]"
+                      onClick={() => setOpenMenuId(null)}
                     >
-                      {savingRecipeId === recipe.id ? "Saving..." : "Hide"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void archiveRecipe(recipe.id)}
-                      disabled={savingRecipeId === recipe.id}
-                      className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
-                    >
-                      {savingRecipeId === recipe.id ? "Saving..." : "Archive"}
-                    </button>
-                  </>
-                )}
+                      Add to Plan
+                    </Link>
+                    <div className="mx-4 border-t border-[rgba(57,75,70,0.08)]" />
+                    {tab === "hidden" || tab === "archived" ? (
+                      <button
+                        type="button"
+                        onClick={() => { setOpenMenuId(null); void clearRecipeVisibility(recipe.id); }}
+                        disabled={savingRecipeId === recipe.id}
+                        className="block w-full px-4 py-3 text-left text-[14px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.06)] disabled:opacity-60"
+                      >
+                        {savingRecipeId === recipe.id ? "Saving..." : "Return to Cookbook"}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { setOpenMenuId(null); void hideRecipe(recipe.id); }}
+                          disabled={savingRecipeId === recipe.id}
+                          className="block w-full px-4 py-3 text-left text-[14px] font-semibold text-[color:var(--muted)] transition hover:bg-[rgba(74,106,96,0.06)] disabled:opacity-60"
+                        >
+                          {savingRecipeId === recipe.id ? "Saving..." : "Hide"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setOpenMenuId(null); void archiveRecipe(recipe.id); }}
+                          disabled={savingRecipeId === recipe.id}
+                          className="block w-full px-4 py-3 text-left text-[14px] font-semibold text-[color:var(--muted)] transition hover:bg-[rgba(74,106,96,0.06)] disabled:opacity-60"
+                        >
+                          {savingRecipeId === recipe.id ? "Saving..." : "Archive"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
           </article>

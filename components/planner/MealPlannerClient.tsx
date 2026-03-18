@@ -48,6 +48,21 @@ export function MealPlannerClient({
   );
   const [modalText, setModalText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [weekAssignments, setWeekAssignments] = useState<Record<string, string>>({});
+
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const toggleDayAssignment = (day: string, versionId: string) => {
+    setWeekAssignments((current) => {
+      const next = { ...current };
+      if (next[day] === versionId) {
+        delete next[day];
+      } else {
+        next[day] = versionId;
+      }
+      return next;
+    });
+  };
 
   const selectedRecipes = useMemo(
     () =>
@@ -170,7 +185,7 @@ export function MealPlannerClient({
               <section className="artifact-sheet p-4">
                 <p className="app-kicker">Meal planning</p>
                 <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)]">
-                  Build the week from saved versions.
+                  Build your week from saved versions.
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
                   Choose the dishes that belong in this plan, then adjust servings before you export or print.
@@ -192,19 +207,21 @@ export function MealPlannerClient({
                       onClick={() => toggleRecipe(option.versionId)}
                       className={`w-full rounded-[22px] border px-4 py-3 text-left transition ${
                         active
-                          ? "border-[rgba(74,106,96,0.2)] bg-[rgba(250,249,244,0.98)] shadow-[inset_4px_0_0_var(--primary),0_10px_18px_rgba(58,84,76,0.06)]"
-                          : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)]"
+                          ? "border-[rgba(74,106,96,0.28)] bg-[rgba(74,106,96,0.07)] shadow-[inset_4px_0_0_var(--primary),0_10px_18px_rgba(58,84,76,0.06)]"
+                          : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)] opacity-60"
                       }`}
                     >
-                      <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
-                          {option.versionLabel?.trim() || "Latest version"}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-2">
                         {active ? (
-                          <span className="rounded-full border border-[rgba(74,106,96,0.12)] bg-[rgba(74,106,96,0.08)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary-strong)]">
+                          <span className="flex items-center gap-1 rounded-full border border-[rgba(74,106,96,0.2)] bg-[rgba(74,106,96,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary-strong)]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--primary)]" />
                             In plan
                           </span>
-                        ) : null}
+                        ) : (
+                          <span className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
+                            Add to plan
+                          </span>
+                        )}
                       </div>
                       <p className="mt-2 text-[18px] font-semibold leading-7 text-[color:var(--text)]">{option.recipeTitle}</p>
                       <p className="mt-1 text-sm text-[color:var(--muted)]">
@@ -254,14 +271,14 @@ export function MealPlannerClient({
                       Share
                     </Button>
                     <Button onClick={exportPlan} variant="secondary" className="w-full">
-                      Export TXT
+                      Download
                     </Button>
                     <Button onClick={printPlan} variant="secondary" className="w-full">
                       Print
                     </Button>
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-[color:var(--muted)]">Pick one or more versions to unlock grocery, prep, and export tools.</p>
+                  <p className="mt-3 text-sm text-[color:var(--muted)]">Pick one or more recipes to unlock the grocery list, prep plan, and export tools.</p>
                 )}
               </section>
 
@@ -291,10 +308,10 @@ export function MealPlannerClient({
         <section className="artifact-sheet p-4 sm:p-5">
           <p className="app-kicker">Meal planning</p>
           <h1 className="mt-2 max-w-[14ch] font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] min-[380px]:text-[26px] sm:text-[30px]">
-            Orchestrate a week from recipes you have already developed.
+            Build your week from recipes you already trust.
           </h1>
           <p className="mt-2 text-[15px] leading-6 text-[color:var(--muted)]">
-            Pick a few versions and Recipe Evolution will combine grocery, prep, and serving logic into one kitchen plan.
+            Pick a few recipes and Recipe Evolution combines grocery, prep, and serving logic into one kitchen plan.
           </p>
           {defaultSelectedVersionIds.length > 0 ? (
             <p className="mt-3 rounded-[18px] border border-[rgba(74,106,96,0.1)] bg-[rgba(74,106,96,0.05)] px-4 py-3 text-sm text-[color:var(--text)]">
@@ -311,19 +328,21 @@ export function MealPlannerClient({
                   onClick={() => toggleRecipe(option.versionId)}
                   className={`w-full rounded-[22px] border px-4 py-3 text-left transition ${
                     active
-                      ? "border-[rgba(74,106,96,0.2)] bg-[rgba(250,249,244,0.98)] shadow-[inset_4px_0_0_var(--primary),0_10px_18px_rgba(58,84,76,0.06)]"
-                      : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)]"
+                      ? "border-[rgba(74,106,96,0.28)] bg-[rgba(74,106,96,0.07)] shadow-[inset_4px_0_0_var(--primary),0_10px_18px_rgba(58,84,76,0.06)]"
+                      : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.9)] opacity-60"
                   }`}
                 >
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
-                      {option.versionLabel?.trim() || "Latest version"}
-                    </span>
+                  <div className="flex flex-wrap items-center gap-2">
                     {active ? (
-                      <span className="rounded-full border border-[rgba(74,106,96,0.12)] bg-[rgba(74,106,96,0.08)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary-strong)]">
+                      <span className="flex items-center gap-1 rounded-full border border-[rgba(74,106,96,0.2)] bg-[rgba(74,106,96,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary-strong)]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--primary)]" />
                         In plan
                       </span>
-                    ) : null}
+                    ) : (
+                      <span className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">
+                        Add to plan
+                      </span>
+                    )}
                   </div>
                   <p className="mt-2 text-[18px] font-semibold leading-7 text-[color:var(--text)]">{option.recipeTitle}</p>
                   <p className="mt-1 text-sm text-[color:var(--muted)]">
@@ -353,39 +372,77 @@ export function MealPlannerClient({
 
       <section className="space-y-5">
         <div className="artifact-sheet p-4 sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="app-kicker">Summary</p>
-              <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] min-[380px]:text-[26px] sm:text-[28px]">
-                {plan.recipeCount} recipe{plan.recipeCount === 1 ? "" : "s"} in this plan
-              </h2>
-            </div>
-            <Button href="/recipes" variant="secondary" className="min-h-11 self-start">
-              Back to cookbook
-            </Button>
+          <div>
+            <p className="app-kicker">Summary</p>
+            <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] min-[380px]:text-[26px] sm:text-[28px]">
+              {plan.recipeCount} recipe{plan.recipeCount === 1 ? "" : "s"} in this plan
+            </h2>
           </div>
           {plan.recipeCount === 0 ? (
             <p className="mt-4 text-[15px] text-[color:var(--muted)]">
-              Select one or more versions to build a combined grocery list and prep plan.
+              Select one or more recipes on the left to build a combined grocery list and prep plan.
             </p>
           ) : null}
           {plan.recipeCount > 0 ? (
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <Button onClick={copyPlan} variant="secondary" className="w-full sm:w-auto">
-                Copy plan
-              </Button>
-              <Button onClick={sharePlan} variant="secondary" className="w-full sm:w-auto">
-                Share plan
-              </Button>
-              <Button onClick={exportPlan} variant="secondary" className="w-full sm:w-auto">
-                Export TXT
-              </Button>
-              <Button onClick={printPlan} variant="secondary" className="w-full sm:w-auto">
-                Print
-              </Button>
-            </div>
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <Button onClick={copyPlan} variant="secondary" className="w-full sm:w-auto">
+                  Copy plan
+                </Button>
+                <Button onClick={sharePlan} variant="secondary" className="w-full sm:w-auto">
+                  Share plan
+                </Button>
+                <Button onClick={exportPlan} variant="secondary" className="w-full sm:w-auto">
+                  Download
+                </Button>
+                <Button onClick={printPlan} variant="secondary" className="w-full sm:w-auto">
+                  Print
+                </Button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedRecipes.map((item) => (
+                  <span key={item.versionId} className="rounded-full border border-[rgba(74,106,96,0.14)] bg-[rgba(74,106,96,0.06)] px-3 py-1.5 text-[13px] font-semibold text-[color:var(--primary-strong)]">
+                    {item.recipeTitle} · {item.targetServings ?? item.servings} servings
+                  </span>
+                ))}
+              </div>
+            </>
           ) : null}
         </div>
+
+        {plan.recipeCount > 0 ? (
+          <div className="artifact-sheet p-4 sm:p-5">
+            <p className="app-kicker">Week plan</p>
+            <h3 className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Assign recipes to days</h3>
+            <p className="mt-1 text-sm text-[color:var(--muted)]">Tap a day to assign a recipe. Tap again to remove.</p>
+            <div className="mt-4 space-y-3">
+              {selectedRecipes.map((item) => (
+                <div key={item.versionId} className="space-y-2">
+                  <p className="text-[13px] font-semibold text-[color:var(--text)]">{item.recipeTitle}</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {days.map((day) => {
+                      const assigned = weekAssignments[day] === item.versionId;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => toggleDayAssignment(day, item.versionId)}
+                          className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition ${
+                            assigned
+                              ? "bg-[color:var(--primary)] text-white shadow-[0_4px_10px_rgba(58,84,76,0.18)]"
+                              : "border border-[rgba(57,75,70,0.1)] bg-[rgba(255,252,246,0.9)] text-[color:var(--muted)] hover:border-[rgba(74,106,96,0.2)] hover:text-[color:var(--text)]"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="artifact-sheet p-4 sm:p-5">
           <p className="app-kicker">Combined grocery</p>

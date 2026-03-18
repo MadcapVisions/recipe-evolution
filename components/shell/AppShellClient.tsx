@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { AiStatusBadge } from "@/components/AiStatusBadge";
 import { UserMenu } from "@/components/UserMenu";
 import { AppShellContext, type AppShellNavLink, type AppShellSide, type AppShellSidePanel } from "@/components/shell/AppShellContext";
 
@@ -284,13 +283,10 @@ export function AppShellClient({
               />
             </Link>
 
-            <div className="hidden min-[460px]:flex">
-              <AiStatusBadge defaultMessage="Chef available" />
-            </div>
-
             <nav className="ml-4 hidden xl:flex xl:flex-1 xl:items-center xl:justify-center xl:gap-2" aria-label="Primary">
               {navLinks.map((link) => {
                 const active = pathname === link.href || (link.href !== "/" && pathname.startsWith(`${link.href}/`));
+                const isAdmin = link.href === "/admin";
 
                 return (
                   <Link
@@ -298,6 +294,7 @@ export function AppShellClient({
                     href={link.href}
                     className={joinClasses(
                       "rounded-full px-4 py-2 text-base font-semibold transition",
+                      isAdmin ? "text-sm opacity-50 hover:opacity-70" : "",
                       active
                         ? "bg-white/70 text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]"
                         : "text-[color:var(--muted)] hover:bg-white/60 hover:text-[color:var(--text)]"
@@ -319,9 +316,6 @@ export function AppShellClient({
                 </Link>
               )}
             </div>
-          </div>
-          <div className="border-t border-[rgba(79,54,33,0.06)] px-3 py-2 min-[460px]:hidden sm:px-6 xl:hidden">
-            <AiStatusBadge defaultMessage="Chef available" />
           </div>
         </header>
 

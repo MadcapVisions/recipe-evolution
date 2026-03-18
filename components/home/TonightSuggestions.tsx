@@ -91,9 +91,11 @@ export function TonightSuggestions({
         {(customIdeas ?? suggestions).map((suggestion, index) => (
           <article
             key={`${suggestion.title}-${index}`}
-            className="flex h-full cursor-pointer flex-col rounded-[26px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.94)] p-4 shadow-[0_8px_18px_rgba(76,50,24,0.05)] transition hover:-translate-y-px hover:shadow-[0_12px_24px_rgba(76,50,24,0.06)] sm:p-5"
+            className="flex h-full cursor-pointer flex-col overflow-hidden rounded-[26px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.94)] shadow-[0_8px_18px_rgba(76,50,24,0.05)] transition hover:-translate-y-px hover:shadow-[0_12px_24px_rgba(76,50,24,0.06)]"
           >
-            <h3 className="text-[18px] font-semibold text-[color:var(--text)]">{suggestion.title}</h3>
+            <div className={`aspect-[16/7] w-full ${index % 3 === 0 ? "cover-wash-saffron" : index % 3 === 1 ? "cover-wash-herb" : "cover-wash-tomato"}`} />
+            <div className="flex flex-1 flex-col p-4 sm:p-5">
+            <h3 className="text-[20px] font-semibold text-[color:var(--text)]">{suggestion.title}</h3>
             <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
               {suggestion.description}
             </p>
@@ -133,6 +135,7 @@ export function TonightSuggestions({
                   Swap Direction
                 </button>
               ) : null}
+            </div>
             </div>
           </article>
         ))}

@@ -66,12 +66,12 @@ export function HomeHeroPanel({
       >
           <div className="space-y-4">
             <div className="space-y-3">
-              <p className="app-kicker">Develop a dish</p>
-              <h1 className="font-display text-[28px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[46px] lg:text-[52px]">
-                Start with a direction. Save the version worth keeping.
+              <p className="app-kicker">Your personal Chef</p>
+              <h1 className="font-display text-[28px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[52px] lg:text-[60px]">
+                What do you feel like cooking tonight?
               </h1>
               <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[18px] sm:leading-8">
-                Bring a craving, ingredient, or constraint. Chef stays focused on cooking, then helps you sharpen the dish before it becomes part of your cookbook.
+                Bring a craving, ingredient, or constraint. Chef helps you shape the dish before it becomes a saved recipe in your cookbook.
               </p>
             </div>
 
@@ -101,18 +101,9 @@ export function HomeHeroPanel({
           <div>
             <p className="app-kicker">Chef session</p>
             <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">
-              {isRefining ? "Refine the selected direction." : hasConversation ? "Keep shaping the dish." : "Give Chef a starting point."}
+              {isRefining ? "Refine the selected direction." : hasConversation ? "Keep shaping the dish." : "What do you want to cook?"}
             </p>
           </div>
-          {hasConversation ? (
-            <button
-              type="button"
-              onClick={onStartOver}
-              className="self-start rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--muted)] transition hover:text-[color:var(--text)] sm:self-auto"
-            >
-              Start over
-            </button>
-          ) : null}
         </div>
 
         {selectedChefDirection ? (
@@ -306,25 +297,43 @@ export function HomeHeroPanel({
             placeholder={
               isRefining
                 ? "Refine this direction: flavor, texture, timing, substitutions..."
-                : "Describe a dish, ingredients, or a cooking constraint..."
+                : "What do you feel like cooking? Describe a dish, ingredient, or constraint..."
             }
-            className="min-h-12 flex-1 rounded-full bg-white px-5 py-3 text-[16px]"
+            className="min-h-14 flex-1 rounded-full bg-white px-5 py-3 text-[18px]"
           />
           <button
             type="button"
             onClick={onAskChef}
             disabled={loading || generatingRecipe}
-            className="w-full rounded-full bg-[color:var(--primary)] px-5 py-3 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+            className="w-full rounded-full bg-[color:var(--primary)] px-5 py-3.5 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
           >
-            Explore with Chef
+            {loading ? "Chef is thinking..." : generatingRecipe ? "Building your dish..." : "Ask Chef"}
           </button>
         </div>
 
+        {(loading || generatingRecipe) ? (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--primary)]" />
+            <p className="text-sm text-[color:var(--muted)]">{generatingRecipe ? "Building your dish — this takes a moment." : "Chef is thinking..."}</p>
+          </div>
+        ) : null}
         {!heroChatReadyToApply && !hasConversation && !error && !loading ? (
           <p className="mt-3 text-sm text-[color:var(--muted)]">Talk to Chef first, then build the recipe when the direction feels right.</p>
         ) : null}
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-        {!error && status ? <p className="mt-3 text-sm text-[color:var(--muted)]">{status}</p> : null}
+        {!error && status && !loading && !generatingRecipe ? <p className="mt-3 text-sm text-[color:var(--muted)]">{status}</p> : null}
+
+        {hasConversation ? (
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={onStartOver}
+              className="text-sm text-[color:var(--muted)] underline underline-offset-2 hover:text-[color:var(--text)] transition"
+            >
+              Start over
+            </button>
+          </div>
+        ) : null}
       </div>
     </section>
   );
