@@ -273,7 +273,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
             className="fixed inset-0 z-40 hidden xl:block"
             onClick={() => setFiltersPanelOpen(false)}
           />
-          <div className="fixed left-2 top-[76px] z-50 hidden h-[calc(100vh-76px-16px)] w-[300px] overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
+          <div className="fixed left-2 top-1/2 z-50 hidden max-h-[calc(100vh-100px)] w-[300px] -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <p className="app-kicker">Filters</p>
