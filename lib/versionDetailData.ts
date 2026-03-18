@@ -79,6 +79,7 @@ export type VersionDetailData = {
     version_number: number;
     version_label: string | null;
     change_summary: string | null;
+    notes: string | null;
     servings: number | null;
     prep_time_min: number | null;
     cook_time_min: number | null;
@@ -136,7 +137,7 @@ export async function loadVersionDetailData(
     supabase
       .from("recipe_versions")
       .select(
-        "id, recipe_id, version_number, version_label, change_summary, servings, prep_time_min, cook_time_min, difficulty, ingredients_json, steps_json, created_at"
+        "id, recipe_id, version_number, version_label, change_summary, notes, servings, prep_time_min, cook_time_min, difficulty, ingredients_json, steps_json, created_at"
       )
       .eq("id", versionId)
       .eq("recipe_id", recipeId)

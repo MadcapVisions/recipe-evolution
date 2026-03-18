@@ -68,7 +68,7 @@ export const AI_TASK_DEFAULTS: Record<AiTaskKey, AiTaskDefaults> = {
     primaryModel: "anthropic/claude-3.5-sonnet",
     fallbackModel: "openai/gpt-4o-mini",
     temperature: 0.55,
-    maxTokens: 900,
+    maxTokens: 1600,
     enabled: true,
   },
   recipe_improvement: {

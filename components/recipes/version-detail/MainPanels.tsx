@@ -90,6 +90,17 @@ export function VersionMainPanels({
             </div>
           </div>
 
+          {version.notes?.trim() ? (
+            <div className="rounded-[24px] bg-[rgba(74,106,96,0.07)] p-4 sm:p-5">
+              <p className="app-kicker">Chef tips</p>
+              <div className="mt-3 space-y-2">
+                {version.notes.split("\n").filter((line) => line.trim()).map((line, i) => (
+                  <p key={i} className="text-[15px] leading-relaxed text-[color:var(--text)]">{line}</p>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_240px]">
             <div className="rounded-[24px] bg-[rgba(201,123,66,0.08)] p-4 sm:p-5">
               <p className="app-kicker">Change notes</p>

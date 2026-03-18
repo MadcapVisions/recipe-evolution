@@ -67,6 +67,7 @@ export function mapVersionToCanonicalVersion(version: {
   version_number: number;
   version_label: string | null;
   change_summary: string | null;
+  notes?: string | null;
   servings: number | null;
   prep_time_min: number | null;
   cook_time_min: number | null;
@@ -77,6 +78,7 @@ export function mapVersionToCanonicalVersion(version: {
 }) {
   return {
     ...version,
+    notes: version.notes ?? null,
     canonical_ingredients: version.ingredients_json,
     canonical_steps: version.steps_json,
   };

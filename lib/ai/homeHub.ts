@@ -22,6 +22,7 @@ type HomeGeneratedRecipe = {
   difficulty: string | null;
   ingredients: Array<{ name: string }>;
   steps: Array<{ text: string }>;
+  chefTips: string[];
 };
 
 type IdeaMode = "mood_ideas" | "ingredients_ideas" | "filtered_ideas";
@@ -322,12 +323,15 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
             const ingredient = item as { name: string; quantity?: number; unit?: string | null; prep?: string | null };
             const rawUnit = typeof ingredient.unit === "string" ? ingredient.unit.trim().toLowerCase() : null;
             const unit = rawUnit && rawUnit !== "count" && rawUnit !== "piece" && rawUnit !== "pieces" ? ingredient.unit!.trim() : null;
+            const rawPrep = typeof ingredient.prep === "string" ? ingredient.prep.trim() : null;
+            const JUNK_PREP = new Set(["none", "n/a", "-", "null", "na"]);
+            const prep = rawPrep && !JUNK_PREP.has(rawPrep.toLowerCase()) ? rawPrep : null;
             return {
               name: formatIngredientLine({
                 name: ingredient.name,
                 quantity: typeof ingredient.quantity === "number" ? ingredient.quantity : null,
                 unit,
-                prep: typeof ingredient.prep === "string" ? ingredient.prep : null,
+                prep,
               }) || ingredient.name.trim(),
             };
           }
@@ -355,6 +359,13 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
 
   const title = typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : fallbackTitle;
 
+  const chefTips = Array.isArray(raw.chefTips)
+    ? raw.chefTips
+        .filter((tip): tip is string => typeof tip === "string" && tip.trim().length > 0)
+        .map((tip) => tip.trim())
+        .slice(0, 3)
+    : [];
+
   return {
     title,
     description: typeof raw.description === "string" ? raw.description.trim() || null : null,
@@ -366,6 +377,7 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
       : "Easy",
     ingredients,
     steps,
+    chefTips,
   };
 }
 
@@ -581,7 +593,8 @@ Return ONLY valid JSON:
   "cook_time_min": number|null,
   "difficulty": string|null,
   "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],
-  "steps": [{ "text": string }]
+  "steps": [{ "text": string }],
+  "chefTips": string[]
 }
 Rules:
 - The recipe must follow the chef conversation closely.
@@ -593,7 +606,8 @@ Rules:
 - Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
 - If an ingredient would normally appear without a unit, still include a count, like 1 onion or 2 eggs.
 - Keep steps practical and home-cook friendly.
-- Produce a complete recipe, not notes.`,
+- Produce a complete recipe, not notes.
+- chefTips: include 2–3 specific, practical tips that a home cook would find genuinely useful — technique nuances, common mistakes to avoid, or flavor-boosting tricks. Do not repeat information already in the steps.`,
     },
     {
       role: "user" as const,
@@ -675,7 +689,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     recipe: {
       ...recipe,
       tags: null,
-      notes: null,
+      notes: recipe.chefTips.length > 0 ? recipe.chefTips.map((tip) => `• ${tip}`).join("\n") : null,
       change_log: null,
       ai_metadata_json: null,
     },
