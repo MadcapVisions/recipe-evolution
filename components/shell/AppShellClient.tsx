@@ -262,7 +262,7 @@ export function AppShellClient({
     <AppShellContext.Provider value={contextValue}>
       <div className="min-h-screen">
         <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(248,243,234,0.96)_0%,rgba(245,239,229,0.92)_100%)] backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-8">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-10">
             <button
               type="button"
               onClick={() => setNavOpen(true)}
@@ -319,7 +319,7 @@ export function AppShellClient({
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-[1440px] px-3 pb-6 pt-24 sm:px-6 sm:pt-26 lg:px-10 lg:pb-8 lg:pt-28">
+        <div className="mx-auto w-full max-w-[1440px] px-3 pb-6 pt-20 sm:px-6 sm:pt-22 lg:px-10 lg:pb-8 lg:pt-24">
           <main className="min-w-0 flex-1">
             <div className="app-shell animate-rise-in p-3 sm:p-6 lg:p-7">{children}</div>
           </main>

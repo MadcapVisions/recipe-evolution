@@ -66,7 +66,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
   }, [status, loading, generatingRecipe]);
 
   return (
-    <div className="mx-auto w-full max-w-[1380px] space-y-8">
+    <div className="mx-auto flex min-h-[calc(100svh-8rem)] w-full max-w-[1380px] flex-col space-y-6">
       {/* Mobile shell panel — right = recents */}
       <ShellContextPanel
         side="right"
@@ -97,7 +97,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
       </ShellContextPanel>
 
       {/* Main content — full width */}
-      <div className="space-y-6">
+      <div className="flex min-h-0 flex-1 flex-col">
         <HomeHeroPanel
           heroChatMessages={heroChatMessages}
           selectedChefDirection={selectedChefDirection}

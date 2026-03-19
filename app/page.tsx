@@ -1,316 +1,396 @@
+import Image from "next/image";
 import Link from "next/link";
+import { RandomHeroTagline } from "@/components/home/RandomHeroTagline";
 
-const painPoints = [
-  {
-    title: "Disposable outputs",
-    description: "Most recipe tools help you generate something once, then leave you to lose the good version later.",
-  },
-  {
-    title: "No memory of what improved",
-    description: "When a dish finally gets better, there is rarely a clean record of what changed and why it worked.",
-  },
-  {
-    title: "No bridge to the real kitchen",
-    description: "Ideas are easy. Turning them into something you can cook, revisit, and plan around is the harder part.",
-  },
+const benefitStrip = [
+  "Cook from ingredients already in your kitchen",
+  "Get meals matched to your taste, time, and goals",
+  "Cut the nightly what-should-we-eat spiral",
 ];
 
-const workflow = [
+const heroHighlights = [
+  "Uses what is in your fridge",
+  "Ready in 25 minutes",
+  "High protein options",
+];
+
+const steps = [
   {
     step: "01",
-    title: "Start with a dish direction",
-    description: "Bring a craving, ingredient, leftover, or constraint instead of trying to write the perfect prompt.",
+    title: "Add what you have",
+    description: "Drop in ingredients, leftovers, cravings, or guardrails like time, protein goals, and dietary preferences.",
   },
   {
     step: "02",
-    title: "Refine it with Chef",
-    description: "Pressure-test flavor, technique, effort, and substitutions until the dish feels worth saving.",
+    title: "Get meal ideas that fit",
+    description: "AIcook turns your kitchen reality into recipes that feel tailored instead of generic or impossible.",
   },
   {
     step: "03",
-    title: "Save the stronger version",
-    description: "Keep the best iteration with change notes, so the recipe improves instead of disappearing into chat history.",
+    title: "Cook with confidence",
+    description: "Follow a guided recipe, save the good ones, and build a smarter personal rotation over time.",
+  },
+];
+
+const showcaseSections = [
+  {
+    kicker: "Pantry-aware",
+    title: "Use what is already in your kitchen.",
+    description:
+      "Turn produce, leftovers, and half-finished staples into meals that feel intentional instead of improvised.",
+    bullets: ["Reduce waste without eating boring clean-out meals", "Unlock combinations based on what you actually own"],
+    imageSrc: "/assets/homepage_photos/full meal.jpg",
+    imageAlt: "Temporary homepage photo showing a full plated meal",
   },
   {
-    step: "04",
-    title: "Cook it again or plan it",
-    description: "Use the saved version in your cookbook, grocery planning, and weeknight cooking without starting over.",
+    kicker: "Taste-matched",
+    title: "Get meals that fit real life.",
+    description:
+      "Filter for time, effort, household preferences, and nutrition goals so dinner feels useful on a Tuesday, not just inspirational.",
+    bullets: ["Smart suggestions for quick dinners, picky households, and macro goals", "Less browsing, more deciding"],
+    imageSrc: "/assets/homepage_photos/tuna dish.jpg",
+    imageAlt: "Temporary homepage photo showing a tuna dish",
+  },
+  {
+    kicker: "Built to repeat",
+    title: "Keep the winners on repeat.",
+    description:
+      "Save favorites, revisit the meals that work, and let your home cooking get better instead of starting from zero every night.",
+    bullets: ["Build a personal bench of reliable go-to meals", "Turn one good dinner into a weekly habit"],
+    imageSrc: "/assets/homepage_photos/dish_side_view.jpg",
+    imageAlt: "Temporary homepage photo showing a plated dish from the side",
   },
 ];
 
-const freeStarterItems = [
-  "Import a recipe you already make",
-  "Develop a stronger version with Chef",
-  "Save version notes in your cookbook",
-  "Use the saved dish in planning and cooking mode",
+const scenarios = [
+  "Busy weeknights",
+  "Fridge clean-out dinners",
+  "High-protein goals",
+  "Budget-conscious cooking",
+  "Picky households",
+  "Beginner-friendly meals",
 ];
 
-const productReasons = [
-  "A cookbook with memory, not a pile of generated text",
-  "Version-aware recipe development instead of one-shot outputs",
-  "Taste-aware refinement that gets more useful over time",
-  "A path from rough idea to saved dish to weekly plan",
+const features = [
+  {
+    title: "Ingredient-first suggestions",
+    description: "Start with what you have, not a blank search bar.",
+  },
+  {
+    title: "Personalized meal filters",
+    description: "Match recipes to prep time, mood, nutrition, and household constraints.",
+  },
+  {
+    title: "Guided cooking flow",
+    description: "Move from idea to finished dish without losing momentum in the kitchen.",
+  },
+  {
+    title: "Favorites that get smarter",
+    description: "Keep the meals you love and shape a rotation that reflects how you actually cook.",
+  },
 ];
 
-const freeIncludes = [
-  "Import a recipe or start from a rough idea — no setup needed",
-  "No card required to create an account and start building",
-  "Upgrade later only if Recipe Evolution becomes part of how you cook",
+const testimonials = [
+  {
+    quote: "It ended the nightly what-are-we-making debate in our apartment.",
+    name: "Jenna, Brooklyn",
+  },
+  {
+    quote: "I finally use the ingredients I buy before they die in the fridge.",
+    name: "Maya, Austin",
+  },
+  {
+    quote: "The recipe ideas feel like they were made for my actual week, not some fantasy meal plan.",
+    name: "Chris, Chicago",
+  },
+];
+
+const stats = [
+  { value: "25 min", label: "Average weeknight dinner target" },
+  { value: "3 taps", label: "From ingredients to tailored meal ideas" },
+  { value: "1 kitchen", label: "A smarter system built around your real habits" },
 ];
 
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-[1320px] space-y-8">
-      <section className="app-panel overflow-hidden">
-        <div className="grid gap-8 p-7 lg:grid-cols-[minmax(0,1.05fr)_430px] lg:p-10">
-          <div className="space-y-6">
+    <div className="landing-page mx-auto max-w-[1380px] space-y-8">
+      <section className="landing-hero relative overflow-hidden">
+        <div className="landing-grid absolute inset-0 opacity-60" />
+        <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.82fr)] lg:gap-12 lg:p-10">
+          <div className="space-y-8">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="app-kicker">Personal test kitchen</span>
-              <span className="rounded-full border border-[rgba(74,106,96,0.14)] bg-[rgba(74,106,96,0.06)] px-3 py-1.5 text-sm font-semibold text-[color:var(--primary-strong)]">
-                Start free
-              </span>
-              <span className="rounded-full border border-[rgba(181,123,77,0.12)] bg-[rgba(255,246,237,0.92)] px-3 py-1.5 text-sm font-semibold text-[color:var(--text)]">
-                No card required
-              </span>
+              <span className="landing-pill">Chef Utility, with appetite</span>
+              <span className="landing-pill landing-pill-warm">Personalized meal ideas from your kitchen</span>
             </div>
 
-            <div className="space-y-4">
-              <h1 className="max-w-[11ch] font-display text-[48px] font-semibold leading-[0.92] tracking-tight text-[color:var(--text)] sm:text-[68px]">
-                Turn rough dinner ideas into dishes worth repeating.
-              </h1>
-              <p className="max-w-3xl text-[20px] leading-9 text-[color:var(--muted)]">
-                Recipe Evolution helps ambitious home cooks refine a dish with Chef, save the stronger version, and build a cookbook shaped by what actually works in their kitchen.
-              </p>
-            </div>
+            <RandomHeroTagline />
 
-            <div className="rounded-[28px] border border-[rgba(74,106,96,0.1)] bg-[rgba(250,248,242,0.94)] p-5 shadow-[inset_3px_0_0_var(--primary)]">
-              <p className="app-kicker">Free to start</p>
-              <p className="mt-2 text-[24px] font-semibold leading-tight text-[color:var(--text)]">
-                Build your first dish and keep it — no card required.
-              </p>
-              <p className="mt-2 max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
-                Start with one imported recipe or rough dish idea, refine it with Chef, and save the version history inside your cookbook.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-1">
-              <Link
-                href="/sign-up"
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
-              >
-                Start free — build your first dish
+            <div className="flex flex-wrap gap-3">
+              <Link href="/sign-up" className="landing-btn landing-btn-primary">
+                Start Cooking
               </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.92)] px-6 py-3 text-[16px] font-semibold text-[color:var(--text)] shadow-[0_2px_8px_rgba(61,51,36,0.03)] transition hover:bg-white"
-              >
-                See Plans
+              <Link href="#how-it-works" className="landing-btn landing-btn-secondary">
+                See How It Works
               </Link>
             </div>
 
-            <div className="grid gap-2 pt-2 sm:grid-cols-3">
-              {freeIncludes.map((item) => (
-                <div
-                  key={item}
-                  className="artifact-sheet px-4 py-3 text-[14px] font-medium leading-6 text-[color:var(--text)]"
-                >
+            <div className="grid gap-3 pt-1 sm:grid-cols-3">
+              {benefitStrip.map((item) => (
+                <div key={item} className="landing-chip-card">
                   {item}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="artifact-sheet p-5">
-            <div className="rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-white p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="app-kicker">How it works</p>
-                  <p className="mt-2 text-[30px] font-semibold leading-tight text-[color:var(--text)]">
-                    Your first saved dish starts here.
-                  </p>
-                </div>
-                <div className="rounded-full border border-[rgba(181,123,77,0.12)] bg-[rgba(255,246,237,0.94)] px-3 py-1.5 text-sm font-semibold text-[color:var(--text)]">
-                  Free today
-                </div>
+          <div className="relative">
+            <div className="landing-photo-shell">
+              <div className="landing-photo-hero">
+                <Image
+                  src="/assets/homepage_photos/homepage.jpg"
+                  alt="Temporary homepage hero image"
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 42vw"
+                />
               </div>
 
-              <div className="mt-5 space-y-3">
-                <div className="rounded-[22px] border border-[rgba(57,75,70,0.06)] bg-[rgba(255,246,237,0.86)] p-4">
-                  <p className="app-kicker">Start</p>
-                  <p className="mt-2 text-[16px] leading-7 text-[color:var(--text)]">
-                    “I already make lemon chicken pasta, but I want it brighter, less heavy, and easier on a weeknight.”
-                  </p>
+              <div className="landing-ui-card">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="app-kicker">Tonight in AIcook</p>
+                    <p className="mt-2 text-[26px] font-semibold leading-tight text-[color:var(--landing-ink)]">
+                      Lemon basil chicken pasta
+                    </p>
+                  </div>
+                  <span className="landing-score">95% match</span>
                 </div>
-                <div className="rounded-[22px] border border-[rgba(57,75,70,0.06)] bg-[rgba(247,250,248,0.9)] p-4">
-                  <p className="app-kicker">Chef refines</p>
-                  <p className="mt-2 text-[16px] leading-7 text-[color:var(--text)]">
-                    Adjust the sauce, simplify the method, and decide what deserves to become the saved version.
-                  </p>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="landing-ui-panel">
+                    <p className="app-kicker">You have</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {["Chicken", "Pasta", "Spinach", "Garlic", "Lemon"].map((item) => (
+                        <span key={item} className="landing-ui-tag">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="landing-ui-panel">
+                    <p className="app-kicker">Why it fits</p>
+                    <ul className="mt-3 space-y-2 text-[14px] leading-6 text-[color:var(--landing-ink)]">
+                      <li>Weeknight-friendly steps</li>
+                      <li>Uses what is already open</li>
+                      <li>Bright, high-protein finish</li>
+                    </ul>
+                  </div>
                 </div>
-                <div className="rounded-[22px] border border-[rgba(57,75,70,0.06)] bg-[rgba(250,248,242,0.94)] p-4">
-                  <p className="app-kicker">You keep</p>
-                  <p className="mt-2 text-[16px] leading-7 text-[color:var(--text)]">
-                    A dish in your cookbook with version notes, a cleaner recipe, and something you can cook again next week.
-                  </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {heroHighlights.map((item) => (
+                    <span key={item} className="landing-ui-badge">
+                      {item}
+                    </span>
+                  ))}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <div className="mt-5 rounded-[22px] border border-[rgba(74,106,96,0.1)] bg-[rgba(74,106,96,0.05)] p-4">
-                <p className="app-kicker">Included in the free starter</p>
-                <ul className="mt-3 space-y-2">
-                  {freeStarterItems.map((item) => (
-                    <li key={item} className="flex gap-3 text-[15px] leading-7 text-[color:var(--text)]">
-                      <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-[color:var(--primary)]" />
-                      <span>{item}</span>
+      <section id="how-it-works" className="landing-section">
+        <div className="max-w-3xl">
+          <p className="app-kicker">How it works</p>
+          <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[52px]">
+            From fridge to dinner in 3 steps.
+          </h2>
+          <p className="mt-4 text-[18px] leading-8 text-[color:var(--landing-muted)]">
+            The flow is built for real-life cooking: fewer tabs, fewer dead-end ideas, and faster decisions.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          {steps.map((item, index) => (
+            <article key={item.step} className="landing-step-card">
+              <div className="flex items-center justify-between gap-4">
+                <span className="landing-step-number">{item.step}</span>
+                <span className="landing-step-line" />
+              </div>
+              <h3 className="mt-5 text-[28px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.title}</h3>
+              <p className="mt-3 text-[16px] leading-7 text-[color:var(--landing-muted)]">{item.description}</p>
+              <div className="landing-step-image mt-6">
+                <Image
+                  src={
+                    index === 0
+                      ? "/assets/homepage_photos/salad.jpg"
+                      : index === 1
+                        ? "/assets/homepage_photos/meal photo.jpg"
+                        : "/assets/homepage_photos/dish3.jpg"
+                  }
+                  alt={item.title}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 30vw"
+                />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-section">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+          <div>
+            <p className="app-kicker">Built for real-life cooking</p>
+            <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[54px]">
+              A smarter dinner workflow, not another recipe rabbit hole.
+            </h2>
+          </div>
+          <div className="landing-note">
+            <p className="text-[16px] leading-7 text-[color:var(--landing-ink)]">
+              Product-led where it matters, editorial where it counts. The page should prove utility without losing appetite.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 space-y-5">
+          {showcaseSections.map((section, index) => (
+            <article
+              key={section.title}
+              className={`landing-showcase ${index % 2 === 1 ? "landing-showcase-reverse" : ""}`}
+            >
+              <div className="space-y-4">
+                <p className="app-kicker">{section.kicker}</p>
+                <h3 className="font-display text-[38px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)]">
+                  {section.title}
+                </h3>
+                <p className="text-[17px] leading-8 text-[color:var(--landing-muted)]">{section.description}</p>
+                <ul className="space-y-3">
+                  {section.bullets.map((bullet) => (
+                    <li key={bullet} className="flex gap-3 text-[16px] leading-7 text-[color:var(--landing-ink)]">
+                      <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-[color:var(--landing-accent)]" />
+                      <span>{bullet}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              <div className="annotation-note mt-5 px-4 py-3">
-                <p className="font-annotate text-[18px] leading-7">
-                  Keep the version you would actually cook again next Tuesday.
-                </p>
+              <div className="landing-showcase-image">
+                <Image
+                  src={section.imageSrc}
+                  alt={section.imageAlt}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 44vw"
+                />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="landing-section overflow-hidden">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.68fr)]">
+          <div>
+            <p className="app-kicker">Why people keep using it</p>
+            <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[54px]">
+              Less waste. Less decision fatigue. More meals worth repeating.
+            </h2>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {features.map((feature) => (
+                <article key={feature.title} className="landing-feature-card">
+                  <h3 className="text-[22px] font-semibold leading-tight text-[color:var(--landing-ink)]">{feature.title}</h3>
+                  <p className="mt-3 text-[16px] leading-7 text-[color:var(--landing-muted)]">{feature.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="landing-aside-panel">
+            <div className="landing-aside-image">
+              <Image
+                src="/assets/homepage_photos/3 vairous dishes.jpg"
+                alt="Temporary homepage photo showing several dishes"
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 30vw"
+              />
+            </div>
+            <div className="mt-5 space-y-3">
+              <p className="app-kicker">Made for the way people actually cook</p>
+              <div className="flex flex-wrap gap-2">
+                {scenarios.map((item) => (
+                  <span key={item} className="landing-pill landing-pill-soft">
+                    {item}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="app-panel p-6 lg:p-8">
-        <div className="max-w-3xl">
-          <p className="app-kicker">Why most recipe tools fall short</p>
-          <h2 className="mt-2 font-display text-[42px] font-semibold tracking-tight text-[color:var(--text)]">
-            Most recipe apps stop at generation. The real value is what you keep.
-          </h2>
-        </div>
-
-        <div className="mt-6 grid gap-5 md:grid-cols-3">
-          {painPoints.map((item) => (
-            <article key={item.title} className="rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.9)] p-6">
-              <p className="app-kicker">Problem</p>
-              <h3 className="mt-3 font-display text-[30px] font-semibold tracking-tight text-[color:var(--text)]">{item.title}</h3>
-              <p className="mt-3 text-[16px] leading-7 text-[color:var(--muted)]">{item.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="app-panel p-6 lg:p-8">
-        <p className="app-kicker">What home cooks are saying</p>
-        <h2 className="mt-2 font-display text-[38px] font-semibold tracking-tight text-[color:var(--text)]">Recipes that actually get better over time.</h2>
-        <div className="mt-6 grid gap-5 md:grid-cols-3">
-          {[
-            { quote: "Finally a way to keep the version I actually cook. The notes system alone is worth it.", name: "Home cook, London" },
-            { quote: "Chef doesn't just generate — it helps me think through what I actually want before I build it.", name: "Weeknight cook, NYC" },
-            { quote: "I imported my grandmother's chicken recipe and refined it into something I can reliably cook again.", name: "Recipe developer, Toronto" },
-          ].map((t) => (
-            <article key={t.name} className="rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.9)] p-6">
-              <p className="text-[17px] leading-7 text-[color:var(--text)]">"{t.quote}"</p>
-              <p className="mt-4 text-[13px] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)]">{t.name}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="app-panel p-6 lg:p-8">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_430px]">
-          <div>
-            <p className="app-kicker">How it works</p>
-            <h2 className="mt-2 font-display text-[44px] font-semibold tracking-tight text-[color:var(--text)]">
-              Develop the dish before you decide it belongs in your cookbook.
+      <section className="landing-section">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
+          <div className="landing-proof">
+            <p className="app-kicker">Proof points</p>
+            <h2 className="mt-3 font-display text-[40px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)]">
+              Clear value before the first scroll is over.
             </h2>
-            <p className="mt-3 max-w-3xl text-[18px] leading-8 text-[color:var(--muted)]">
-              Recipe Evolution is for cooks who want a better outcome than “generate and forget.” You use Chef to sharpen a dish, then keep the version that actually earns a place on your shelf.
-            </p>
+            <div className="mt-6 grid gap-3">
+              {stats.map((item) => (
+                <div key={item.label} className="landing-stat-card">
+                  <div className="text-[30px] font-semibold text-[color:var(--landing-ink)]">{item.value}</div>
+                  <div className="text-[15px] leading-6 text-[color:var(--landing-muted)]">{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {workflow.map((item) => (
-                <article key={item.step} className="rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.92)] p-5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(181,123,77,0.1)] text-[17px] font-semibold text-[color:var(--accent)]">
-                    {item.step}
-                  </div>
-                  <h3 className="mt-4 text-[22px] font-semibold tracking-tight text-[color:var(--text)]">{item.title}</h3>
-                  <p className="mt-2 text-[16px] leading-7 text-[color:var(--muted)]">{item.description}</p>
+          <div>
+            <p className="app-kicker">Why home cooks keep coming back</p>
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              {testimonials.map((item) => (
+                <article key={item.name} className="landing-testimonial">
+                  <p className="text-[18px] leading-8 text-[color:var(--landing-ink)]">“{item.quote}”</p>
+                  <p className="mt-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-[color:var(--landing-muted)]">
+                    {item.name}
+                  </p>
                 </article>
               ))}
             </div>
           </div>
-
-          <div className="artifact-sheet p-6 shadow-[inset_3px_0_0_var(--primary)]">
-            <p className="app-kicker">Why people stick with it</p>
-            <h3 className="mt-2 font-display text-[34px] font-semibold tracking-tight text-[color:var(--text)]">
-              A cookbook with memory beats a recipe slot machine.
-            </h3>
-            <div className="mt-5 space-y-3">
-              {productReasons.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[20px] border border-[rgba(57,75,70,0.06)] bg-white/88 px-4 py-3 text-[15px] leading-7 text-[color:var(--text)]"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 rounded-[20px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.9)] p-4">
-              <p className="app-kicker">Immediate next step</p>
-              <p className="mt-2 text-[16px] leading-7 text-[color:var(--text)]">
-                Create your account and build your first dish. Free to start — no card required.
-              </p>
-            </div>
-          </div>
         </div>
       </section>
 
-      <section className="app-panel overflow-hidden p-6 lg:p-8">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_380px] lg:items-center">
-          <div>
-            <p className="app-kicker">Get started free</p>
-            <h2 className="mt-2 font-display text-[46px] font-semibold tracking-tight text-[color:var(--text)]">
-              Start free. Save the first recipe worth keeping.
-            </h2>
-            <p className="mt-3 max-w-3xl text-[18px] leading-8 text-[color:var(--muted)]">
-              If the product clicks, you will feel it fast: one stronger recipe, one cleaner version history, and one cookbook entry that already feels more useful than another disposable chat output.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/sign-up"
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
-              >
-                Start free — build your first dish
-              </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,252,246,0.92)] px-6 py-3 text-[16px] font-semibold text-[color:var(--text)] shadow-[0_2px_8px_rgba(61,51,36,0.03)] transition hover:bg-white"
-              >
-                Compare Free and Pro
-              </Link>
-            </div>
-          </div>
-
-          <div className="artifact-sheet p-5">
-            <p className="app-kicker">What happens after sign-up</p>
-            <div className="recipe-cover-wrap mt-4 overflow-hidden rounded-[22px] border border-[rgba(57,75,70,0.08)]">
-              <div className="editorial-frame cover-wash-saffron aspect-[16/9] w-full" />
-            </div>
-            <div className="mt-4 space-y-3">
-              {[
-                "Create your personal cookbook",
-                "Import a recipe or start from a dish idea",
-                "Refine the dish with Chef",
-                "Save the stronger version and build from there",
-              ].map((item, index) => (
-                <div key={item} className="flex gap-3 rounded-[20px] border border-[rgba(57,75,70,0.06)] bg-[rgba(250,248,242,0.92)] px-4 py-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[rgba(181,123,77,0.1)] text-sm font-semibold text-[color:var(--accent)]">
-                    {index + 1}
-                  </div>
-                  <p className="text-[15px] leading-7 text-[color:var(--text)]">{item}</p>
-                </div>
-              ))}
-            </div>
-            <div className="annotation-note mt-4 px-4 py-3">
-              <p className="font-annotate text-[17px] leading-7">Start with one dish. Keep the one that earns a place on the shelf.</p>
-            </div>
+      <section className="landing-cta">
+        <div className="landing-cta-image">
+          <Image
+            src="/assets/homepage_photos/woman eating dinner.jpg"
+            alt="Temporary homepage lifestyle photo of a woman eating dinner"
+            fill
+            className="object-cover"
+            sizes="100vw"
+          />
+        </div>
+        <div className="landing-cta-copy">
+          <p className="app-kicker text-white/80">Ready when dinner gets complicated</p>
+          <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-white sm:text-[58px]">
+            Open the fridge. We&apos;ll take it from there.
+          </h2>
+          <p className="mt-4 max-w-2xl text-[18px] leading-8 text-white/82">
+            AIcook helps you turn ingredients, cravings, and constraints into meals you will actually want to make tonight.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link href="/sign-up" className="landing-btn landing-btn-cta">
+              Start Cooking
+            </Link>
+            <Link href="/pricing" className="landing-btn landing-btn-ghost">
+              See Plans
+            </Link>
           </div>
         </div>
       </section>

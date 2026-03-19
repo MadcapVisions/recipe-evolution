@@ -58,10 +58,10 @@ export function HomeHeroPanel({
   ];
 
   return (
-    <section className="app-panel flex min-h-0 flex-col overflow-hidden">
+    <section className="app-panel flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className={`overflow-hidden border-b border-[rgba(57,75,70,0.08)] px-5 transition-[max-height,padding,opacity] duration-300 md:px-6 lg:px-8 ${
-          hasConversation ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-[420px] py-5 opacity-100 md:max-h-[340px] md:py-6 lg:max-h-[360px] lg:py-8"
+          hasConversation ? "max-h-0 border-b-0 py-0 opacity-0" : "max-h-[420px] py-4 opacity-100 md:max-h-[320px] md:py-5 lg:max-h-[340px] lg:py-6"
         }`}
       >
           <div className="space-y-4">
@@ -96,8 +96,8 @@ export function HomeHeroPanel({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-col bg-[rgba(255,255,255,0.22)] p-5 sm:p-6 lg:p-8">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex min-h-0 flex-1 flex-col bg-[rgba(255,255,255,0.22)] p-4 sm:p-5 lg:p-6">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="app-kicker">Chef session</p>
             <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">
@@ -134,7 +134,7 @@ export function HomeHeroPanel({
           </div>
         ) : null}
 
-        <div ref={heroChatFrameRef} className="flex h-[340px] rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.9)] p-3 sm:h-[420px] sm:p-4 lg:h-[520px]">
+        <div ref={heroChatFrameRef} className="flex min-h-[280px] flex-1 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.9)] p-3 sm:min-h-[360px] sm:p-4">
           <div
             ref={heroChatViewportRef}
             className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-white p-4"
@@ -289,7 +289,7 @@ export function HomeHeroPanel({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-3 flex flex-col gap-3">
           <input
             value={promptInput}
             onChange={(event) => onPromptInputChange(event.target.value)}
