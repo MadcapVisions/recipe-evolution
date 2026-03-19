@@ -13,6 +13,7 @@ type RecipesBrowserProps = {
 };
 
 const PAGE_SIZE = 24;
+const DESKTOP_RAIL_LEFT = "max(10px, calc((100vw - 1440px) / 2 + 12px))";
 
 // Filter chip definitions for the My Recipes filter panel
 const FILTER_GROUPS = [
@@ -281,7 +282,10 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                     className="fixed inset-0 z-40 hidden xl:block"
                     onClick={() => setFiltersPanelOpen(false)}
                   />
-                  <div className="fixed left-2 top-1/2 z-50 hidden max-h-[calc(100vh-100px)] w-[300px] -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block">
+                  <div
+                    className="fixed top-1/2 z-50 hidden max-h-[calc(100vh-100px)] w-[300px] -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.98)] p-5 shadow-[4px_8px_32px_rgba(52,70,63,0.12)] xl:block"
+                    style={{ left: DESKTOP_RAIL_LEFT }}
+                  >
                     <div className="mb-5 flex items-start justify-between gap-3">
                       <div>
                         <p className="app-kicker">Filters</p>
@@ -345,7 +349,8 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                 <button
                   type="button"
                   onClick={() => setFiltersPanelOpen(true)}
-                  className="fixed left-0 top-1/2 z-40 hidden -translate-y-1/2 xl:flex"
+                  className="fixed top-1/2 z-40 hidden -translate-y-1/2 hover:translate-y-[-50%] active:translate-y-[-50%] xl:flex"
+                  style={{ left: DESKTOP_RAIL_LEFT }}
                   aria-label="Open filters panel"
                 >
                   <div className="flex flex-col items-center gap-2 rounded-r-[16px] border border-l-0 border-[rgba(57,75,70,0.1)] bg-[rgba(255,253,249,0.96)] py-4 pl-2 pr-3 shadow-[2px_0_12px_rgba(52,70,63,0.08)] transition hover:bg-white">

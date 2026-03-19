@@ -10,65 +10,19 @@ import {
   buildFocusedChatHistory,
   buildFocusedRecipeConversation,
   buildReplyBranch,
-  buildSelectedDirectionConversation,
 } from "@/lib/ai/homeConversationFocus";
 import { generateLocalChefReply, generateLocalRecipeDraft, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
 import { createRecipeFromDraft, getCreatedRecipeHref } from "@/lib/client/recipeMutations";
 import { repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
-import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
-import {
-  buildSmartFallbackIdeas,
-  cookTimeLabelToMinutes,
-  matchesCookTime,
-  matchesCuisine,
-  matchesProtein,
-  normalizeIdeas,
-} from "@/components/home/ideaUtils";
-import type { ChatMessage, GeneratedRecipe, RecipeIdea, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
-
-const MAX_IDEA_COUNT = 2;
-const IDEA_BATCH_SIZE = 2;
-
-type IdeaSource = "mood" | "ingredients" | "smart" | "trending" | null;
-
-const toggleSelection = (current: string[], value: string) =>
-  current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
-
-const detectPromptType = (prompt: string): "ingredients" | "mood" => {
-  const normalized = prompt.trim();
-  if (!normalized) {
-    return "mood";
-  }
-
-  const ingredientSeparators = normalized.split(/\n|,/g).filter((item) => item.trim().length > 0);
-  const shortItems = ingredientSeparators.filter((item) => item.trim().split(/\s+/).length <= 3);
-
-  if (ingredientSeparators.length >= 3 && shortItems.length === ingredientSeparators.length) {
-    return "ingredients";
-  }
-
-  return "mood";
-};
+import type { ChatMessage, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
 
 const extractIngredientsFromPrompt = (prompt: string) =>
   prompt
     .split(/\n|,/g)
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
-
-const dedupeIdeas = (ideas: RecipeIdea[]) => {
-  const unique = new Map<string, RecipeIdea>();
-  for (const idea of ideas) {
-    const key = idea.title.trim().toLowerCase();
-    if (!key || unique.has(key)) {
-      continue;
-    }
-    unique.set(key, idea);
-  }
-  return Array.from(unique.values());
-};
 
 const buildHeroConversationContext = (messages: ChatMessage[]) =>
   messages
@@ -235,24 +189,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const [promptInput, setPromptInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatingRecipe, setGeneratingRecipe] = useState(false);
-  const [selectedIdeaTitle, setSelectedIdeaTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [ideas, setIdeas] = useState<RecipeIdea[]>([]);
-  const [ideaSource, setIdeaSource] = useState<IdeaSource>(null);
-  const [ideaBatchIndex, setIdeaBatchIndex] = useState(1);
-
-  const [smartProteins, setSmartProteins] = useState<string[]>([]);
-  const [smartCuisines, setSmartCuisines] = useState<string[]>([]);
-  const [smartCookTimes, setSmartCookTimes] = useState<string[]>([]);
-  const [smartPreferences, setSmartPreferences] = useState<string[]>([]);
-  const [appliedFilters, setAppliedFilters] = useState<string[]>([]);
-  const [smartIdeas, setSmartIdeas] = useState<RecipeIdea[]>([]);
-  const [smartLoading, setSmartLoading] = useState(false);
-  const [smartGeneratingRecipe, setSmartGeneratingRecipe] = useState(false);
-  const [smartSelectedIdeaTitle, setSmartSelectedIdeaTitle] = useState<string | null>(null);
-  const [smartError, setSmartError] = useState<string | null>(null);
-  const [smartStatus, setSmartStatus] = useState<string | null>(null);
 
   const [heroChatMessages, setHeroChatMessages] = useState<ChatMessage[]>([]);
   const [heroChatReadyToApply, setHeroChatReadyToApply] = useState(false);
@@ -364,99 +302,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     router.refresh();
   };
 
-  const runIdeaGeneration = async ({
-    mode,
-    source,
-    prompt,
-    ingredients,
-  }: {
-    mode: "mood_ideas" | "ingredients_ideas";
-    source: Exclude<IdeaSource, "smart" | "trending" | null>;
-    prompt?: string;
-    ingredients?: string[];
-  }) => {
-    setLoading(true);
-    setError(null);
-    setStatus("Developing directions...");
-
-    try {
-      const data = await invokeAi({
-        mode,
-        prompt,
-        ingredients,
-        exclude_titles: [],
-        batch_index: 1,
-        requested_count: IDEA_BATCH_SIZE,
-      });
-
-      const nextIdeas = dedupeIdeas(normalizeIdeas(data?.ideas));
-      if (nextIdeas.length === 0) {
-        throw new Error("No recipe ideas were generated.");
-      }
-
-      setIdeas(nextIdeas.slice(0, IDEA_BATCH_SIZE));
-      setIdeaSource(source);
-      setIdeaBatchIndex(1);
-      setTransientStatus("Choose a direction to turn into a full recipe.");
-    } catch (aiError) {
-      const fallbackIdeas = dedupeIdeas(
-        generateLocalRecipeIdeas(prompt ?? ingredients?.join(" ") ?? "", ingredients ?? [], userTasteProfile ?? undefined)
-      );
-      setIdeas(fallbackIdeas.slice(0, IDEA_BATCH_SIZE));
-      setIdeaSource(source);
-      setIdeaBatchIndex(1);
-      setError(null);
-      setStatus("Showing fallback directions while Chef is unavailable.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateRecipeFromIdea = async (ideaOrTitle: RecipeIdea | string, sourceOverride?: string) => {
-    const selectedIdea =
-      typeof ideaOrTitle === "string" ? { title: ideaOrTitle, description: ideaOrTitle, cook_time_min: 30 } : ideaOrTitle;
-    const source = sourceOverride ?? ideaSource ?? "mood";
-
-    setGeneratingRecipe(true);
-    setSelectedIdeaTitle(selectedIdea.title);
-    setError(null);
-    setStatus("Building full recipe...");
-
-    try {
-      const ingredients = detectPromptType(promptInput) === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined;
-      const data = await invokeAi({
-        mode: "idea_recipe",
-        ideaTitle: selectedIdea.title,
-        prompt: promptInput.trim() || selectedIdea.description,
-        ingredients,
-      });
-
-      const recipe = ((data.result as AiRecipeResult | undefined)?.recipe ?? data.recipe) as GeneratedRecipe;
-      const created = await saveGeneratedRecipe(recipe, source);
-      goToCreatedRecipe(created.recipeId, created.versionId);
-    } catch (aiError) {
-      try {
-        const fallbackRecipe = generateLocalRecipeDraft(
-          {
-            ideaTitle: selectedIdea.title,
-            prompt: promptInput.trim() || selectedIdea.description,
-            ingredients: detectPromptType(promptInput) === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined,
-          },
-          userTasteProfile ?? undefined
-        );
-        const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
-        goToCreatedRecipe(created.recipeId, created.versionId);
-      } catch (saveError) {
-        setError(getRecipeBuildErrorMessage(saveError, "Could not build or save the recipe."));
-        setStatus(null);
-      }
-    } finally {
-      setGeneratingRecipe(false);
-      setSelectedIdeaTitle(null);
-      setStatus(null);
-    }
-  };
-
   const createRecipeFromConversation = async (
     messages: ChatMessage[],
     source = "chef-chat",
@@ -483,10 +328,11 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         prompt: latestUserPrompt,
         ingredients,
         conversationHistory,
-        conversationRails: appliedFilters,
       });
 
-      const recipe = ((data.result as AiRecipeResult | undefined)?.recipe ?? data.recipe) as GeneratedRecipe;
+      const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
+        ? (data.result as { recipe: RecipeDraft }).recipe
+        : (data.recipe as RecipeDraft);
       const created = await saveGeneratedRecipe(recipe, source);
       goToCreatedRecipe(created.recipeId, created.versionId);
     } catch {
@@ -512,50 +358,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }
     } finally {
       setGeneratingRecipe(false);
-      setSelectedIdeaTitle(null);
       setActiveChatRecipeIndex(null);
       setStatus(null);
-    }
-  };
-
-  const handleSelectIdea = async (idea: RecipeIdea) => {
-    await generateRecipeFromIdea(idea, ideaSource ?? "mood");
-  };
-
-  const handleGenerateMoreIdeas = async () => {
-    if (loading || !ideaSource || ideas.length >= MAX_IDEA_COUNT) {
-      return;
-    }
-
-    const nextBatchIndex = ideaBatchIndex + 1;
-    setLoading(true);
-    setError(null);
-    setStatus("Developing more directions...");
-
-    try {
-      const mode = ideaSource === "ingredients" ? "ingredients_ideas" : "mood_ideas";
-      const data = await invokeAi({
-        mode,
-        prompt: promptInput.trim(),
-        ingredients: ideaSource === "ingredients" ? extractIngredientsFromPrompt(promptInput) : undefined,
-        exclude_titles: ideas.map((idea) => idea.title),
-        batch_index: nextBatchIndex,
-        requested_count: IDEA_BATCH_SIZE,
-      });
-
-      const mergedIdeas = dedupeIdeas([...ideas, ...normalizeIdeas(data?.ideas)]).slice(0, MAX_IDEA_COUNT);
-      setIdeas(mergedIdeas);
-      setIdeaBatchIndex(nextBatchIndex);
-      setTransientStatus("Choose a direction to turn into a full recipe.");
-    } catch (aiError) {
-      const fallbackIdeas = generateLocalRecipeIdeas(promptInput.trim(), [], userTasteProfile ?? undefined).filter(
-        (idea) => !ideas.some((existing) => existing.title.toLowerCase() === idea.title.toLowerCase())
-      );
-      setIdeas(dedupeIdeas([...ideas, ...fallbackIdeas]).slice(0, MAX_IDEA_COUNT));
-      setError(null);
-      setStatus(describeAiOutage(aiError, "Added fallback ideas"));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -602,13 +406,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
               ingredients: extractIngredientsFromPrompt(activeDirectionSummary || trimmedPrompt),
               steps: activeDirectionMessages.filter((message) => message.role === "ai").map((message) => message.text),
             }
-          : ideas.length > 0
-            ? {
-                title: ideas[0]?.title,
-                ingredients: extractIngredientsFromPrompt(trimmedPrompt),
-                steps: [],
-              }
-            : null;
+          : null;
 
       const topicGuard = guardCookingTopic({
         message: trimmedPrompt,
@@ -632,7 +430,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         mode: "chef_chat",
         userMessage: trimmedPrompt,
         recipeContext,
-        conversationRails: appliedFilters,
         conversationHistory:
           startsNewDirection
             ? []
@@ -685,38 +482,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       heroSubmitLockRef.current = false;
       setLoading(false);
     }
-  };
-
-  const handleApplyHeroChatIdeas = async () => {
-    if (heroChatMessages.length === 0) {
-      setError("Ask Chef for a direction first.");
-      return;
-    }
-
-    const latestOptions = heroChatMessages.at(-1)?.options ?? [];
-    if (!selectedChefDirection && latestOptions.length > 1) {
-      setError("Choose a direction before building the recipe.");
-      return;
-    }
-
-    trackEventInBackground("hero_chat_applied", {
-      source: "home-hub",
-      messageCount: heroChatMessages.length,
-      conversation: buildHeroConversationContext(
-        selectedChefDirection != null
-          ? buildLockedDirectionMessages(heroChatMessages, selectedChefDirection)
-          : buildFocusedRecipeConversation(heroChatMessages)
-      ).slice(0, 1200),
-    });
-
-    await createRecipeFromConversation(
-      selectedChefDirection != null
-        ? buildLockedDirectionMessages(heroChatMessages, selectedChefDirection)
-        : buildFocusedRecipeConversation(heroChatMessages)
-      ,
-      "chef-chat",
-      selectedChefDirection
-    );
   };
 
   const handleCreateRecipeFromReply = async (replyIndex: number) => {
@@ -782,157 +547,13 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     void handleAskChefInHero();
   };
 
-  const toggleSmartProtein = (value: string) => {
-    setSmartProteins((current) => toggleSelection(current, value));
-  };
-
-  const toggleSmartCuisine = (value: string) => {
-    setSmartCuisines((current) => toggleSelection(current, value));
-  };
-
-  const toggleSmartCookTime = (value: string) => {
-    setSmartCookTimes((current) => toggleSelection(current, value));
-  };
-
-  const toggleSmartPreference = (value: string) => {
-    setSmartPreferences((current) => toggleSelection(current, value));
-  };
-
-  const applyCurrentSmartFilters = () => {
-    const nextAppliedFilters = [...smartProteins, ...smartCuisines, ...smartCookTimes, ...smartPreferences].filter(
-      (filter) => filter.trim().toLowerCase() !== "no preference"
-    );
-    setAppliedFilters(nextAppliedFilters);
-    return nextAppliedFilters;
-  };
-
-  const removeAppliedFilter = (filterToRemove: string) => {
-    setAppliedFilters((current) => current.filter((filter) => filter !== filterToRemove));
-    setSmartProteins((current) => current.filter((filter) => filter !== filterToRemove));
-    setSmartCuisines((current) => current.filter((filter) => filter !== filterToRemove));
-    setSmartCookTimes((current) => current.filter((filter) => filter !== filterToRemove));
-    setSmartPreferences((current) => current.filter((filter) => filter !== filterToRemove));
-  };
-
-  const handleGenerateSmartMeals = async () => {
-    if (smartLoading) {
-      return;
-    }
-
-    setSmartLoading(true);
-    setSmartError(null);
-    setSmartStatus("Developing directions...");
-    setSmartIdeas([]);
-    trackEventInBackground("smart_filters_used", {
-      proteins: smartProteins,
-      cuisines: smartCuisines,
-      cookTimes: smartCookTimes,
-      preferences: smartPreferences,
-    });
-
-    const filters = {
-      cuisine: smartCuisines[0] ?? "Any",
-      protein: smartProteins[0] ?? "Any",
-      mealType: "Dinner",
-      cookingTime: smartCookTimes[0] ?? "30 min",
-    };
-
-    try {
-      const data = await invokeAi({
-        mode: "filtered_ideas",
-        filters,
-        requested_count: IDEA_BATCH_SIZE,
-      });
-
-      const cookTimeMinutes = smartCookTimes.map(cookTimeLabelToMinutes);
-      const normalized = normalizeIdeas(data?.ideas);
-      const filtered = normalized.filter((idea) => {
-        const haystack = `${idea.title} ${idea.description}`.toLowerCase();
-        return (
-          matchesProtein(haystack, smartProteins) &&
-          matchesCuisine(haystack, smartCuisines) &&
-          matchesCookTime(idea.cook_time_min, cookTimeMinutes)
-        );
-      });
-
-      const nextIdeas = dedupeIdeas(
-        filtered.length > 0
-          ? filtered
-          : buildSmartFallbackIdeas(smartProteins, smartCuisines, cookTimeMinutes, smartPreferences)
-      );
-
-      setSmartIdeas(nextIdeas);
-      setSmartStatus("Select a direction to generate the full recipe.");
-    } catch (aiError) {
-      const cookTimeMinutes = smartCookTimes.map(cookTimeLabelToMinutes);
-      const fallbackPrompt = `${smartProteins.join(" ")} ${smartCuisines.join(" ")} ${smartPreferences.join(" ")} ${smartCookTimes.join(" ")}`.trim();
-      const fallbackIdeas = dedupeIdeas(
-        fallbackPrompt
-          ? generateLocalRecipeIdeas(fallbackPrompt, [], userTasteProfile ?? undefined)
-          : buildSmartFallbackIdeas(smartProteins, smartCuisines, cookTimeMinutes, smartPreferences)
-      );
-      setSmartIdeas(fallbackIdeas);
-      setSmartError(null);
-      setSmartStatus(describeAiOutage(aiError, "Showing fallback ideas"));
-    } finally {
-      setSmartLoading(false);
-    }
-  };
-
-  const handleSelectSmartIdea = async (idea: RecipeIdea) => {
-    trackEventInBackground("recipe_idea_selected", {
-      source: "smart",
-      title: idea.title,
-      description: idea.description,
-      cookTimeMin: idea.cook_time_min ?? null,
-    });
-    setSmartGeneratingRecipe(true);
-    setSmartSelectedIdeaTitle(idea.title);
-    setSmartError(null);
-    setSmartStatus("Generating full recipe...");
-
-    try {
-      await generateRecipeFromIdea(idea, "smart");
-    } catch (aiError) {
-      setSmartError(aiError instanceof Error ? aiError.message : "Failed to generate smart recipe.");
-    } finally {
-      setSmartGeneratingRecipe(false);
-      setSmartSelectedIdeaTitle(null);
-      setSmartStatus(null);
-    }
-  };
-
-  const handleTrackedSelectIdea = async (idea: RecipeIdea) => {
-    trackEventInBackground("recipe_idea_selected", {
-      source: ideaSource ?? "mood",
-      title: idea.title,
-      description: idea.description,
-      cookTimeMin: idea.cook_time_min ?? null,
-    });
-    await handleSelectIdea(idea);
-  };
-
   return {
-    MAX_IDEA_COUNT,
     promptInput,
     setPromptInput,
     loading,
     generatingRecipe,
-    selectedIdeaTitle,
     error,
     status,
-    ideas,
-    smartProteins,
-    smartCuisines,
-    smartCookTimes,
-    smartPreferences,
-    appliedFilters,
-    smartIdeas,
-    smartLoading,
-    smartGeneratingRecipe,
-    smartSelectedIdeaTitle,
-    smartError,
-    smartStatus,
     heroChatMessages,
     selectedChefDirection,
     heroChatReadyToApply,
@@ -941,21 +562,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     heroChatViewportRef,
     handleHeroInputKeyDown,
     handleAskChefInHero,
-    handleApplyHeroChatIdeas,
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
     handleStartOver,
-    handleGenerateMoreIdeas,
-    handleSelectIdea: handleTrackedSelectIdea,
-    generateRecipeFromIdea,
-    toggleSmartPreference,
-    toggleSmartProtein,
-    toggleSmartCuisine,
-    toggleSmartCookTime,
-    applyCurrentSmartFilters,
-    removeAppliedFilter,
-    handleGenerateSmartMeals,
-    handleSelectSmartIdea,
   };
 }

@@ -16,28 +16,11 @@ export type AIMessage = {
   content: string;
 };
 
-function buildConversationRailsPrompt(conversationRails: string[]) {
-  if (conversationRails.length === 0) {
-    return null;
-  }
-
-  return `Active Conversation Rails:
-${conversationRails.map((rail) => `- ${rail}`).join("\n")}
-
-Rules for rails:
-- Treat these rails as active constraints for the current conversation.
-- If a rail already settles a choice, do not ask the user to choose outside that rail.
-- Do not suggest contradictory directions unless the user explicitly changes the rail.
-- If the rail says Chicken, stay in the chicken lane and do not ask whether they want vegetarian or another main protein.
-- Prefer to move the dish forward inside these rails instead of reopening already-resolved decisions.`;
-}
-
 export function buildChefChatPrompt(
   userMessage: string,
   recipeContext: RecipeContext,
   conversationHistory: AIMessage[] = [],
-  userTasteSummary?: string,
-  conversationRails: string[] = []
+  userTasteSummary?: string
 ): AIMessage[] {
   let contextText = "";
 
@@ -59,9 +42,6 @@ ${recipeContext.steps?.join("\n") ?? "None provided"}
   const flavorGraphContext = generateFlavorContext(recipeContext?.ingredients || []);
   const substitutionContext = generateSubstitutionContext(recipeContext?.ingredients || []);
   const cookingContext = buildCookingContext(recipeContext?.ingredients || []);
-  const railsPrompt = buildConversationRailsPrompt(
-    conversationRails.map((rail) => rail.trim()).filter((rail) => rail.length > 0)
-  );
 
   return [
     {
@@ -88,8 +68,6 @@ After that, add one short line that names the strongest option.
       role: "system",
       content: `
 ${contextText}
-
-${railsPrompt ? `${railsPrompt}\n` : ""}
 
 User Taste Profile:
 ${userTasteSummary?.trim() || "No user taste profile available."}

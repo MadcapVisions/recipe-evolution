@@ -27,8 +27,6 @@ type HomeHeroPanelProps = {
   onStartOver: () => void;
   heroChatFrameRef: RefObject<HTMLDivElement | null>;
   heroChatViewportRef: RefObject<HTMLDivElement | null>;
-  appliedFilters?: string[];
-  onRemoveFilter?: (filter: string) => void;
 };
 
 export function HomeHeroPanel({
@@ -50,8 +48,6 @@ export function HomeHeroPanel({
   onStartOver,
   heroChatFrameRef,
   heroChatViewportRef,
-  appliedFilters = [],
-  onRemoveFilter,
 }: HomeHeroPanelProps) {
   const hasConversation = heroChatMessages.length > 0;
   const isRefining = selectedChefDirection != null;
@@ -109,32 +105,6 @@ export function HomeHeroPanel({
             </p>
           </div>
         </div>
-
-        {appliedFilters.length > 0 ? (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Active rails</p>
-            {appliedFilters.map((filter) => (
-              <span
-                key={filter}
-                className="flex items-center gap-1.5 rounded-full bg-[rgba(79,125,115,0.12)] px-3 py-1.5 text-[13px] font-semibold text-[color:var(--primary)]"
-              >
-                {filter}
-                {onRemoveFilter ? (
-                  <button
-                    type="button"
-                    onClick={() => onRemoveFilter(filter)}
-                    aria-label={`Remove ${filter} filter`}
-                    className="flex h-4 w-4 items-center justify-center rounded-full transition hover:bg-[rgba(79,125,115,0.2)]"
-                  >
-                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                      <path d="M7 1L1 7M1 1L7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                ) : null}
-              </span>
-            ))}
-          </div>
-        ) : null}
 
         {selectedChefDirection ? (
           <div className="mb-4 rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] p-4 shadow-[inset_3px_0_0_var(--primary)]">

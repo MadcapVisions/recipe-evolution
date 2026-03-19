@@ -541,7 +541,6 @@ export async function generateHomeRecipe(input: {
   prompt?: string;
   ingredients?: string[];
   conversationHistory?: AIMessage[];
-  conversationRails?: string[];
 }, userTasteSummary?: string, cacheContext?: AiCacheContext): Promise<AiRecipeResult> {
   const inputHash = cacheContext
     ? hashAiCacheInput({
@@ -585,8 +584,6 @@ Priority order:
 1. Chef conversation and the user's most recent confirmed direction
 2. User taste summary
 User taste summary: ${userTasteSummary?.trim() || "No user taste summary available."}
-Active conversation rails:
-${(input.conversationRails ?? []).length > 0 ? (input.conversationRails ?? []).map((rail) => `- ${rail}`).join("\n") : "None"}
 Return ONLY valid JSON:
 {
   "title": string,
@@ -601,8 +598,6 @@ Return ONLY valid JSON:
 }
 Rules:
 - The recipe must follow the chef conversation closely.
-- Treat active conversation rails as hard constraints unless the user explicitly changed them in the conversation.
-- Do not swap to a contradictory main protein or dietary direction when a rail already settles that choice.
 - If the user narrowed to one exact dish, make that dish. Do not drift to adjacent ideas.
 - If the chef conversation indicates a dish format like pasta, skillet, salad, soup, tacos, dip, or bowl, preserve that format exactly unless the user explicitly changed it later.
 - When the conversation mentions a specific anchor ingredient or protein, keep it in the final recipe instead of swapping to a different main ingredient.
@@ -621,8 +616,7 @@ Idea: ${input.ideaTitle}
 Prompt context: ${input.prompt ?? ""}
 Conversation context:
 ${formatConversation(input.conversationHistory) || "No chef conversation available."}
-Ingredients context: ${JSON.stringify(input.ingredients ?? [])}
-Active rails context: ${JSON.stringify(input.conversationRails ?? [])}`,
+Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     },
   ];
 
