@@ -215,10 +215,10 @@ export function NewRecipeFromTextForm() {
                 key={item.step}
                 className={`rounded-[22px] px-4 py-3 ${
                   active
-                    ? "bg-[rgba(82,124,116,0.1)] ring-1 ring-[rgba(82,124,116,0.22)]"
+                    ? "bg-[rgba(210,76,47,0.08)] ring-1 ring-[rgba(210,76,47,0.2)] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
                     : complete
-                      ? "bg-[rgba(141,169,187,0.1)]"
-                      : "bg-[rgba(255,252,246,0.72)] ring-1 ring-[rgba(79,54,33,0.08)]"
+                      ? "bg-[rgba(242,185,75,0.12)] ring-1 ring-[rgba(242,185,75,0.16)]"
+                      : "bg-[rgba(255,252,246,0.84)] ring-1 ring-[rgba(142,84,60,0.08)]"
                 }`}
               >
                 <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
@@ -231,7 +231,7 @@ export function NewRecipeFromTextForm() {
         </div>
       </section>
 
-      <section className="saas-card space-y-4 p-5">
+      <section className="saas-card space-y-4 border border-[rgba(142,84,60,0.1)] bg-[linear-gradient(180deg,rgba(255,251,246,0.98)_0%,rgba(255,246,238,0.94)_100%)] p-5">
         <div className="space-y-2">
           <p className="app-kicker">Step 1</p>
           <h2 className="font-display text-[28px] font-semibold text-[color:var(--text)]">Paste the source material</h2>
@@ -272,7 +272,7 @@ export function NewRecipeFromTextForm() {
       </section>
 
       {structured ? (
-        <section className="saas-card space-y-4 p-5">
+        <section className="saas-card space-y-4 border border-[rgba(142,84,60,0.1)] bg-[linear-gradient(180deg,rgba(255,251,246,0.98)_0%,rgba(255,246,238,0.94)_100%)] p-5">
           <div className="space-y-2">
             <p className="app-kicker">Step 2</p>
             <h2 className="font-display text-[28px] font-semibold text-[color:var(--text)]">Review the first clean version</h2>
@@ -280,7 +280,7 @@ export function NewRecipeFromTextForm() {
               Make any edits you want, then save this as the base version in your cookbook.
             </p>
           </div>
-          <div className="rounded-[24px] bg-[rgba(79,125,115,0.08)] p-4">
+          <div className="rounded-[24px] border border-[rgba(142,84,60,0.08)] bg-[rgba(210,76,47,0.06)] p-4">
             <p className="app-kicker">Imported foundation</p>
             <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">
               Imported recipes are most useful when the first version is clean. You can rename, refine, and evolve it after saving.

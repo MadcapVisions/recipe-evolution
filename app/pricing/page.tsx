@@ -35,7 +35,7 @@ export default function PricingPage() {
   return (
     <div className="mx-auto max-w-[1320px] space-y-8">
       <section className="app-panel overflow-hidden">
-        <div className="grid gap-8 bg-[linear-gradient(135deg,rgba(141,169,187,0.14)_0%,rgba(142,168,141,0.12)_45%,rgba(255,255,255,0.45)_100%)] p-8 lg:grid-cols-[minmax(0,1.15fr)_360px] lg:p-10">
+        <div className="grid gap-8 bg-[radial-gradient(circle_at_top_left,rgba(210,76,47,0.1),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(242,185,75,0.12),transparent_24%),linear-gradient(180deg,rgba(255,251,246,0.98)_0%,rgba(255,245,236,0.94)_100%)] p-8 lg:grid-cols-[minmax(0,1.15fr)_360px] lg:p-10">
           <div className="space-y-5">
             <p className="app-kicker">Pricing</p>
             <h1 className="font-display text-[46px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[60px]">
@@ -51,7 +51,7 @@ export default function PricingPage() {
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.82)] p-5 shadow-[0_18px_40px_rgba(52,70,63,0.08)] backdrop-blur-sm">
+          <div className="rounded-[30px] border border-[rgba(142,84,60,0.1)] bg-[rgba(255,251,246,0.9)] p-5 shadow-[0_18px_40px_rgba(101,47,29,0.08)] backdrop-blur-sm">
             <p className="app-kicker">What you already get</p>
             <div className="mt-4 space-y-3">
               {[
@@ -62,7 +62,7 @@ export default function PricingPage() {
               ].map((item) => (
                 <div
                   key={item}
-                  className="rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-white px-4 py-3 text-[15px] font-medium text-[color:var(--text)]"
+                  className="rounded-[22px] border border-[rgba(142,84,60,0.1)] bg-[rgba(255,255,255,0.92)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
                 >
                   {item}
                 </div>
@@ -82,7 +82,7 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="mt-6 rounded-[24px] bg-[rgba(141,169,187,0.08)] p-5">
+          <div className="mt-6 rounded-[24px] border border-[rgba(142,84,60,0.08)] bg-[rgba(210,76,47,0.06)] p-5">
             <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Best for</p>
             <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Trying the workflow and building the first shelf of your cookbook</p>
           </div>
@@ -90,7 +90,7 @@ export default function PricingPage() {
           <ul className="mt-6 space-y-3">
             {freeFeatures.map((feature) => (
               <li key={feature} className="flex gap-3 text-[17px] leading-7 text-[color:var(--text)]">
-                <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-[color:var(--secondary)]" />
+                <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-[color:var(--accent)]" />
                 <span>{feature}</span>
               </li>
             ))}
@@ -107,7 +107,7 @@ export default function PricingPage() {
         </article>
 
         <article className="app-panel relative overflow-hidden p-6 lg:p-8">
-          <div className="absolute right-6 top-6 rounded-full bg-[color:var(--primary)] px-4 py-2 text-[14px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)]">
+          <div className="absolute right-6 top-6 rounded-full bg-[color:var(--primary)] px-4 py-2 text-[14px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(182,63,41,0.2)]">
             Best value
           </div>
 
@@ -122,7 +122,7 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="mt-6 rounded-[24px] bg-[rgba(142,168,141,0.1)] p-5">
+          <div className="mt-6 rounded-[24px] border border-[rgba(142,84,60,0.08)] bg-[rgba(242,185,75,0.12)] p-5">
             <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Best for</p>
             <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Frequent cooking, active recipe development, and long-term kitchen planning</p>
           </div>
@@ -139,7 +139,7 @@ export default function PricingPage() {
           <div className="mt-8">
             <Link
               href="/sign-up"
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(182,63,41,0.18)] transition hover:bg-[color:var(--primary-strong)]"
             >
               Choose Pro
             </Link>
@@ -157,15 +157,15 @@ export default function PricingPage() {
           {comparisonRows.map((row) => (
             <article
               key={row.label}
-              className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.86)] p-4"
+              className="rounded-[24px] border border-[rgba(142,84,60,0.1)] bg-[rgba(255,253,249,0.9)] p-4"
             >
               <p className="text-[17px] font-semibold leading-7 text-[color:var(--text)]">{row.label}</p>
               <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="rounded-[18px] bg-[rgba(141,169,187,0.08)] px-3 py-3">
+                <div className="rounded-[18px] border border-[rgba(142,84,60,0.08)] bg-[rgba(210,76,47,0.05)] px-3 py-3">
                   <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Free</p>
                   <p className="mt-2 text-[15px] leading-6 text-[color:var(--text)]">{row.free}</p>
                 </div>
-                <div className="rounded-[18px] bg-[rgba(74,106,96,0.08)] px-3 py-3">
+                <div className="rounded-[18px] border border-[rgba(142,84,60,0.08)] bg-[rgba(242,185,75,0.12)] px-3 py-3">
                   <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pro</p>
                   <p className="mt-2 text-[15px] font-semibold leading-6 text-[color:var(--primary)]">{row.pro}</p>
                 </div>
@@ -174,8 +174,8 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <div className="mt-6 hidden overflow-hidden rounded-[26px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.86)] md:block">
-          <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)] border-b border-[rgba(57,75,70,0.08)] bg-[rgba(141,169,187,0.08)] px-5 py-4 text-[15px] font-semibold text-[color:var(--text)]">
+        <div className="mt-6 hidden overflow-hidden rounded-[26px] border border-[rgba(142,84,60,0.1)] bg-[rgba(255,253,249,0.9)] md:block">
+          <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)] border-b border-[rgba(142,84,60,0.1)] bg-[rgba(210,76,47,0.06)] px-5 py-4 text-[15px] font-semibold text-[color:var(--text)]">
             <div>Capability</div>
             <div>Free</div>
             <div>Pro</div>
@@ -183,7 +183,7 @@ export default function PricingPage() {
           {comparisonRows.map((row) => (
             <div
               key={row.label}
-              className="grid grid-cols-[minmax(0,1.3fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)] border-b border-[rgba(57,75,70,0.08)] px-5 py-4 text-[15px] leading-7 text-[color:var(--text)] last:border-b-0"
+              className="grid grid-cols-[minmax(0,1.3fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)] border-b border-[rgba(142,84,60,0.1)] px-5 py-4 text-[15px] leading-7 text-[color:var(--text)] last:border-b-0"
             >
               <div className="font-medium">{row.label}</div>
               <div className="text-[color:var(--muted)]">{row.free}</div>
@@ -202,7 +202,7 @@ export default function PricingPage() {
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
             href="/sign-up"
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(58,84,76,0.18)] transition hover:bg-[color:var(--primary-strong)]"
+            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[color:var(--primary)] px-6 py-3 text-[16px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_20px_rgba(182,63,41,0.18)] transition hover:bg-[color:var(--primary-strong)]"
           >
             Create account
           </Link>
