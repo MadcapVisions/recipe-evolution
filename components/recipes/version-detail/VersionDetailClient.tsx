@@ -1,12 +1,13 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/components/recipes/version-detail/AiPanels";
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
-import { RecipeActionMenu, RecipeNavigationSection, RecipeSidebar, VersionActionMenu, VersionRailSection } from "@/components/recipes/version-detail/SidebarPanels";
+import { RecipeActionMenu, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useAppShell } from "@/components/shell/AppShellContext";
 import { useRecipeAssistant } from "@/components/recipes/version-detail/useRecipeAssistant";
@@ -116,9 +117,11 @@ export function VersionDetailClient({
   const [photosWithUrls, setPhotosWithUrls] = useState<Array<{ id: string; signedUrl: string; storagePath: string }>>(initialData.initialPhotosWithUrls);
   const [galleryLoading, setGalleryLoading] = useState(true);
   const [completedPrepIds, setCompletedPrepIds] = useState<string[]>([]);
-  const [leftSidebarMode, setLeftSidebarMode] = useState<"recipe-nav" | "version-history">("recipe-nav");
-  const [rightSidebarMode, setRightSidebarMode] = useState<"overview" | "prep" | "chef">("overview");
-  const assistant = useRecipeAssistant(recipeId);
+  const [rightSidebarMode, setRightSidebarMode] = useState<"overview" | "prep">("overview");
+  const [recipeSwitchOpen, setRecipeSwitchOpen] = useState(false);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const assistant = useRecipeAssistant(recipeId, versionId);
   const sidebar = useRecipeSidebarState({
     quickRecipes: [...sidebarData.recentRecipes, ...sidebarData.favoriteRecipes].filter(
       (recipeItem, index, list) => list.findIndex((candidate) => candidate.id === recipeItem.id) === index
@@ -161,8 +164,6 @@ export function VersionDetailClient({
     [baseServings, canAdjustServings, displayServings, ingredients]
   );
   const topPhotoUrl = photosWithUrls[0]?.signedUrl ?? initialData.stockCoverUrl;
-  const desktopRecipeNavRef = useRef<HTMLDivElement | null>(null);
-  const desktopVersionHistoryRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +249,10 @@ export function VersionDetailClient({
       cancelled = true;
     };
   }, [recipeId, versionId]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     let message: string | null = null;
@@ -1017,29 +1022,16 @@ export function VersionDetailClient({
     return { top, left };
   };
 
-  const isCompactViewport = () => (typeof window !== "undefined" ? window.innerWidth < 1280 : false);
-
-  const openLeftPanelMode = (mode: "recipe-nav" | "version-history") => {
-    setLeftSidebarMode(mode);
-
-    if (isCompactViewport()) {
-      setOpenPanel("left");
-      return;
-    }
-
-    const targetRef = mode === "version-history" ? desktopVersionHistoryRef : desktopRecipeNavRef;
-    targetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const openRightPanelMode = (mode: "overview" | "prep" | "chef") => {
+  const openRightPanelMode = (mode: "overview" | "prep") => {
     setRightSidebarMode(mode);
 
-    if (isCompactViewport()) {
+    if (typeof window !== "undefined" && window.innerWidth < 1280) {
       setOpenPanel("right");
     }
   };
 
   const navigateToRecipe = (targetRecipeId: string) => {
+    setRecipeSwitchOpen(false);
     const href = `/recipes/${targetRecipeId}`;
 
     if (typeof window !== "undefined") {
@@ -1051,6 +1043,7 @@ export function VersionDetailClient({
   };
 
   const navigateToVersion = (targetVersionId: string) => {
+    setVersionHistoryOpen(false);
     const href = `/recipes/${recipeId}/versions/${targetVersionId}`;
 
     if (typeof window !== "undefined") {
@@ -1071,83 +1064,82 @@ export function VersionDetailClient({
           <span aria-hidden="true">←</span> My Recipes
         </Link>
       </div>
+      {isMounted
+        ? createPortal(
+            <button
+              type="button"
+              onClick={() => setOpenPanel("left")}
+              className="fixed top-1/2 z-[55] hidden rounded-r-[18px] border border-l-0 border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.96)] px-3 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text)] shadow-[0_10px_24px_rgba(61,51,36,0.08)] backdrop-blur-sm transition-colors hover:bg-white xl:inline-flex"
+              style={{
+                left: "calc(max(0px, (100vw - 1440px) / 2) + 84px)",
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+                transform: "translate(-100%, -50%)",
+              }}
+              aria-label="Open Chef Workshop"
+            >
+              Open Chef Workshop
+            </button>,
+            document.body
+          )
+        : null}
       <ShellContextPanel
         side="left"
-        label="My Recipes"
-        title="Recipe navigation"
-        description="Jump across recipes and versions without leaving the current detail workspace."
+        label="Chef Workshop"
+        title="Recipe-bound chef chat"
+        description="Talk to Chef about the recipe version currently displayed in the center column. Suggestions and saved changes stay tied to that version."
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] p-1.5">
-            <button
-              type="button"
-              onClick={() => setLeftSidebarMode("recipe-nav")}
-              className={`rounded-[18px] px-3 py-2 text-sm font-semibold transition ${
-                leftSidebarMode === "recipe-nav" ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
-              }`}
-            >
-              My Recipes
-            </button>
-            <button
-              type="button"
-              onClick={() => setLeftSidebarMode("version-history")}
-              className={`rounded-[18px] px-3 py-2 text-sm font-semibold transition ${
-                leftSidebarMode === "version-history" ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
-              }`}
-            >
-              Version history
-            </button>
-          </div>
-
-          {leftSidebarMode === "recipe-nav" ? (
-            <RecipeNavigationSection
-              currentRecipeId={recipeId}
-              recipe={recipe!}
-              recipeSearch={sidebar.recipeSearch}
-              searchResults={sidebar.searchResults}
-              sidebarActionError={sidebar.sidebarActionError}
-              onRecipeSearchChange={sidebar.setRecipeSearch}
-              onRecipeNavigate={navigateToRecipe}
-              onOpenRecipeMenu={(targetRecipeId, rect) => {
-                sidebar.setMenuAnchor(openMenuAtRect(rect));
-                sidebar.setOpenMenuRecipeId(targetRecipeId);
-              }}
-            />
-          ) : (
-            <VersionRailSection
-              currentVersion={version!}
-              recipe={recipe!}
-              timelineVersions={timelineVersions}
-              timelineHasMore={timelineHasMore}
-              timelineLoadingMore={timelineLoadingMore}
-              onVersionNavigate={navigateToVersion}
-              onLoadMoreVersions={() => void loadMoreVersions()}
-              onOpenVersionMenu={(targetVersionId, rect) => {
-                sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
-                sidebar.setOpenVersionMenuId(targetVersionId);
-              }}
-            />
-          )}
-        </div>
+        <ChefAiPanel
+          recipeTitle={recipe?.title ?? "Recipe in progress"}
+          versionName={version ? versionLabel(version) : "Current Version"}
+          versionSavedAt={version ? new Date(version.created_at).toLocaleDateString() : ""}
+          aiConversation={assistant.aiConversation}
+          selectedDirection={assistant.selectedDirection}
+          customInstruction={assistant.customInstruction}
+          suggestedChange={assistant.suggestedChange}
+          isAskingAi={assistant.isAskingAi}
+          isGeneratingVersion={assistant.isGeneratingVersion}
+          aiError={assistant.aiError}
+          onQuickAction={(instruction) => {
+            setOpenPanel("left");
+            void handleQuickAction(instruction);
+          }}
+          onRemixLeftovers={() => {
+            setOpenPanel("left");
+            void handleRemixLeftovers();
+          }}
+          onInstructionChange={assistant.setCustomInstruction}
+          onAskSubmit={() => {
+            setOpenPanel("left");
+            void handleAskAiSubmit();
+          }}
+          onSelectDirection={(messageId, option) => handleSelectAssistantDirection(messageId, option)}
+          onClearDirection={handleClearAssistantDirection}
+          onApplySuggestedChange={() => {
+            setOpenPanel("left");
+            void handleApplySuggestedChange();
+          }}
+          onComposerFocus={() => setOpenPanel("left")}
+          conversationEndRef={assistant.conversationEndRef}
+        />
       </ShellContextPanel>
 
       <ShellContextPanel
         side="right"
         label="Tools"
-        title="Recipe tools"
-        description="Use this panel for version navigation, metrics, prep cues, and Chef support while the main canvas stays focused on the current recipe."
+        title="Recipe reference"
+        description="Reference metrics, nutrition, and prep cues while the center canvas stays focused on the active recipe version."
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2 rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] p-1.5">
+          <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] p-1.5">
             {[
               { key: "overview", label: "Overview" },
               { key: "prep", label: "Prep" },
-              { key: "chef", label: "Chef" },
             ].map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setRightSidebarMode(tab.key as "overview" | "prep" | "chef")}
+                onClick={() => setRightSidebarMode(tab.key as "overview" | "prep")}
                 className={`rounded-[18px] px-3 py-2 text-sm font-semibold transition ${
                   rightSidebarMode === tab.key ? "bg-white text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]" : "text-[color:var(--muted)]"
                 }`}
@@ -1181,38 +1173,6 @@ export function VersionDetailClient({
             />
           ) : null}
 
-          {rightSidebarMode === "chef" ? (
-            <ChefAiPanel
-              aiConversation={assistant.aiConversation}
-              selectedDirection={assistant.selectedDirection}
-              customInstruction={assistant.customInstruction}
-              suggestedChange={assistant.suggestedChange}
-              isAskingAi={assistant.isAskingAi}
-              isGeneratingVersion={assistant.isGeneratingVersion}
-              aiError={assistant.aiError}
-              onQuickAction={(instruction) => {
-                openRightPanelMode("chef");
-                void handleQuickAction(instruction);
-              }}
-              onRemixLeftovers={() => {
-                openRightPanelMode("chef");
-                void handleRemixLeftovers();
-              }}
-              onInstructionChange={assistant.setCustomInstruction}
-              onAskSubmit={() => {
-                openRightPanelMode("chef");
-                void handleAskAiSubmit();
-              }}
-              onSelectDirection={(messageId, option) => handleSelectAssistantDirection(messageId, option)}
-              onClearDirection={handleClearAssistantDirection}
-              onApplySuggestedChange={() => {
-                openRightPanelMode("chef");
-                void handleApplySuggestedChange();
-              }}
-              onComposerFocus={() => openRightPanelMode("chef")}
-              conversationEndRef={assistant.conversationEndRef}
-            />
-          ) : null}
         </div>
       </ShellContextPanel>
 
@@ -1235,35 +1195,7 @@ export function VersionDetailClient({
         onDelete={(targetVersionId) => void deleteVersion(targetVersionId)}
       />
 
-      <div className="xl:grid xl:grid-cols-[280px_minmax(0,1fr)_360px] xl:gap-6">
-        <div className="hidden xl:block">
-          <RecipeSidebar
-            navigationRef={desktopRecipeNavRef}
-            historyRef={desktopVersionHistoryRef}
-            currentRecipeId={recipeId}
-            currentVersion={version!}
-            recipe={recipe!}
-            recipeSearch={sidebar.recipeSearch}
-            searchResults={sidebar.searchResults}
-            timelineVersions={timelineVersions}
-            timelineHasMore={timelineHasMore}
-            timelineLoadingMore={timelineLoadingMore}
-            sidebarActionError={sidebar.sidebarActionError}
-            onRecipeSearchChange={sidebar.setRecipeSearch}
-            onRecipeNavigate={navigateToRecipe}
-            onVersionNavigate={navigateToVersion}
-            onLoadMoreVersions={() => void loadMoreVersions()}
-            onOpenRecipeMenu={(targetRecipeId, rect) => {
-              sidebar.setMenuAnchor(openMenuAtRect(rect));
-              sidebar.setOpenMenuRecipeId(targetRecipeId);
-            }}
-            onOpenVersionMenu={(targetVersionId, rect) => {
-              sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
-              sidebar.setOpenVersionMenuId(targetVersionId);
-            }}
-          />
-        </div>
-
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
         <VersionMainPanels
           recipe={recipe!}
           version={version!}
@@ -1276,7 +1208,28 @@ export function VersionDetailClient({
           userId={userId}
           photosWithUrls={photosWithUrls}
           onShare={() => void shareVersion()}
-          onViewVersionHistory={() => openLeftPanelMode("version-history")}
+          onViewVersionHistory={() => setVersionHistoryOpen((current) => !current)}
+          versionHistoryOpen={versionHistoryOpen}
+          timelineVersions={timelineVersions}
+          timelineHasMore={timelineHasMore}
+          timelineLoadingMore={timelineLoadingMore}
+          onVersionNavigate={navigateToVersion}
+          onLoadMoreVersions={() => void loadMoreVersions()}
+          onOpenVersionMenu={(targetVersionId, rect) => {
+            sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
+            sidebar.setOpenVersionMenuId(targetVersionId);
+          }}
+          recipeSearch={sidebar.recipeSearch}
+          searchResults={sidebar.searchResults}
+          onRecipeSearchChange={sidebar.setRecipeSearch}
+          onRecipeNavigate={navigateToRecipe}
+          onOpenRecipeMenu={(targetRecipeId, rect) => {
+            sidebar.setMenuAnchor(openMenuAtRect(rect));
+            sidebar.setOpenMenuRecipeId(targetRecipeId);
+          }}
+          recipeSwitchOpen={recipeSwitchOpen}
+          onToggleRecipeSwitch={() => setRecipeSwitchOpen((current) => !current)}
+          onOpenChefWorkshop={() => setOpenPanel("left")}
           galleryLoading={galleryLoading}
         />
 
@@ -1295,23 +1248,6 @@ export function VersionDetailClient({
                 body: JSON.stringify({ checklist_item_id: itemId, completed }),
               });
             }}
-          />
-          <ChefAiPanel
-            aiConversation={assistant.aiConversation}
-            selectedDirection={assistant.selectedDirection}
-            customInstruction={assistant.customInstruction}
-            suggestedChange={assistant.suggestedChange}
-            isAskingAi={assistant.isAskingAi}
-            isGeneratingVersion={assistant.isGeneratingVersion}
-            aiError={assistant.aiError}
-            onQuickAction={(instruction) => void handleQuickAction(instruction)}
-            onRemixLeftovers={() => void handleRemixLeftovers()}
-            onInstructionChange={assistant.setCustomInstruction}
-            onAskSubmit={() => void handleAskAiSubmit()}
-            onSelectDirection={(messageId, option) => handleSelectAssistantDirection(messageId, option)}
-            onClearDirection={handleClearAssistantDirection}
-            onApplySuggestedChange={() => void handleApplySuggestedChange()}
-            conversationEndRef={assistant.conversationEndRef}
           />
         </aside>
       </div>

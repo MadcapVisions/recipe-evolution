@@ -26,6 +26,9 @@ const QUICK_ACTIONS = [
 ];
 
 export function ChefAiPanel({
+  recipeTitle,
+  versionName,
+  versionSavedAt,
   aiConversation,
   selectedDirection,
   customInstruction,
@@ -43,6 +46,9 @@ export function ChefAiPanel({
   onComposerFocus,
   conversationEndRef,
 }: {
+  recipeTitle: string;
+  versionName: string;
+  versionSavedAt: string;
   aiConversation: ConversationMessage[];
   selectedDirection: SelectedAssistantDirection | null;
   customInstruction: string;
@@ -68,7 +74,18 @@ export function ChefAiPanel({
     <section className="app-panel flex flex-col p-4 sm:p-5">
       <p className="app-kicker">Chef workshop</p>
       <h2 className="mt-2 font-display text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[28px]">Ask the Chef</h2>
-      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">Use chat for cooking changes only: flavor, technique, timing, substitutions, and recipe improvements worth saving.</p>
+      <p className="mt-2 text-[15px] leading-7 text-[color:var(--muted)]">This workshop is attached to the recipe on the page. Every suggestion and saved change refers to the current version shown in the center column.</p>
+      <div className="mt-4 rounded-[24px] border border-[rgba(74,106,96,0.12)] bg-[rgba(247,250,248,0.9)] p-4 shadow-[inset_3px_0_0_var(--primary)]">
+        <p className="app-kicker text-[color:var(--primary)]">Working on now</p>
+        <p className="mt-2 text-[18px] font-semibold leading-tight text-[color:var(--text)]">{recipeTitle}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[color:var(--text)]">{versionName}</span>
+          <span className="rounded-full bg-[rgba(79,125,115,0.12)] px-3 py-1.5 text-xs font-semibold text-[color:var(--primary)]">
+            Saved {versionSavedAt}
+          </span>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-[color:var(--muted)]">Save-worthy chat results should become a new version of this recipe, not a separate draft.</p>
+      </div>
 
       {!shouldPrioritizeChat ? (
         <div className="mt-5">

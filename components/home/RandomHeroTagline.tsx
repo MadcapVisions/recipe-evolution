@@ -17,8 +17,12 @@ export function RandomHeroTagline() {
         {selection.copy}
       </h1>
       <p className="max-w-2xl text-[19px] leading-8 text-[color:var(--landing-muted)] sm:text-[21px]">
-        AIcook turns the ingredients you already have into personalized meal ideas, step-by-step recipes, and dinner plans
-        you will actually want to make.
+        <span className="font-semibold text-[color:var(--landing-ink)]">
+          <span className="tracking-[0.16em]">AI</span>
+          <span>cook</span>
+        </span>{" "}
+        turns the ingredients you already have into personalized meal ideas, step-by-step recipes, and dinner plans you
+        will actually want to make.
       </p>
     </div>
   );

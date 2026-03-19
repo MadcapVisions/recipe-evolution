@@ -261,8 +261,8 @@ export function AppShellClient({
   return (
     <AppShellContext.Provider value={contextValue}>
       <div className="min-h-screen">
-        <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(248,243,234,0.96)_0%,rgba(245,239,229,0.92)_100%)] backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-10">
+        <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(249,244,235,0.94)_0%,rgba(246,240,230,0.88)_100%)] shadow-[0_10px_28px_rgba(76,50,24,0.04)] backdrop-blur-xl">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-10 lg:py-4">
             <button
               type="button"
               onClick={() => setNavOpen(true)}
@@ -272,18 +272,24 @@ export function AppShellClient({
               <span className="text-xl leading-none">☰</span>
             </button>
 
-            <Link href="/" className="inline-flex shrink-0 items-center">
+            <Link
+              href="/"
+              className="inline-flex shrink-0 items-center rounded-full border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.7)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_8px_18px_rgba(76,50,24,0.04)]"
+            >
               <Image
                 src="/assets/RE Logo png.png"
                 alt="Recipe Evolution"
                 width={460}
                 height={88}
                 priority
-                className="h-[2.1rem] w-auto opacity-90 min-[380px]:h-[2.35rem] sm:h-[2.8rem] lg:h-[3.2rem]"
+                className="h-[2rem] w-auto opacity-90 min-[380px]:h-[2.2rem] sm:h-[2.5rem] lg:h-[2.8rem]"
               />
             </Link>
 
-            <nav className="ml-4 hidden xl:flex xl:flex-1 xl:items-center xl:justify-center xl:gap-2" aria-label="Primary">
+            <nav
+              className="ml-4 hidden rounded-full border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.58)] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.62)] xl:flex xl:flex-1 xl:items-center xl:justify-center xl:gap-1"
+              aria-label="Primary"
+            >
               {navLinks.map((link) => {
                 const active = pathname === link.href || (link.href !== "/" && pathname.startsWith(`${link.href}/`));
                 const isAdmin = link.href === "/admin";
@@ -293,11 +299,11 @@ export function AppShellClient({
                     key={link.href}
                     href={link.href}
                     className={joinClasses(
-                      "rounded-full px-4 py-2 text-base font-semibold transition",
+                      "rounded-full px-4 py-2 text-[15px] font-semibold transition",
                       isAdmin ? "text-sm opacity-50 hover:opacity-70" : "",
                       active
-                        ? "bg-white/70 text-[color:var(--text)] shadow-[0_6px_14px_rgba(52,70,63,0.06)]"
-                        : "text-[color:var(--muted)] hover:bg-white/60 hover:text-[color:var(--text)]"
+                        ? "bg-white/84 text-[color:var(--text)] shadow-[0_8px_18px_rgba(76,50,24,0.06)]"
+                        : "text-[color:var(--muted)] hover:bg-white/64 hover:text-[color:var(--text)]"
                     )}
                     aria-current={active ? "page" : undefined}
                   >
@@ -307,11 +313,14 @@ export function AppShellClient({
               })}
             </nav>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-3">
               {showUserMenu ? (
                 <UserMenu label={userLabel} email={userEmail} />
               ) : (
-                <Link href="/sign-in" className="ui-btn ui-btn-light min-h-11 px-4 text-sm">
+                <Link
+                  href="/sign-in"
+                  className="ui-btn ui-btn-light min-h-11 rounded-full border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.76)] px-5 text-sm shadow-[0_8px_18px_rgba(76,50,24,0.04)]"
+                >
                   Sign In
                 </Link>
               )}
@@ -362,7 +371,7 @@ export function AppShellClient({
 
         <div
           className={joinClasses(
-            "fixed inset-0 z-[60] bg-[rgba(30,40,37,0.24)] backdrop-blur-[2px] transition xl:hidden",
+            "fixed inset-0 z-[60] bg-[rgba(30,40,37,0.24)] backdrop-blur-[2px] transition",
             openPanel !== null ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           )}
           onClick={() => setOpenPanel(null)}
@@ -370,7 +379,7 @@ export function AppShellClient({
         >
           <div
             className={joinClasses(
-              "absolute inset-y-0 left-0 w-[min(88vw,360px)] border-r border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4",
+              "absolute inset-y-0 left-0 w-[min(88vw,360px)] border-r border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4 xl:w-[min(32vw,420px)]",
               openPanel === "left" ? "translate-x-0" : "-translate-x-full"
             )}
             onClick={(event) => event.stopPropagation()}
@@ -384,7 +393,7 @@ export function AppShellClient({
 
           <div
             className={joinClasses(
-              "absolute inset-y-0 right-0 w-[min(92vw,380px)] border-l border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[-18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4",
+              "absolute inset-y-0 right-0 w-[min(92vw,380px)] border-l border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(250,246,239,0.99)_0%,rgba(245,239,229,0.97)_100%)] p-3 shadow-[-18px_0_42px_rgba(34,39,36,0.16)] transition-transform sm:p-4 xl:w-[min(30vw,400px)]",
               openPanel === "right" ? "translate-x-0" : "translate-x-full"
             )}
             onClick={(event) => event.stopPropagation()}

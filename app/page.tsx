@@ -14,6 +14,12 @@ const heroHighlights = [
   "High protein options",
 ];
 
+const heroQuickProof = [
+  { value: "3 taps", label: "from ingredients to dinner ideas" },
+  { value: "25 min", label: "weeknight target" },
+  { value: "Zero guesswork", label: "when dinner feels stalled" },
+];
+
 const steps = [
   {
     step: "01",
@@ -117,15 +123,17 @@ export default function HomePage() {
       <section className="landing-hero relative overflow-hidden">
         <div className="landing-grid absolute inset-0 opacity-60" />
         <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.82fr)] lg:gap-12 lg:p-10">
-          <div className="space-y-8">
+          <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center gap-3">
               <span className="landing-pill">Chef Utility, with appetite</span>
               <span className="landing-pill landing-pill-warm">Personalized meal ideas from your kitchen</span>
             </div>
 
-            <RandomHeroTagline />
+            <div className="mt-8">
+              <RandomHeroTagline />
+            </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/sign-up" className="landing-btn landing-btn-primary">
                 Start Cooking
               </Link>
@@ -134,7 +142,16 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid gap-3 pt-1 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {heroQuickProof.map((item) => (
+                <div key={item.value} className="landing-proof-chip">
+                  <p className="text-[17px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.value}</p>
+                  <p className="mt-1 text-[13px] leading-5 text-[color:var(--landing-muted)]">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {benefitStrip.map((item) => (
                 <div key={item} className="landing-chip-card">
                   {item}

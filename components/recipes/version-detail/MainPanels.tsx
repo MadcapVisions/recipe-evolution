@@ -6,7 +6,7 @@ import { PhotoGallery } from "@/components/PhotoGallery";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { Button } from "@/components/Button";
 import { ServingsControl } from "@/components/ServingsControl";
-import { versionLabel, type IngredientItem, type RecipeRow, type StepItem, type VersionRow } from "@/components/recipes/version-detail/types";
+import { versionLabel, type IngredientItem, type RecipeListItem, type RecipeRow, type StepItem, type TimelineVersion, type VersionRow } from "@/components/recipes/version-detail/types";
 
 export function VersionMainPanels({
   recipe,
@@ -20,6 +20,21 @@ export function VersionMainPanels({
   userId,
   onShare,
   onViewVersionHistory,
+  versionHistoryOpen,
+  timelineVersions,
+  timelineHasMore,
+  timelineLoadingMore,
+  onVersionNavigate,
+  onLoadMoreVersions,
+  onOpenVersionMenu,
+  recipeSearch,
+  searchResults,
+  onRecipeSearchChange,
+  onRecipeNavigate,
+  onOpenRecipeMenu,
+  recipeSwitchOpen,
+  onToggleRecipeSwitch,
+  onOpenChefWorkshop,
   photosWithUrls,
   galleryLoading,
 }: {
@@ -34,6 +49,21 @@ export function VersionMainPanels({
   userId: string | null;
   onShare: () => void;
   onViewVersionHistory: () => void;
+  versionHistoryOpen: boolean;
+  timelineVersions: TimelineVersion[];
+  timelineHasMore: boolean;
+  timelineLoadingMore: boolean;
+  onVersionNavigate: (versionId: string) => void;
+  onLoadMoreVersions: () => void;
+  onOpenVersionMenu: (versionId: string, rect: DOMRect) => void;
+  recipeSearch: string;
+  searchResults: RecipeListItem[];
+  onRecipeSearchChange: (value: string) => void;
+  onRecipeNavigate: (recipeId: string) => void;
+  onOpenRecipeMenu: (recipeId: string, rect: DOMRect) => void;
+  recipeSwitchOpen: boolean;
+  onToggleRecipeSwitch: () => void;
+  onOpenChefWorkshop: () => void;
   photosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
   galleryLoading: boolean;
 }) {
@@ -49,6 +79,37 @@ export function VersionMainPanels({
         )}
 
         <div className="space-y-4 p-4 sm:p-6 lg:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button href="/recipes" variant="secondary" className="justify-center">
+                <span aria-hidden="true">←</span>
+                My Recipes
+              </Button>
+              <Button onClick={onOpenChefWorkshop} variant="secondary" className="justify-center">
+                Chef Workshop
+              </Button>
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={onToggleRecipeSwitch}
+                className="inline-flex items-center gap-2 rounded-full border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.92)] px-4 py-2.5 text-sm font-semibold text-[color:var(--text)] transition hover:bg-white"
+              >
+                Switch Recipe
+              </button>
+              {recipeSwitchOpen ? (
+                <RecipeSwitchDropdown
+                  currentRecipeId={recipe.id}
+                  recipeSearch={recipeSearch}
+                  searchResults={searchResults}
+                  onRecipeSearchChange={onRecipeSearchChange}
+                  onRecipeNavigate={onRecipeNavigate}
+                  onOpenRecipeMenu={onOpenRecipeMenu}
+                />
+              ) : null}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="app-kicker">Current version</p>
@@ -68,7 +129,7 @@ export function VersionMainPanels({
                 </span>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:flex lg:flex-wrap">
+            <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
               <Button href={`/recipes/${recipe.id}/versions/${version.id}/cook`} className="w-full justify-center lg:w-auto">
                 Cook This Version
               </Button>
@@ -84,9 +145,23 @@ export function VersionMainPanels({
               <Button onClick={onShare} variant="secondary" className="w-full justify-center lg:w-auto">
                 Share
               </Button>
-              <Button onClick={onViewVersionHistory} variant="secondary" className="w-full justify-center lg:w-auto">
-                View Version History
-              </Button>
+              <div className="relative">
+                <Button onClick={onViewVersionHistory} variant="secondary" className="w-full justify-center lg:w-auto">
+                  View Version History
+                </Button>
+                {versionHistoryOpen ? (
+                  <VersionHistoryDropdown
+                    currentVersionId={version.id}
+                    recipe={recipe}
+                    timelineVersions={timelineVersions}
+                    timelineHasMore={timelineHasMore}
+                    timelineLoadingMore={timelineLoadingMore}
+                    onVersionNavigate={onVersionNavigate}
+                    onLoadMoreVersions={onLoadMoreVersions}
+                    onOpenVersionMenu={onOpenVersionMenu}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -166,6 +241,179 @@ export function VersionMainPanels({
         </div>
       </section>
     </section>
+  );
+}
+
+function RecipeSwitchDropdown({
+  currentRecipeId,
+  recipeSearch,
+  searchResults,
+  onRecipeSearchChange,
+  onRecipeNavigate,
+  onOpenRecipeMenu,
+}: {
+  currentRecipeId: string;
+  recipeSearch: string;
+  searchResults: RecipeListItem[];
+  onRecipeSearchChange: (value: string) => void;
+  onRecipeNavigate: (recipeId: string) => void;
+  onOpenRecipeMenu: (recipeId: string, rect: DOMRect) => void;
+}) {
+  return (
+    <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[min(340px,calc(100vw-2rem))] rounded-[28px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-4 shadow-[0_18px_40px_rgba(52,70,63,0.12)]">
+      <p className="app-kicker">Recipe browser</p>
+      <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">Switch the center recipe. The workshop and reference panels will follow the recipe you open.</p>
+      <input
+        type="text"
+        value={recipeSearch}
+        onChange={(event) => onRecipeSearchChange(event.target.value)}
+        placeholder="Jump to another recipe..."
+        className="mt-4 w-full"
+      />
+      <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+        {searchResults.map((userRecipe) => {
+          const isActive = userRecipe.id === currentRecipeId;
+          return (
+            <div
+              key={userRecipe.id}
+              onClick={() => onRecipeNavigate(userRecipe.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onRecipeNavigate(userRecipe.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              className={`rounded-[20px] border p-3 transition ${
+                isActive
+                  ? "border-[rgba(82,124,116,0.2)] bg-[linear-gradient(135deg,rgba(79,125,115,0.12)_0%,rgba(255,251,245,0.98)_100%)] text-[color:var(--primary)]"
+                  : "border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,249,0.84)] text-[color:var(--text)] hover:bg-white"
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  {isActive ? (
+                    <span className="inline-flex rounded-full bg-[rgba(79,125,115,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--primary)]">
+                      Current dish
+                    </span>
+                  ) : null}
+                  <span className="mt-2 block text-[14px] font-medium sm:text-[15px]">{userRecipe.title}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onOpenRecipeMenu(userRecipe.id, event.currentTarget.getBoundingClientRect());
+                  }}
+                  className="relative z-20 flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[rgba(141,169,187,0.14)] hover:text-[color:var(--text)]"
+                  aria-label={`Open actions for ${userRecipe.title}`}
+                >
+                  ⋮
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VersionHistoryDropdown({
+  currentVersionId,
+  recipe,
+  timelineVersions,
+  timelineHasMore,
+  timelineLoadingMore,
+  onVersionNavigate,
+  onLoadMoreVersions,
+  onOpenVersionMenu,
+}: {
+  currentVersionId: string;
+  recipe: RecipeRow;
+  timelineVersions: TimelineVersion[];
+  timelineHasMore: boolean;
+  timelineLoadingMore: boolean;
+  onVersionNavigate: (versionId: string) => void;
+  onLoadMoreVersions: () => void;
+  onOpenVersionMenu: (versionId: string, rect: DOMRect) => void;
+}) {
+  return (
+    <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[min(420px,calc(100vw-2rem))] rounded-[28px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-4 shadow-[0_18px_40px_rgba(52,70,63,0.12)]">
+      <p className="app-kicker">Version history</p>
+      <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">Browse the saved lineage for this recipe. Picking a version updates the recipe canvas and the Chef workshop together.</p>
+      <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+        {timelineVersions.map((timelineVersion) => {
+          const isActive = timelineVersion.id === currentVersionId;
+          const isBest = recipe.best_version_id === timelineVersion.id;
+          return (
+            <div
+              key={timelineVersion.id}
+              onClick={() => onVersionNavigate(timelineVersion.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onVersionNavigate(timelineVersion.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              className={`rounded-[20px] p-3 transition ${
+                isActive
+                  ? "border border-[rgba(82,124,116,0.18)] bg-[linear-gradient(135deg,rgba(79,125,115,0.12)_0%,rgba(255,251,245,0.98)_100%)]"
+                  : "border border-[rgba(57,75,70,0.06)] bg-[rgba(255,253,249,0.84)] hover:bg-white"
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <div className="flex-1 text-left">
+                  <div className="flex flex-wrap gap-2">
+                    {isActive ? (
+                      <span className="rounded-full bg-[rgba(79,125,115,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                        Current
+                      </span>
+                    ) : null}
+                    {isBest ? (
+                      <span className="rounded-full bg-[rgba(201,123,66,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+                        Best
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-[14px] font-medium text-[color:var(--text)] sm:text-[15px]">{versionLabel(timelineVersion)}</p>
+                  <p className="mt-2 text-sm text-[color:var(--muted)]">
+                    {timelineVersion.change_summary?.trim().length ? timelineVersion.change_summary : "No change note saved for this version."}
+                  </p>
+                  <p className="mt-2 text-xs text-[color:var(--muted)]">{new Date(timelineVersion.created_at).toLocaleDateString()}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onOpenVersionMenu(timelineVersion.id, event.currentTarget.getBoundingClientRect());
+                  }}
+                  className="relative z-20 flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[rgba(141,169,187,0.14)] hover:text-[color:var(--text)]"
+                  aria-label={`Open actions for ${versionLabel(timelineVersion)}`}
+                >
+                  ⋮
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {timelineHasMore ? (
+          <button
+            type="button"
+            onClick={onLoadMoreVersions}
+            disabled={timelineLoadingMore}
+            className="w-full rounded-[20px] border border-[rgba(57,75,70,0.12)] px-3 py-2.5 text-sm font-medium text-[color:var(--text)] transition hover:bg-[rgba(141,169,187,0.08)] disabled:opacity-60"
+          >
+            {timelineLoadingMore ? "Loading more..." : "Show more versions"}
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ConversationMessage, SelectedAssistantDirection, SuggestedChange } from "@/components/recipes/version-detail/types";
 
-export function useRecipeAssistant(recipeId: string) {
+export function useRecipeAssistant(recipeId: string, versionId: string) {
   const [isAskingAi, setIsAskingAi] = useState(false);
   const [isGeneratingVersion, setIsGeneratingVersion] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -25,11 +25,12 @@ export function useRecipeAssistant(recipeId: string) {
   }, []);
 
   useEffect(() => {
-    const key = `recipe-ai-conversation-${recipeId}`;
-    const conversationKeyStorage = `recipe-ai-conversation-key-${recipeId}`;
-    const selectedDirectionKey = `recipe-ai-selected-direction-${recipeId}`;
+    const storageScope = `${recipeId}-${versionId}`;
+    const key = `recipe-ai-conversation-${storageScope}`;
+    const conversationKeyStorage = `recipe-ai-conversation-key-${storageScope}`;
+    const selectedDirectionKey = `recipe-ai-selected-direction-${storageScope}`;
     const raw = window.localStorage.getItem(key);
-    const suggestionKey = `recipe-ai-suggestion-${recipeId}`;
+    const suggestionKey = `recipe-ai-suggestion-${storageScope}`;
     const rawSuggestion = window.localStorage.getItem(suggestionKey);
     const storedConversationKey = window.localStorage.getItem(conversationKeyStorage);
     const rawSelectedDirection = window.localStorage.getItem(selectedDirectionKey);
@@ -40,7 +41,7 @@ export function useRecipeAssistant(recipeId: string) {
       const nextConversationKey =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
-          : `recipe-${recipeId}-${Date.now()}`;
+          : `recipe-${storageScope}-${Date.now()}`;
       window.localStorage.setItem(conversationKeyStorage, nextConversationKey);
       setConversationKey(nextConversationKey);
     }
@@ -110,38 +111,38 @@ export function useRecipeAssistant(recipeId: string) {
         setSelectedDirection(null);
       }
     }
-  }, [recipeId]);
+  }, [recipeId, versionId]);
 
   useEffect(() => {
-    const key = `recipe-ai-conversation-${recipeId}`;
+    const key = `recipe-ai-conversation-${recipeId}-${versionId}`;
     window.localStorage.setItem(key, JSON.stringify(aiConversation.slice(-120)));
-  }, [recipeId, aiConversation]);
+  }, [recipeId, versionId, aiConversation]);
 
   useEffect(() => {
     if (!conversationKey) {
       return;
     }
-    const key = `recipe-ai-conversation-key-${recipeId}`;
+    const key = `recipe-ai-conversation-key-${recipeId}-${versionId}`;
     window.localStorage.setItem(key, conversationKey);
-  }, [recipeId, conversationKey]);
+  }, [recipeId, versionId, conversationKey]);
 
   useEffect(() => {
-    const key = `recipe-ai-suggestion-${recipeId}`;
+    const key = `recipe-ai-suggestion-${recipeId}-${versionId}`;
     if (!suggestedChange) {
       window.localStorage.removeItem(key);
       return;
     }
     window.localStorage.setItem(key, JSON.stringify(suggestedChange));
-  }, [recipeId, suggestedChange]);
+  }, [recipeId, versionId, suggestedChange]);
 
   useEffect(() => {
-    const key = `recipe-ai-selected-direction-${recipeId}`;
+    const key = `recipe-ai-selected-direction-${recipeId}-${versionId}`;
     if (!selectedDirection) {
       window.localStorage.removeItem(key);
       return;
     }
     window.localStorage.setItem(key, JSON.stringify(selectedDirection));
-  }, [recipeId, selectedDirection]);
+  }, [recipeId, versionId, selectedDirection]);
 
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
