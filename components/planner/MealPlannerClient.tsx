@@ -94,7 +94,7 @@ export function MealPlannerClient({
           return {
             ...option,
             targetServings: totalServings,
-          };
+          } as PlannerRecipeOption;
         })
         .filter((value): value is PlannerRecipeOption => Boolean(value));
     },
