@@ -57,7 +57,7 @@ function AppNav({
             className={joinClasses(
               "flex min-h-11 w-full items-center rounded-[20px] px-4 py-3 text-left text-sm font-semibold transition",
               active
-                ? "bg-[rgba(74,106,96,0.14)] text-[color:var(--primary-strong)] shadow-[inset_3px_0_0_var(--primary)]"
+                ? "bg-[rgba(210,76,47,0.12)] text-[color:var(--primary-strong)] shadow-[inset_3px_0_0_var(--primary)]"
                 : "text-[color:var(--muted)] hover:bg-white/80 hover:text-[color:var(--text)]"
             )}
             aria-current={active ? "page" : undefined}
@@ -83,7 +83,7 @@ function ShellSurface({
 }) {
   return (
     <section className="app-panel flex h-full flex-col overflow-hidden">
-      <div className="border-b border-[rgba(57,75,70,0.08)] px-4 py-4 sm:px-5">
+      <div className="border-b border-[rgba(142,84,60,0.08)] px-4 py-4 sm:px-5">
         <p className="app-kicker">{kicker}</p>
         <h2 className="mt-2 font-display text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[26px]">
           {title}
@@ -116,15 +116,15 @@ function EdgePeek({
   const toneClasses =
     side === "left"
       ? label === "Summary"
-        ? "bg-[rgba(242,248,244,0.96)] text-[color:var(--primary-strong)]"
-        : "bg-[rgba(255,252,246,0.94)] text-[color:var(--text)]"
+        ? "bg-[rgba(255,240,234,0.96)] text-[color:var(--primary-strong)]"
+        : "bg-[rgba(255,249,243,0.96)] text-[color:var(--text)]"
       : label === "Prep"
-        ? "bg-[rgba(242,248,244,0.96)] text-[color:var(--primary-strong)]"
+        ? "bg-[rgba(255,240,234,0.96)] text-[color:var(--primary-strong)]"
         : label === "Cook" || label === "Flow"
-          ? "bg-[rgba(243,247,252,0.96)] text-slate-800"
+          ? "bg-[rgba(255,245,239,0.96)] text-[color:var(--text)]"
           : label === "Finish"
-            ? "bg-[rgba(249,244,234,0.96)] text-[color:var(--text)]"
-            : "bg-[rgba(255,252,246,0.94)] text-[color:var(--text)]";
+            ? "bg-[rgba(255,244,234,0.96)] text-[color:var(--text)]"
+            : "bg-[rgba(255,249,243,0.96)] text-[color:var(--text)]";
 
   const hintedMotion = side === "left" ? "translate-x-1.5" : "-translate-x-1.5";
 
@@ -133,10 +133,10 @@ function EdgePeek({
       type="button"
       onClick={onClick}
       className={joinClasses(
-        "fixed top-1/2 z-40 -translate-y-1/2 border border-[rgba(79,54,33,0.12)] py-3 text-xs font-semibold uppercase tracking-[0.18em] shadow-[0_10px_24px_rgba(61,51,36,0.08)] backdrop-blur-sm transition-[transform,background-color,box-shadow] duration-300 xl:hidden",
+        "fixed top-1/2 z-40 -translate-y-1/2 border border-[rgba(142,84,60,0.12)] py-3 text-xs font-semibold uppercase tracking-[0.18em] shadow-[0_10px_24px_rgba(101,47,29,0.08)] backdrop-blur-sm transition-[transform,background-color,box-shadow] duration-300 xl:hidden",
         sideClasses,
         toneClasses,
-        hinted && `${hintedMotion} shadow-[0_16px_32px_rgba(61,51,36,0.14)]`
+        hinted && `${hintedMotion} shadow-[0_16px_32px_rgba(101,47,29,0.14)]`
       )}
       style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
       aria-label={`Open ${label}`}
@@ -261,12 +261,12 @@ export function AppShellClient({
   return (
     <AppShellContext.Provider value={contextValue}>
       <div className="min-h-screen">
-        <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(79,54,33,0.08)] bg-[linear-gradient(180deg,rgba(249,244,235,0.94)_0%,rgba(246,240,230,0.88)_100%)] shadow-[0_10px_28px_rgba(76,50,24,0.04)] backdrop-blur-xl">
+        <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(142,84,60,0.08)] bg-[linear-gradient(180deg,rgba(252,245,237,0.96)_0%,rgba(248,239,230,0.9)_100%)] shadow-[0_10px_28px_rgba(101,47,29,0.05)] backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-10 lg:py-4">
             <button
               type="button"
               onClick={() => setNavOpen(true)}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(79,54,33,0.12)] bg-[rgba(255,252,246,0.88)] text-[color:var(--text)] shadow-[0_6px_14px_rgba(76,50,24,0.05)] transition hover:bg-white xl:hidden"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(142,84,60,0.12)] bg-[rgba(255,249,243,0.9)] text-[color:var(--text)] shadow-[0_6px_14px_rgba(101,47,29,0.05)] transition hover:bg-white xl:hidden"
               aria-label="Open navigation menu"
             >
               <span className="text-xl leading-none">☰</span>
@@ -274,7 +274,7 @@ export function AppShellClient({
 
             <Link
               href="/"
-              className="inline-flex shrink-0 items-center rounded-full border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.7)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_8px_18px_rgba(76,50,24,0.04)]"
+              className="inline-flex shrink-0 items-center rounded-full border border-[rgba(142,84,60,0.08)] bg-[rgba(255,249,243,0.78)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_8px_18px_rgba(101,47,29,0.05)]"
             >
               <Image
                 src="/assets/RE Logo png.png"
@@ -287,7 +287,7 @@ export function AppShellClient({
             </Link>
 
             <nav
-              className="ml-4 hidden rounded-full border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.58)] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.62)] xl:flex xl:flex-1 xl:items-center xl:justify-center xl:gap-1"
+              className="ml-4 hidden rounded-full border border-[rgba(142,84,60,0.08)] bg-[rgba(255,249,243,0.64)] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.62)] xl:flex xl:flex-1 xl:items-center xl:justify-center xl:gap-1"
               aria-label="Primary"
             >
               {navLinks.map((link) => {
@@ -302,7 +302,7 @@ export function AppShellClient({
                       "rounded-full px-4 py-2 text-[15px] font-semibold transition",
                       isAdmin ? "text-sm opacity-50 hover:opacity-70" : "",
                       active
-                        ? "bg-white/84 text-[color:var(--text)] shadow-[0_8px_18px_rgba(76,50,24,0.06)]"
+                        ? "bg-white/88 text-[color:var(--text)] shadow-[0_8px_18px_rgba(101,47,29,0.08)]"
                         : "text-[color:var(--muted)] hover:bg-white/64 hover:text-[color:var(--text)]"
                     )}
                     aria-current={active ? "page" : undefined}

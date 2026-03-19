@@ -13,7 +13,7 @@ type RecipesBrowserProps = {
 };
 
 const PAGE_SIZE = 24;
-const DESKTOP_RAIL_LEFT = "max(10px, calc((100vw - 1440px) / 2 + 12px))";
+const DESKTOP_RAIL_LEFT = "calc(max(0px, (100vw - 1440px) / 2) + 84px)";
 
 // Filter chip definitions for the My Recipes filter panel
 const FILTER_GROUPS = [
@@ -349,11 +349,11 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                 <button
                   type="button"
                   onClick={() => setFiltersPanelOpen(true)}
-                  className="fixed top-1/2 z-40 hidden -translate-y-1/2 hover:translate-y-[-50%] active:translate-y-[-50%] xl:flex"
-                  style={{ left: DESKTOP_RAIL_LEFT }}
+                  className="fixed top-1/2 z-40 hidden xl:flex"
+                  style={{ left: DESKTOP_RAIL_LEFT, transform: "translate(-100%, -50%)" }}
                   aria-label="Open filters panel"
                 >
-                  <div className="flex flex-col items-center gap-2 rounded-r-[16px] border border-l-0 border-[rgba(57,75,70,0.1)] bg-[rgba(255,253,249,0.96)] py-4 pl-2 pr-3 shadow-[2px_0_12px_rgba(52,70,63,0.08)] transition hover:bg-white">
+                  <div className="flex flex-col items-center gap-2 rounded-r-[16px] border border-l-0 border-[rgba(142,84,60,0.12)] bg-[rgba(255,249,243,0.96)] py-4 pl-2 pr-3 shadow-[2px_0_12px_rgba(101,47,29,0.08)] transition-colors hover:bg-white">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-[color:var(--primary)]">
                       <path d="M5 2L10 7L5 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>

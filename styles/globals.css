@@ -4,22 +4,22 @@
 
 @layer base {
   :root {
-    --app-bg: #f3eee4;
-    --app-bg-accent: #ece7da;
-    --surface: rgba(255, 251, 245, 0.92);
-    --surface-strong: #fffdf8;
-    --surface-muted: #ede7db;
-    --border: rgba(57, 52, 43, 0.12);
-    --text: #26322d;
-    --muted: #63716a;
-    --primary: #4a6a60;
-    --primary-strong: #3a544c;
-    --secondary: #97a487;
-    --accent: #b57b4d;
-    --accent-soft: #e2c6ac;
-    --ink-soft: #70655a;
-    --shadow-soft: 0 18px 42px rgba(61, 51, 36, 0.07);
-    --shadow-card: 0 8px 20px rgba(61, 51, 36, 0.05);
+    --app-bg: #f7efe5;
+    --app-bg-accent: #f2e4d8;
+    --surface: rgba(255, 248, 241, 0.94);
+    --surface-strong: #fffaf4;
+    --surface-muted: #f1e2d5;
+    --border: rgba(142, 84, 60, 0.14);
+    --text: #2b1f1d;
+    --muted: #7a6158;
+    --primary: #d24c2f;
+    --primary-strong: #b63f29;
+    --secondary: #c28b6d;
+    --accent: #e09a48;
+    --accent-soft: #f3d5ba;
+    --ink-soft: #8b6a5d;
+    --shadow-soft: 0 18px 42px rgba(101, 47, 29, 0.09);
+    --shadow-card: 0 10px 24px rgba(101, 47, 29, 0.07);
     --landing-cream: #fbf2e5;
     --landing-cream-strong: #fff9f1;
     --landing-ink: #251717;
@@ -38,11 +38,11 @@
   body {
     min-height: 100vh;
     background:
-      radial-gradient(circle at top left, rgba(181, 123, 77, 0.08), transparent 28%),
-      radial-gradient(circle at top right, rgba(74, 106, 96, 0.08), transparent 26%),
-      linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px),
-      linear-gradient(180deg, #f8f3ea 0%, #f2ece1 100%);
+      radial-gradient(circle at top left, rgba(210, 76, 47, 0.11), transparent 28%),
+      radial-gradient(circle at top right, rgba(242, 185, 75, 0.09), transparent 24%),
+      linear-gradient(rgba(173, 111, 82, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(173, 111, 82, 0.08) 1px, transparent 1px),
+      linear-gradient(180deg, #fbf3e8 0%, #f6ecdf 100%);
     background-size: auto, auto, 22px 22px, 22px 22px, auto;
     color: var(--text);
     font-feature-settings: "ss01" 1, "cv11" 1;
@@ -56,7 +56,7 @@
   textarea,
   select {
     @apply rounded-2xl border px-3.5 py-3 text-[15px] focus:outline-none focus:ring-2;
-    background: rgba(255, 252, 246, 0.92);
+    background: rgba(255, 249, 243, 0.96);
     border-color: var(--border);
     color: var(--text);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -64,14 +64,14 @@
 
   input::placeholder,
   textarea::placeholder {
-    color: rgba(111, 102, 95, 0.78);
+    color: rgba(134, 104, 92, 0.78);
   }
 
   input:focus,
   textarea:focus,
   select:focus {
     border-color: rgba(188, 92, 47, 0.35);
-    box-shadow: 0 0 0 4px rgba(82, 124, 116, 0.12);
+    box-shadow: 0 0 0 4px rgba(210, 76, 47, 0.12);
   }
 
   button:not(:disabled) {
@@ -108,9 +108,9 @@
 
   .ui-btn-light {
     color: var(--text);
-    background: rgba(255, 252, 246, 0.92);
+    background: rgba(255, 249, 243, 0.96);
     border: 1px solid var(--border);
-    box-shadow: 0 2px 8px rgba(61, 51, 36, 0.03);
+    box-shadow: 0 6px 16px rgba(101, 47, 29, 0.05);
   }
 
   .ui-btn-solid {
@@ -118,7 +118,7 @@
     color: #f8fcfb;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.12),
-      0 10px 20px rgba(58, 84, 76, 0.18);
+      0 14px 28px rgba(182, 63, 41, 0.22);
   }
 
   .saas-card {
@@ -144,15 +144,18 @@
 
   .app-shell {
     background:
-      radial-gradient(circle at top, rgba(255, 255, 255, 0.3), transparent 34%),
-      linear-gradient(180deg, rgba(255, 251, 246, 0.92) 0%, rgba(250, 245, 238, 0.86) 100%);
-    border: 1px solid rgba(79, 54, 33, 0.08);
+      radial-gradient(circle at top left, rgba(210, 76, 47, 0.08), transparent 22%),
+      radial-gradient(circle at bottom right, rgba(242, 185, 75, 0.08), transparent 20%),
+      linear-gradient(180deg, rgba(255, 249, 243, 0.95) 0%, rgba(252, 244, 236, 0.9) 100%);
+    border: 1px solid rgba(142, 84, 60, 0.1);
     box-shadow: var(--shadow-soft);
     @apply rounded-[32px] backdrop-blur-sm;
   }
 
   .app-panel {
-    background: linear-gradient(180deg, rgba(255, 252, 247, 0.97) 0%, rgba(255, 250, 244, 0.94) 100%);
+    background:
+      radial-gradient(circle at top left, rgba(210, 76, 47, 0.05), transparent 28%),
+      linear-gradient(180deg, rgba(255, 251, 246, 0.98) 0%, rgba(255, 246, 238, 0.95) 100%);
     border: 1px solid var(--border);
     box-shadow: var(--shadow-card);
     @apply rounded-[28px];
@@ -160,19 +163,19 @@
 
   .app-chip {
     @apply inline-flex items-center rounded-full px-3 py-1.5 text-sm font-medium transition;
-    background: rgba(111, 102, 95, 0.07);
+    background: rgba(210, 76, 47, 0.08);
     color: var(--text);
   }
 
   .app-chip-active {
-    background: rgba(74, 106, 96, 0.12);
-    border: 1px solid rgba(74, 106, 96, 0.16);
+    background: rgba(210, 76, 47, 0.12);
+    border: 1px solid rgba(210, 76, 47, 0.18);
     color: var(--primary-strong);
   }
 
   .app-kicker {
     @apply text-[11px] font-semibold uppercase tracking-[0.24em];
-    color: rgba(112, 101, 90, 0.92);
+    color: rgba(131, 93, 80, 0.94);
   }
 
   .app-muted {
@@ -180,25 +183,25 @@
   }
 
   .settings-section {
-    background: rgba(255, 252, 246, 0.9);
-    border: 1px solid rgba(79, 54, 33, 0.1);
-    box-shadow: 0 6px 16px rgba(76, 50, 24, 0.04);
+    background: rgba(255, 249, 243, 0.94);
+    border: 1px solid rgba(142, 84, 60, 0.1);
+    box-shadow: 0 8px 18px rgba(101, 47, 29, 0.05);
     @apply rounded-[24px];
   }
 
   .settings-highlight {
-    background: linear-gradient(180deg, rgba(74, 106, 96, 0.05) 0%, rgba(255, 252, 246, 0.94) 100%);
-    border: 1px solid rgba(79, 54, 33, 0.08);
-    box-shadow: 0 6px 16px rgba(76, 50, 24, 0.035);
+    background: linear-gradient(180deg, rgba(210, 76, 47, 0.06) 0%, rgba(255, 249, 243, 0.96) 100%);
+    border: 1px solid rgba(142, 84, 60, 0.08);
+    box-shadow: 0 8px 18px rgba(101, 47, 29, 0.04);
     @apply rounded-[24px];
   }
 
   .settings-field {
-    background: rgba(255, 252, 246, 0.98);
-    border-color: rgba(79, 54, 33, 0.14);
+    background: rgba(255, 251, 246, 0.98);
+    border-color: rgba(142, 84, 60, 0.16);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.72),
-      0 8px 18px rgba(76, 50, 24, 0.04);
+      0 8px 18px rgba(101, 47, 29, 0.05);
   }
 
   .polish-card {
@@ -238,20 +241,20 @@
 
   .app-empty-state {
     background:
-      radial-gradient(circle at top, rgba(181, 123, 77, 0.08), transparent 32%),
-      linear-gradient(180deg, rgba(255, 253, 249, 0.92) 0%, rgba(255, 249, 241, 0.84) 100%);
-    border: 1px dashed rgba(79, 54, 33, 0.16);
+      radial-gradient(circle at top, rgba(210, 76, 47, 0.08), transparent 32%),
+      linear-gradient(180deg, rgba(255, 252, 248, 0.94) 0%, rgba(255, 246, 238, 0.88) 100%);
+    border: 1px dashed rgba(142, 84, 60, 0.16);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
     @apply rounded-[24px];
   }
 
   .artifact-sheet {
     background:
-      linear-gradient(180deg, rgba(255, 253, 249, 0.98) 0%, rgba(251, 247, 240, 0.94) 100%);
-    border: 1px solid rgba(79, 54, 33, 0.1);
+      linear-gradient(180deg, rgba(255, 252, 248, 0.98) 0%, rgba(255, 246, 238, 0.95) 100%);
+    border: 1px solid rgba(142, 84, 60, 0.1);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.72),
-      0 8px 20px rgba(61, 51, 36, 0.04);
+      0 8px 20px rgba(101, 47, 29, 0.05);
     @apply rounded-[26px];
   }
 

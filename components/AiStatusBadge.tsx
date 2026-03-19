@@ -7,27 +7,27 @@ function toneClasses(tone: AiStatusTone) {
   if (tone === "loading") {
     return {
       wrap:
-        "border-[rgba(74,106,96,0.16)] bg-[rgba(252,249,243,0.92)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+        "border-[rgba(210,76,47,0.16)] bg-[rgba(255,249,243,0.94)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(101,47,29,0.05)]",
       dot: "bg-[color:var(--primary)] animate-pulse",
     };
   }
   if (tone === "success") {
     return {
       wrap:
-        "border-[rgba(74,106,96,0.16)] bg-[rgba(246,250,247,0.95)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+        "border-[rgba(210,76,47,0.16)] bg-[rgba(255,245,240,0.95)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(101,47,29,0.05)]",
       dot: "bg-[color:var(--primary)]",
     };
   }
   if (tone === "fallback") {
     return {
       wrap:
-        "border-[rgba(181,123,77,0.2)] bg-[rgba(255,249,241,0.96)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+        "border-[rgba(224,154,72,0.24)] bg-[rgba(255,248,239,0.96)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(101,47,29,0.05)]",
       dot: "bg-[color:var(--accent)]",
     };
   }
   return {
     wrap:
-      "border-[rgba(74,106,96,0.18)] bg-[rgba(245,250,247,0.96)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(61,51,36,0.04)]",
+      "border-[rgba(210,76,47,0.18)] bg-[rgba(255,246,240,0.96)] text-[color:var(--text)] shadow-[0_4px_12px_rgba(101,47,29,0.05)]",
     dot: "bg-[color:var(--primary)]",
   };
 }
