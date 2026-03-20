@@ -1,29 +1,165 @@
 /**
- * Live recipe generation test — calls OpenRouter directly using the same
- * message format as generateHomeRecipe() to surface prompt/output issues.
+ * Live seed-case recipe generation eval.
  *
- * Usage: node scripts/test-recipe-gen.mjs
+ * Runs the real structured pipeline:
+ * brief -> plan -> generate -> verify
+ *
+ * Usage:
+ *   node scripts/test-recipe-gen.mjs
+ *   node scripts/test-recipe-gen.mjs focaccia-pizza traditional-carbonara
  */
 
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// Load .env.local manually
 const envPath = resolve(process.cwd(), ".env.local");
-const envLines = readFileSync(envPath, "utf-8").split("\n");
-for (const line of envLines) {
-  const [key, ...rest] = line.split("=");
-  if (key && rest.length) process.env[key.trim()] = rest.join("=").trim().replace(/^["']|["']$/g, "");
+try {
+  const envLines = readFileSync(envPath, "utf-8").split("\n");
+  for (const line of envLines) {
+    const [key, ...rest] = line.split("=");
+    if (key && rest.length) {
+      process.env[key.trim()] = rest.join("=").trim().replace(/^["']|["']$/g, "");
+    }
+  }
+} catch {
+  // allow shell env to provide vars
 }
 
-const API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = "openai/gpt-4o-mini";
+async function loadEvalModule(path) {
+  const compiledPath = resolve(process.cwd(), ".tmp-eval", path);
+  try {
+    return await import(compiledPath);
+  } catch (error) {
+    console.error("Missing eval build artifacts. Run `npm run eval:seed:live` so the compile step runs first.");
+    throw error;
+  }
+}
 
-const SYSTEM_PROMPT = `You are a professional recipe developer.
+const { SEED_RECIPE_EVAL_CASES } = await loadEvalModule("lib/ai/evals/seedRecipeEvals.js");
+const { compileCookingBrief } = await loadEvalModule("lib/ai/briefCompiler.js");
+const { buildRecipePlanFromBrief } = await loadEvalModule("lib/ai/recipePlanner.js");
+const { verifyRecipeAgainstBrief } = await loadEvalModule("lib/ai/recipeVerifier.js");
+const { shouldAutoRetryRecipeBuild, buildRetryRecipePlan, buildRetryInstructions } = await loadEvalModule("lib/ai/homeRecipeRetry.js");
+
+const API_KEY = process.env.OPENROUTER_API_KEY;
+const MODEL = process.env.OPENROUTER_DEFAULT_MODEL?.trim() || "openai/gpt-4o-mini";
+
+if (!API_KEY) {
+  console.error("Missing OPENROUTER_API_KEY.");
+  process.exit(1);
+}
+
+function toConversationHistory(conversation) {
+  return conversation
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (/^chef:/i.test(line)) {
+        return { role: "assistant", content: line.replace(/^chef:\s*/i, "").trim() };
+      }
+      return { role: "user", content: line.replace(/^user:\s*/i, "").trim() };
+    });
+}
+
+function parseJsonResponse(text) {
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return null;
+  }
+
+  const direct = text.trim();
+  try {
+    return JSON.parse(direct);
+  } catch {}
+
+  const withoutFences = direct.replace(/```json/gi, "").replace(/```/g, "").trim();
+  try {
+    return JSON.parse(withoutFences);
+  } catch {}
+
+  const firstBrace = withoutFences.indexOf("{");
+  const lastBrace = withoutFences.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(withoutFences.slice(firstBrace, lastBrace + 1));
+    } catch {}
+  }
+
+  return null;
+}
+
+function normalizeRecipe(value, fallbackTitle) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value;
+  const ingredients = Array.isArray(raw.ingredients)
+    ? raw.ingredients
+        .map((item) => {
+          if (item && typeof item === "object" && typeof item.name === "string") {
+            return { name: item.name.trim() };
+          }
+          if (typeof item === "string") {
+            return { name: item.trim() };
+          }
+          return null;
+        })
+        .filter((item) => item && item.name.length > 0)
+    : [];
+  const steps = Array.isArray(raw.steps)
+    ? raw.steps
+        .map((item) => {
+          if (item && typeof item === "object" && typeof item.text === "string") {
+            return { text: item.text.trim() };
+          }
+          if (typeof item === "string") {
+            return { text: item.trim() };
+          }
+          return null;
+        })
+        .filter((item) => item && item.text.length > 0)
+    : [];
+
+  if (ingredients.length === 0 || steps.length === 0) {
+    return null;
+  }
+
+  return {
+    title: typeof raw.title === "string" && raw.title.trim().length > 0 ? raw.title.trim() : fallbackTitle,
+    description: typeof raw.description === "string" ? raw.description.trim() || null : null,
+    servings: typeof raw.servings === "number" ? raw.servings : null,
+    prep_time_min: typeof raw.prep_time_min === "number" ? raw.prep_time_min : null,
+    cook_time_min: typeof raw.cook_time_min === "number" ? raw.cook_time_min : null,
+    difficulty: typeof raw.difficulty === "string" ? raw.difficulty.trim() || null : null,
+    ingredients,
+    steps,
+    chefTips: Array.isArray(raw.chefTips) ? raw.chefTips.filter((item) => typeof item === "string") : [],
+  };
+}
+
+async function generateRecipeFromSeed({ ideaTitle, prompt, conversationHistory, brief, recipePlan, retryContext, onStatus }) {
+  onStatus(retryContext ? "Tightening the recipe constraints..." : "Writing the recipe...");
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1600,
+      temperature: 0.7,
+      messages: [
+        {
+          role: "system",
+          content: `You are a professional recipe developer.
 Priority order:
 1. Chef conversation and the user's most recent confirmed direction
 2. User taste summary
 User taste summary: No user taste summary available.
+Structured cooking brief: ${JSON.stringify(brief)}
+Structured recipe plan: ${JSON.stringify(recipePlan)}
 Return ONLY valid JSON:
 {
   "title": string,
@@ -39,18 +175,63 @@ Return ONLY valid JSON:
 Rules:
 - The recipe must follow the chef conversation closely.
 - If the user narrowed to one exact dish, make that dish. Do not drift to adjacent ideas.
-- If the chef conversation indicates a dish format like pasta, skillet, salad, soup, tacos, dip, or bowl, preserve that format exactly unless the user explicitly changed it later.
-- When the conversation mentions a specific anchor ingredient or protein, keep it in the final recipe instead of swapping to a different main ingredient.
-- If the user mentions a ready-made or filled ingredient (fresh pasta, stuffed pasta, dumplings, tortillas, pre-made dough, etc.), treat that item as the centerpiece. Do not discard it or replace it with its filling ingredient (e.g. chicken-filled ravioli stays as ravioli, not a chicken dish).
+- Preserve the locked dish format, centerpiece, and required constraints.
 - The title must be a clean, dish-specific recipe name a home cook would understand.
-- Every ingredient must include an explicit quantity. Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil. Bad: onion, chicken, olive oil.
-- If an ingredient would normally appear without a unit, still include a count, like 1 onion or 2 eggs.
+- Every ingredient must include an explicit quantity.
 - Keep steps practical and home-cook friendly.
-- Produce a complete recipe, not notes.
-- chefTips: include 2–3 specific, practical tips that a home cook would find genuinely useful — technique nuances, common mistakes to avoid, or flavor-boosting tricks. Do not repeat information already in the steps.`;
+- Produce a complete recipe, not notes.`,
+        },
+        {
+          role: "user",
+          content: `Generate a full recipe for this selected idea:
+Idea: ${ideaTitle}
+Prompt context: ${prompt}
+Structured cooking brief:
+${JSON.stringify(brief, null, 2)}
+Structured recipe plan:
+${JSON.stringify(recipePlan, null, 2)}
+Retry instructions:
+${
+  retryContext
+    ? buildRetryInstructions({
+        retryStrategy: retryContext.retryStrategy,
+        reasons: retryContext.reasons,
+        attemptNumber: retryContext.attemptNumber,
+      }).join("\n")
+    : "No retry instructions."
+}
+Conversation context:
+${conversationHistory.map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.content}`).join("\n")}`,
+        },
+      ],
+    }),
+  });
 
-async function callAI(userContent) {
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content ?? "";
+  const parsed = parseJsonResponse(text);
+  const recipe = normalizeRecipe(parsed, ideaTitle);
+
+  if (!recipe) {
+    const error = new Error(`AI returned invalid recipe payload for ${ideaTitle}.`);
+    error.rawText = text;
+    throw error;
+  }
+
+  onStatus("Checking that it matches...");
+  return {
+    recipe,
+    usage: {
+      input_tokens: typeof data.usage?.prompt_tokens === "number" ? data.usage.prompt_tokens : null,
+      output_tokens: typeof data.usage?.completion_tokens === "number" ? data.usage.completion_tokens : null,
+      cost: data.usage?.cost ?? null,
+    },
+  };
+}
+
+async function repairMalformedRecipeFromSeed({ rawText, ideaTitle, prompt, conversationHistory, brief, recipePlan, onStatus }) {
+  onStatus("Repairing malformed recipe output...");
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${API_KEY}`,
@@ -59,188 +240,243 @@ async function callAI(userContent) {
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1600,
-      temperature: 0.7,
+      temperature: 0.2,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userContent },
+        {
+          role: "system",
+          content: `You repair malformed AI recipe drafts.
+Return ONLY valid JSON:
+{
+  "title": string,
+  "description": string|null,
+  "servings": number|null,
+  "prep_time_min": number|null,
+  "cook_time_min": number|null,
+  "difficulty": string|null,
+  "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],
+  "steps": [{ "text": string }],
+  "chefTips": string[]
+}
+Rules:
+- Preserve the named dish exactly.
+- Preserve the requested format and core ingredients.
+- Every ingredient must include a quantity.
+- Do not explain what you changed.
+- Do not use markdown fences.`,
+        },
+        {
+          role: "user",
+          content: `Repair this malformed recipe draft into valid JSON.
+Idea: ${ideaTitle}
+Prompt context: ${prompt}
+Structured cooking brief:
+${JSON.stringify(brief, null, 2)}
+Structured recipe plan:
+${JSON.stringify(recipePlan, null, 2)}
+Conversation context:
+${conversationHistory.map((message) => `${message.role === "user" ? "User" : "Chef"}: ${message.content}`).join("\n")}
+Malformed recipe draft:
+${rawText}`,
+        },
       ],
     }),
   });
-  const data = await res.json();
+
+  const data = await response.json();
   const text = data.choices?.[0]?.message?.content ?? "";
+  const parsed = parseJsonResponse(text);
+  const recipe = normalizeRecipe(parsed, ideaTitle);
+
+  if (!recipe) {
+    throw new Error(`AI returned invalid recipe payload for ${ideaTitle}.`);
+  }
+
+  return {
+    recipe,
+    usage: {
+      input_tokens: typeof data.usage?.prompt_tokens === "number" ? data.usage.prompt_tokens : null,
+      output_tokens: typeof data.usage?.completion_tokens === "number" ? data.usage.completion_tokens : null,
+      cost: data.usage?.cost ?? null,
+    },
+  };
+}
+
+async function runCaseWithRetry(testCase) {
+  const conversationHistory = toConversationHistory(testCase.conversation);
+  const brief = compileCookingBrief({
+    userMessage: testCase.prompt,
+    conversationHistory,
+  });
+  let recipePlan = buildRecipePlanFromBrief(brief);
+  const statuses = [];
+  const usageTotals = { input_tokens: 0, output_tokens: 0, cost: 0 };
+  let hasUsage = false;
+  let retryContext = null;
+  let lastError = null;
+
+  for (let attemptNumber = 1; attemptNumber <= 2; attemptNumber += 1) {
+    try {
+      const result = await generateRecipeFromSeed({
+        ideaTitle: brief.dish.normalized_name ?? testCase.label,
+        prompt: testCase.prompt,
+        conversationHistory,
+        brief,
+        recipePlan,
+        retryContext,
+        onStatus: (message) => statuses.push(message),
+      });
+
+      if (result.usage.input_tokens != null) {
+        usageTotals.input_tokens += result.usage.input_tokens;
+        hasUsage = true;
+      }
+      if (result.usage.output_tokens != null) {
+        usageTotals.output_tokens += result.usage.output_tokens;
+        hasUsage = true;
+      }
+      if (typeof result.usage.cost === "number") {
+        usageTotals.cost += result.usage.cost;
+        hasUsage = true;
+      }
+
+      const verification = verifyRecipeAgainstBrief({
+        brief,
+        recipe: result.recipe,
+        fallbackContext: `${testCase.prompt} ${testCase.conversation}`,
+      });
+
+      if (!verification.passes && shouldAutoRetryRecipeBuild(verification.retry_strategy, attemptNumber)) {
+        retryContext = {
+          retryStrategy: verification.retry_strategy,
+          reasons: verification.reasons,
+          attemptNumber: attemptNumber + 1,
+        };
+        recipePlan = buildRetryRecipePlan(recipePlan, retryContext);
+        continue;
+      }
+
+      return {
+        brief,
+        recipePlan,
+        recipe: result.recipe,
+        verification,
+        statuses,
+        usage: hasUsage ? usageTotals : { input_tokens: null, output_tokens: null, cost: null },
+      };
+    } catch (error) {
+      if (error?.rawText) {
+        try {
+          const repaired = await repairMalformedRecipeFromSeed({
+            rawText: error.rawText,
+            ideaTitle: brief.dish.normalized_name ?? testCase.label,
+            prompt: testCase.prompt,
+            conversationHistory,
+            brief,
+            recipePlan,
+            onStatus: (message) => statuses.push(message),
+          });
+
+          if (repaired.usage.input_tokens != null) {
+            usageTotals.input_tokens += repaired.usage.input_tokens;
+            hasUsage = true;
+          }
+          if (repaired.usage.output_tokens != null) {
+            usageTotals.output_tokens += repaired.usage.output_tokens;
+            hasUsage = true;
+          }
+          if (typeof repaired.usage.cost === "number") {
+            usageTotals.cost += repaired.usage.cost;
+            hasUsage = true;
+          }
+
+          const verification = verifyRecipeAgainstBrief({
+            brief,
+            recipe: repaired.recipe,
+            fallbackContext: `${testCase.prompt} ${testCase.conversation}`,
+          });
+
+          if (!verification.passes && shouldAutoRetryRecipeBuild(verification.retry_strategy, attemptNumber)) {
+            retryContext = {
+              retryStrategy: verification.retry_strategy,
+              reasons: verification.reasons,
+              attemptNumber: attemptNumber + 1,
+            };
+            recipePlan = buildRetryRecipePlan(recipePlan, retryContext);
+            continue;
+          }
+
+          return {
+            brief,
+            recipePlan,
+            recipe: repaired.recipe,
+            verification,
+            statuses,
+            usage: hasUsage ? usageTotals : { input_tokens: null, output_tokens: null, cost: null },
+          };
+        } catch (repairError) {
+          lastError = repairError;
+        }
+      } else {
+        lastError = error;
+      }
+      if (shouldAutoRetryRecipeBuild("regenerate_same_model", attemptNumber)) {
+        retryContext = {
+          retryStrategy: "regenerate_same_model",
+          reasons: [error instanceof Error ? error.message : "Unknown generation failure."],
+          attemptNumber: attemptNumber + 1,
+        };
+        recipePlan = buildRetryRecipePlan(recipePlan, retryContext);
+        continue;
+      }
+      break;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Unknown eval failure.");
+}
+
+const requestedIds = process.argv.slice(2);
+const cases =
+  requestedIds.length > 0
+    ? SEED_RECIPE_EVAL_CASES.filter((testCase) => requestedIds.includes(testCase.id))
+    : SEED_RECIPE_EVAL_CASES;
+
+if (cases.length === 0) {
+  console.error("No matching seed eval cases.");
+  process.exit(1);
+}
+
+const failures = [];
+
+for (const testCase of cases) {
   try {
-    const fence = text.match(/```json\s*([\s\S]*?)```/);
-    return JSON.parse(fence ? fence[1] : text);
-  } catch {
-    return { _raw: text };
-  }
-}
+    const result = await runCaseWithRetry(testCase);
 
-function buildUserContent({ ideaTitle, prompt, conversation, ingredients = [] }) {
-  return `Generate a full recipe for this selected idea:
-Idea: ${ideaTitle}
-Prompt context: ${prompt ?? ""}
-Conversation context:
-${conversation || "No chef conversation available."}
-Ingredients context: ${JSON.stringify(ingredients)}`;
-}
-
-const VAGUE_STEP_PATTERNS = [
-  /^cook until done/i,
-  /^add ingredients/i,
-  /^continue cooking/i,
-  /^prepare the/i,
-  /^mix (well|together|everything)\.?$/i,
-];
-const STEP_QUALITY_PATTERNS = [/\d+\s*(minute|min|hour|second|°|degree|temp)/i, /\b(until|golden|tender|done|browned|crispy|soft|set|bubbl|simmer|boil)/i];
-
-function check(label, recipe) {
-  const issues = [];
-  if (!recipe.title) issues.push("MISSING title");
-  if (!recipe.description) issues.push("MISSING description");
-  if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) issues.push("MISSING ingredients");
-  if (!Array.isArray(recipe.steps) || recipe.steps.length === 0) issues.push("MISSING steps");
-  if (!recipe.chefTips || recipe.chefTips.length === 0) issues.push("NO chef tips");
-
-  const missingQty = (recipe.ingredients ?? []).filter((i) => !i.quantity || i.quantity === 0);
-  if (missingQty.length) issues.push(`${missingQty.length} ingredient(s) missing quantity: ${missingQty.map((i) => i.name).join(", ")}`);
-
-  const vagueSteps = (recipe.steps ?? []).filter((s) => VAGUE_STEP_PATTERNS.some((p) => p.test(s.text)) || s.text.trim().split(/\s+/).length < 8);
-  if (vagueSteps.length) issues.push(`${vagueSteps.length} vague/short step(s)`);
-
-  const weakSteps = (recipe.steps ?? []).filter((s) => !STEP_QUALITY_PATTERNS.some((p) => p.test(s.text)));
-  if (weakSteps.length > 2) issues.push(`${weakSteps.length} steps lack timing/doneness cues`);
-
-  console.log(`\n${"═".repeat(70)}`);
-  console.log(`TEST: ${label}`);
-  console.log(`${"─".repeat(70)}`);
-  console.log(`Title:       ${recipe.title ?? "(none)"}`);
-  console.log(`Description: ${recipe.description ?? "(none)"}`);
-  console.log(`Servings: ${recipe.servings ?? "?"} | Prep: ${recipe.prep_time_min ?? "?"}m | Cook: ${recipe.cook_time_min ?? "?"}m | Difficulty: ${recipe.difficulty ?? "?"}`);
-
-  console.log(`\nINGREDIENTS (${recipe.ingredients?.length ?? 0}):`);
-  for (const ing of recipe.ingredients ?? []) {
-    const qty = ing.quantity ? `${ing.quantity}${ing.unit ? " " + ing.unit : ""}` : "(no qty)";
-    const flag = (!ing.quantity || ing.quantity === 0) ? " ⚠️" : "";
-    console.log(`  ${qty} ${ing.name}${ing.prep ? ", " + ing.prep : ""}${flag}`);
-  }
-
-  console.log(`\nSTEPS (${recipe.steps?.length ?? 0}):`);
-  for (let i = 0; i < (recipe.steps ?? []).length; i++) {
-    const step = recipe.steps[i];
-    const hasQuality = STEP_QUALITY_PATTERNS.some((p) => p.test(step.text));
-    const isVague = VAGUE_STEP_PATTERNS.some((p) => p.test(step.text)) || step.text.trim().split(/\s+/).length < 8;
-    const flag = isVague ? " ⚠️ VAGUE" : (!hasQuality ? " ⚠️ no timing/doneness" : "");
-    console.log(`  ${i + 1}. ${step.text}${flag}`);
-  }
-
-  if (recipe.chefTips?.length) {
-    console.log(`\nCHEF TIPS:`);
-    for (const tip of recipe.chefTips) {
-      console.log(`  • ${tip}`);
+    console.log(`\n${"=".repeat(72)}`);
+    console.log(`${testCase.id} :: ${testCase.label}`);
+    console.log(`Dish family: ${result.brief.dish.dish_family ?? "-"}`);
+    console.log(`Plan family: ${result.recipePlan.dish_family}`);
+    console.log(`Title: ${result.recipe.title}`);
+    console.log(`Verification: ${result.verification.passes ? "PASS" : "FAIL"} (${result.verification.score.toFixed(2)})`);
+    console.log(`Retry strategy: ${result.verification.retry_strategy}`);
+    console.log(`Statuses: ${result.statuses.join(" -> ")}`);
+    console.log(`Usage: in=${result.usage.input_tokens ?? "-"} out=${result.usage.output_tokens ?? "-"} cost=${result.usage.cost ?? "-"}`);
+    if (!result.verification.passes) {
+      console.log(`Reasons: ${result.verification.reasons.join(" | ")}`);
+      failures.push({ id: testCase.id, reasons: result.verification.reasons });
     }
-  } else {
-    console.log(`\nCHEF TIPS: none`);
-  }
-
-  console.log(issues.length ? `\n⚠️  ISSUES: ${issues.join(" | ")}` : `\n✅  Passed`);
-  return issues;
-}
-
-const TESTS = [
-  {
-    label: "Regular — quick weeknight chicken skillet",
-    ideaTitle: "Lemon Herb Chicken Skillet",
-    prompt: "quick weeknight dinner, chicken, something bright",
-    conversation: `User: I want a quick weeknight chicken dinner, something bright and herby
-Chef: A lemon herb chicken skillet is a great call — seared chicken thighs with garlic, fresh thyme, and a bright lemon pan sauce. Ready in 30 minutes.
-Locked direction: Lemon Herb Chicken Skillet. Seared chicken thighs with garlic, fresh herbs, and a lemon pan sauce.`,
-  },
-  {
-    label: "Ravioli — chicken-filled fresh ravioli with sauce direction",
-    ideaTitle: "Brown Butter Sage Ravioli",
-    prompt: "I have fresh ravioli filled with chicken, give me 3 recipes to go with it",
-    conversation: `User: I have fresh ravioli filled with chicken, give me 3 recipes to go with it
-Chef: Three strong directions for your chicken ravioli:
-1. Brown butter and sage — classic, nutty, quick
-2. Tomato cream — rich, comforting
-3. Lemon caper — bright and light
-Locked direction: Brown Butter Sage Ravioli. Chicken-filled fresh ravioli tossed in brown butter with crispy sage and parmesan.`,
-    ingredients: ["fresh chicken ravioli"],
-  },
-  {
-    label: "Obscure — mochi waffle with matcha cream",
-    ideaTitle: "Matcha Cream Mochi Waffles",
-    prompt: "I have mochiko rice flour and want something different for brunch",
-    conversation: `User: I have mochiko rice flour and want something different for brunch
-Chef: Mochi waffles are fantastic with that — chewy inside, crisp outside. Go with a matcha whipped cream to make it a full dish.
-Locked direction: Matcha Cream Mochi Waffles. Chewy mochi waffles made with mochiko, served with sweetened matcha whipped cream.`,
-    ingredients: ["mochiko rice flour"],
-  },
-  {
-    label: "Obscure — dried Persian limes in a lamb stew",
-    ideaTitle: "Persian Lamb and Dried Lime Stew (Ghormeh Sabzi style)",
-    prompt: "I have dried Persian limes and ground lamb, want something aromatic",
-    conversation: `User: I have dried Persian limes and ground lamb, want something aromatic and a bit exotic
-Chef: Dried Persian limes are perfect for a Persian-inspired braised lamb — the limes give that unique sour, floral bitterness. Think ghormeh sabzi direction with turmeric, fenugreek, and dried herb base.
-Locked direction: Persian Lamb and Dried Lime Stew. Braised lamb with dried Persian limes, turmeric, fenugreek, and dried herbs.`,
-    ingredients: ["dried Persian limes", "ground lamb"],
-  },
-  {
-    label: "Regular — simple pasta carbonara",
-    ideaTitle: "Classic Spaghetti Carbonara",
-    prompt: "pasta carbonara, traditional, no cream",
-    conversation: `User: I want a classic spaghetti carbonara, no cream, traditional style
-Chef: Traditional carbonara uses just eggs, pecorino romano, guanciale, and black pepper — no cream needed. The emulsified egg and cheese sauce is the magic.
-Locked direction: Classic Spaghetti Carbonara. Traditional carbonara with guanciale, eggs, pecorino, and black pepper — no cream.`,
-  },
-  {
-    label: "Obscure — fermented black bean tofu stir-fry",
-    ideaTitle: "Mapo Tofu with Fermented Black Beans",
-    prompt: "I have fermented black beans and silken tofu, something spicy",
-    conversation: `User: I have fermented black beans and silken tofu, I want something spicy
-Chef: Fermented black beans with silken tofu is the base of a great mapo tofu variant — add doubanjiang for heat, Sichuan peppercorn for numbing, and ground pork for body.
-Locked direction: Mapo Tofu with Fermented Black Beans. Silken tofu in a spicy fermented black bean and doubanjiang sauce with ground pork and Sichuan peppercorn.`,
-    ingredients: ["fermented black beans", "silken tofu"],
-  },
-  {
-    label: "Edge case — vague direction, minimal context",
-    ideaTitle: "Something with vegetables",
-    prompt: "veggies",
-    conversation: `User: veggies
-Chef: How about a roasted vegetable sheet pan dinner?
-Locked direction: Something with vegetables. Roasted vegetable medley.`,
-  },
-];
-
-async function run() {
-  console.log(`Testing recipe generation with model: ${MODEL}`);
-  const allIssues = [];
-
-  for (const test of TESTS) {
-    const userContent = buildUserContent(test);
-    const recipe = await callAI(userContent);
-    if (recipe._raw) {
-      console.log(`\n${"─".repeat(60)}`);
-      console.log(`TEST: ${test.label}`);
-      console.log(`❌  Failed to parse JSON. Raw: ${recipe._raw.slice(0, 200)}`);
-      allIssues.push({ label: test.label, issues: ["JSON parse failure"] });
-      continue;
-    }
-    const issues = check(test.label, recipe);
-    if (issues.length) allIssues.push({ label: test.label, issues });
-    await new Promise((r) => setTimeout(r, 800));
-  }
-
-  console.log(`\n${"═".repeat(60)}`);
-  if (allIssues.length === 0) {
-    console.log("✅  All tests passed — no issues found.");
-  } else {
-    console.log(`⚠️  ${allIssues.length} test(s) had issues:`);
-    for (const { label, issues } of allIssues) {
-      console.log(`  • ${label}: ${issues.join(", ")}`);
-    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.log(`\n${"=".repeat(72)}`);
+    console.log(`${testCase.id} :: ${testCase.label}`);
+    console.log(`FAILED TO GENERATE: ${message}`);
+    failures.push({ id: testCase.id, reasons: [message] });
   }
 }
 
-run().catch(console.error);
+if (failures.length > 0) {
+  console.error(`\n${failures.length} seed eval case(s) failed.`);
+  process.exit(1);
+}
+
+console.log(`\nAll ${cases.length} seed eval cases passed.`);

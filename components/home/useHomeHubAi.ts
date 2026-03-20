@@ -4,19 +4,20 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { useRouter } from "next/navigation";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
 import type { ChefChatEnvelope, ChefDirectionOption } from "@/lib/ai/chefOptions";
-import { deriveIdeaTitleFromConversationContext, recipeMatchesRequestedDirection } from "@/lib/ai/homeRecipeAlignment";
+import { deriveIdeaTitleFromConversationContext } from "@/lib/ai/homeRecipeAlignment";
 import {
   buildDirectionSummary,
   buildFocusedChatHistory,
   buildFocusedRecipeConversation,
   buildReplyBranch,
 } from "@/lib/ai/homeConversationFocus";
-import { generateLocalChefReply, generateLocalRecipeDraft, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
+import { generateLocalChefReply, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
 import { createRecipeFromDraft, getCreatedRecipeHref } from "@/lib/client/recipeMutations";
 import { repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import type { ChatMessage, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
+import type { VerificationRetryStrategy } from "@/lib/ai/contracts/verificationResult";
 
 const extractIngredientsFromPrompt = (prompt: string) =>
   prompt
@@ -125,8 +126,17 @@ const buildSelectedDirectionForMessages = (messages: ChatMessage[], selectedDire
   };
 };
 
+type RecipeBuildStreamError = Error & {
+  retryStrategy?: VerificationRetryStrategy;
+  reasons?: string[];
+  failureKind?: "verification_failed" | "invalid_payload" | "generation_failed";
+};
+
 const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
+  const typedError = error as RecipeBuildStreamError;
   const message = error instanceof Error ? error.message.trim() : "";
+  const retryStrategy = typedError?.retryStrategy;
+  const reasons = Array.isArray(typedError?.reasons) ? typedError.reasons.filter(Boolean) : [];
   if (!message) {
     return fallbackMessage;
   }
@@ -137,6 +147,24 @@ const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => 
 
   if (message.startsWith("[{") || message.startsWith('["')) {
     return fallbackMessage;
+  }
+
+  if (retryStrategy === "ask_user") {
+    return reasons[0] ?? "Chef needs one more clarification before building a reliable recipe. Tighten the dish direction and try again.";
+  }
+
+  if (retryStrategy === "regenerate_stricter") {
+    return reasons[0]
+      ? `${reasons[0]} Try again, or refine the direction so Chef has less room to drift.`
+      : "Chef rejected the draft because it drifted from your request. Try again or refine the direction.";
+  }
+
+  if (retryStrategy === "regenerate_same_model") {
+    return "Chef produced an incomplete draft this time. Try building the recipe again.";
+  }
+
+  if (retryStrategy === "upgrade_model") {
+    return "Chef could not build this reliably with the current model settings. Try again or switch to a stronger recipe model in Admin.";
   }
 
   return message;
@@ -266,6 +294,77 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     return data;
   };
 
+  const invokeRecipeBuildStream = async (
+    body: Record<string, unknown>,
+    handlers: {
+      onStatus: (message: string) => void;
+    }
+  ) => {
+    const response = await fetch("/api/ai/home/build", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok || !response.body) {
+      const data = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(data?.message ?? "AI request failed.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalResult: Record<string, unknown> | null = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+        const event = JSON.parse(trimmed) as
+          | { type: "status"; message: string }
+          | { type: "result"; result: Record<string, unknown> }
+          | {
+              type: "error";
+              message: string;
+              retry_strategy?: VerificationRetryStrategy;
+              reasons?: string[];
+              failure_kind?: "verification_failed" | "invalid_payload" | "generation_failed";
+            };
+
+        if (event.type === "status") {
+          handlers.onStatus(event.message);
+        } else if (event.type === "result") {
+          finalResult = event.result;
+        } else if (event.type === "error") {
+          const streamError = new Error(event.message) as RecipeBuildStreamError;
+          streamError.retryStrategy = event.retry_strategy;
+          streamError.reasons = Array.isArray(event.reasons) ? event.reasons : [];
+          streamError.failureKind = event.failure_kind;
+          throw streamError;
+        }
+      }
+    }
+
+    if (!finalResult) {
+      throw new Error("Recipe build finished without a result.");
+    }
+
+    return finalResult;
+  };
+
   const describeAiOutage = (rawError: unknown, fallbackLabel: string) => {
     const message = rawError instanceof Error ? rawError.message : "";
     if (message.includes("(429)") || message.toLowerCase().includes("toomanyrequests")) {
@@ -319,43 +418,30 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
     setGeneratingRecipe(true);
     setError(null);
-    setStatus("Building recipe...");
+    setStatus("Understanding your request...");
 
     try {
-      const data = await invokeAi({
-        mode: "idea_recipe",
+      const data = await invokeRecipeBuildStream({
         ideaTitle,
         prompt: latestUserPrompt,
         ingredients,
         conversationHistory,
+        conversationKey: conversationKeyRef.current,
+      }, {
+        onStatus: (message) => setStatus(message),
       });
 
       const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
         ? (data.result as { recipe: RecipeDraft }).recipe
         : (data.recipe as RecipeDraft);
+      setStatus("Saving your recipe...");
       const created = await saveGeneratedRecipe(recipe, source);
       goToCreatedRecipe(created.recipeId, created.versionId);
-    } catch {
-      try {
-        const fallbackRecipe = generateLocalRecipeDraft(
-          {
-            ideaTitle,
-            prompt: latestUserPrompt,
-            ingredients,
-          },
-          userTasteProfile ?? undefined
-        );
-        if (!recipeMatchesRequestedDirection(fallbackRecipe, `${ideaTitle} ${latestUserPrompt} ${conversationText}`)) {
-          throw new Error("Chef draft drifted from the requested dish.");
-        }
-        const created = await saveGeneratedRecipe(fallbackRecipe, `${source}-fallback`);
-        goToCreatedRecipe(created.recipeId, created.versionId);
-      } catch (saveError) {
-        setError(
-          getRecipeBuildErrorMessage(saveError, "Could not build or save the recipe from this conversation.")
-        );
-        setStatus(null);
-      }
+    } catch (saveError) {
+      setError(
+        getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe from this conversation. Please refine the direction and try again.")
+      );
+      setStatus(null);
     } finally {
       setGeneratingRecipe(false);
       setActiveChatRecipeIndex(null);

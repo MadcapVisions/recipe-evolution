@@ -132,6 +132,10 @@ Shared AI helpers live in:
 - [lib/ai/cache.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/lib/ai/cache.ts)
 - [lib/ai/conversationStore.ts](/Users/macbook12/Desktop/AIcook/recipe-evolution/lib/ai/conversationStore.ts)
 
+Reliability redesign spec for chat-to-recipe generation:
+
+- [docs/ai-recipe-reliability-spec.md](/Users/macbook12/Desktop/AIcook/recipe-evolution/docs/ai-recipe-reliability-spec.md)
+
 ## Supabase Config
 
 Project-level Supabase config lives in [supabase/config.toml](/Users/macbook12/Desktop/AIcook/recipe-evolution/supabase/config.toml).

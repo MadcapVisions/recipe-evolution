@@ -19,6 +19,13 @@ test("deriveIdeaTitleFromConversationContext keeps pasta direction from chef con
   );
 });
 
+test("deriveIdeaTitleFromConversationContext names focaccia pizza requests directly", () => {
+  assert.equal(
+    deriveIdeaTitleFromConversationContext("I want a focaccia pizza with tomato sauce, mozzarella, and crisp edges."),
+    "Focaccia Pizza"
+  );
+});
+
 test("recipeMatchesRequestedDirection rejects rice bowl drift when pasta was requested", () => {
   assert.equal(
     recipeMatchesRequestedDirection(
@@ -46,5 +53,20 @@ test("recipeMatchesRequestedDirection accepts a pasta recipe when pasta was requ
       "Build a pasta dish with eggplant sauce. Yes to both cooking the pasta and preparing the sauce."
     ),
     true
+  );
+});
+
+test("recipeMatchesRequestedDirection rejects skillet drift when focaccia pizza was requested", () => {
+  assert.equal(
+    recipeMatchesRequestedDirection(
+      {
+        title: "Mexican Chicken Skillet",
+        description: "Chicken, rice, peppers, and a chipotle-lime sauce.",
+        ingredients: [{ name: "1 lb chicken" }, { name: "1 cup rice" }],
+        steps: [{ text: "Cook the rice and finish the chicken in the skillet sauce." }],
+      },
+      "I want a focaccia pizza with mozzarella and tomato sauce."
+    ),
+    false
   );
 });

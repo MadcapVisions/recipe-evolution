@@ -11,6 +11,9 @@ export type AiRecipeMeta = {
   cached: boolean;
   input_hash: string | null;
   created_at: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  estimated_cost_usd: number | null;
 };
 
 export type AiRecipeResult = {
@@ -28,6 +31,9 @@ export function createAiRecipeResult(input: {
   inputHash?: string | null;
   createdAt?: string | null;
   explanation?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  estimatedCostUsd?: number | null;
   recipe: RecipeDraft;
 }): AiRecipeResult {
   return {
@@ -41,6 +47,9 @@ export function createAiRecipeResult(input: {
       cached: input.cached ?? input.source === "cache",
       input_hash: input.inputHash ?? null,
       created_at: input.createdAt ?? null,
+      input_tokens: input.inputTokens ?? null,
+      output_tokens: input.outputTokens ?? null,
+      estimated_cost_usd: input.estimatedCostUsd ?? null,
     },
   };
 }
@@ -73,6 +82,9 @@ export function parseAiRecipeResult(value: unknown): AiRecipeResult | null {
         cached: metaRaw.cached === true,
         input_hash: typeof metaRaw.input_hash === "string" ? metaRaw.input_hash : null,
         created_at: typeof metaRaw.created_at === "string" ? metaRaw.created_at : null,
+        input_tokens: typeof metaRaw.input_tokens === "number" ? metaRaw.input_tokens : null,
+        output_tokens: typeof metaRaw.output_tokens === "number" ? metaRaw.output_tokens : null,
+        estimated_cost_usd: typeof metaRaw.estimated_cost_usd === "number" ? metaRaw.estimated_cost_usd : null,
       },
     };
   } catch {

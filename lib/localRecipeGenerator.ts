@@ -18,7 +18,7 @@ type ParsedIntent = {
   preferences: Preference[];
   mealType: MealType;
   flavors: string[];
-  dishFamily: "dip" | "soup" | "salad" | "tacos" | "pasta" | "bowl" | "roasted" | null;
+  dishFamily: "dip" | "soup" | "salad" | "tacos" | "pasta" | "bowl" | "roasted" | "pizza" | null;
 };
 
 type SauceTemplate = {
@@ -490,7 +490,9 @@ function parseIntent(prompt: string, providedIngredients: string[] = []): Parsed
   const tokens = tokenize(text);
   const mealType: MealType = text.includes("breakfast") ? "breakfast" : text.includes("lunch") ? "lunch" : "dinner";
   const dishFamily =
-    text.includes("dip") || text.includes("spread")
+    text.includes("pizza") || text.includes("focaccia") || text.includes("flatbread")
+      ? "pizza"
+      : text.includes("dip") || text.includes("spread")
       ? "dip"
       : text.includes("soup") || text.includes("stew")
         ? "soup"
@@ -1113,6 +1115,40 @@ function extractLeadIngredient(input: { ideaTitle: string; prompt?: string; ingr
 function buildDishFamilyDraft(input: { ideaTitle: string; prompt?: string; ingredients?: string[] }, family: ParsedIntent["dishFamily"]): DeterministicRecipeDraft | null {
   const lead = titleCase(extractLeadIngredient(input));
   const text = `${input.ideaTitle} ${input.prompt ?? ""}`.toLowerCase();
+
+  if (family === "pizza") {
+    const focaccia = text.includes("focaccia");
+    const title = focaccia ? "Crispy Focaccia Pizza" : `${lead} Pizza`;
+    return {
+      title,
+      description: focaccia
+        ? "A focaccia-style sheet-pan pizza with an airy base, crisp edges, and toppings chosen to stay in the pizza lane."
+        : `A focused ${lead.toLowerCase()} pizza that stays anchored to the requested dish instead of drifting into another format.`,
+      servings: 4,
+      prep_time_min: 20,
+      cook_time_min: 25,
+      difficulty: "Medium",
+      ingredients: [
+        { name: focaccia ? "1 lb focaccia dough or pizza dough" : "1 lb pizza dough" },
+        { name: "2 tbsp olive oil" },
+        { name: "1/2 cup pizza sauce or crushed tomatoes" },
+        { name: "8 oz mozzarella, shredded or torn" },
+        { name: "1/4 cup parmesan" },
+        { name: "1 tsp kosher salt" },
+        { name: "Fresh basil or oregano for finishing" },
+      ],
+      steps: [
+        { text: focaccia ? "Stretch the dough into an oiled sheet pan, dimple it lightly, and let it relax until airy and easy to shape." : "Stretch the dough on an oiled tray or pizza pan until evenly shaped with a slightly thicker rim." },
+        { text: "Spread a thin layer of sauce over the dough, leaving a small border so the crust can brown properly." },
+        { text: "Top with mozzarella and parmesan, then add any requested toppings sparingly so the crust stays crisp instead of soggy." },
+        { text: "Bake in a very hot oven until the cheese is bubbling and the bottom and edges are deeply golden, then finish with herbs and a drizzle of olive oil." },
+      ],
+      remix_title: focaccia ? "Focaccia Pizza Squares" : `${lead} Pizza Toasts`,
+      remix_description: focaccia
+        ? "Reheat leftover focaccia pizza on a hot sheet pan so the underside crisps back up."
+        : `Use leftover ${title.toLowerCase()} as crisp slices or chopped into a salad topping.`,
+    };
+  }
 
   if (family === "dip") {
     const title = `${lead} Dip`;

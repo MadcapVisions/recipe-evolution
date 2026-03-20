@@ -50,6 +50,9 @@ const recipeResult_1 = require("../../lib/ai/recipeResult");
             cached: false,
             input_hash: "abc123",
             created_at: "2026-03-14T12:00:00.000Z",
+            input_tokens: null,
+            output_tokens: null,
+            estimated_cost_usd: null,
         },
     });
 });
@@ -101,6 +104,9 @@ const recipeResult_1 = require("../../lib/ai/recipeResult");
             cached: true,
             input_hash: "hash-1",
             created_at: "2026-03-14T12:00:00.000Z",
+            input_tokens: null,
+            output_tokens: null,
+            estimated_cost_usd: null,
         },
     });
 });

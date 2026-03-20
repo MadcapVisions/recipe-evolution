@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": ".tmp-eval",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "lib/ai/briefCompiler.ts",
+    "lib/ai/recipePlanner.ts",
+    "lib/ai/homeHub.ts",
+    "lib/ai/recipeVerifier.ts",
+    "lib/ai/evals/seedRecipeEvals.ts",
+    "lib/ai/contracts/**/*.ts",
+    "lib/recipes/recipeDraft.ts"
+  ],
+  "exclude": ["node_modules"]
+}

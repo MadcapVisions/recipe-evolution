@@ -16,13 +16,16 @@ function includesAny(text: string, terms: string[]) {
 export function detectRequestedDishFamily(context: string) {
   const normalized = normalizeText(context);
 
+  if (includesAny(normalized, ["focaccia pizza", "pizza", "focaccia", "flatbread"])) {
+    return "pizza";
+  }
   if (includesAny(normalized, ["pasta", "linguine", "fettuccine", "spaghetti", "penne", "rigatoni", "noodle", "noodles"])) {
     return "pasta";
   }
   if (includesAny(normalized, ["taco", "tacos", "wrap"])) {
     return "tacos";
   }
-  if (includesAny(normalized, ["soup", "stew"])) {
+  if (includesAny(normalized, ["soup", "stew", "congee", "moqueca"])) {
     return "soup";
   }
   if (includesAny(normalized, ["salad"])) {
@@ -71,41 +74,69 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
   const family = detectRequestedDishFamily(normalized);
   const protein = detectRequestedProtein(normalized);
   const anchor = detectRequestedAnchorIngredient(normalized);
+  const namedDishPatterns = [
+    { terms: ["spaghetti carbonara", "carbonara"], title: "Spaghetti Carbonara" },
+    { terms: ["chicken-filled ravioli", "fresh ravioli", "ravioli"], title: "Ravioli" },
+    { terms: ["salata de vinete", "salată de vinete"], title: "Salata de Vinete" },
+    { terms: ["flatbread-style pizza", "flatbread pizza"], title: "Flatbread Pizza" },
+    { terms: ["okonomiyaki"], title: "Okonomiyaki" },
+    { terms: ["adjarian khachapuri", "khachapuri"], title: "Adjarian Khachapuri" },
+    { terms: ["socca"], title: "Socca" },
+    { terms: ["pupusas", "pupusa"], title: "Pupusas" },
+    { terms: ["masala dosa", "dosa"], title: "Masala Dosa" },
+    { terms: ["gozleme", "gözleme"], title: "Gozleme" },
+    { terms: ["injera platter", "injera"], title: "Injera Platter" },
+    { terms: ["century egg and pork congee", "century egg congee", "congee"], title: "Century Egg and Pork Congee" },
+    { terms: ["turkish manti", "manti"], title: "Turkish Manti" },
+    { terms: ["brazilian moqueca", "moqueca"], title: "Brazilian Moqueca" },
+  ];
+
+  for (const pattern of namedDishPatterns) {
+    if (includesAny(normalized, pattern.terms)) {
+      return pattern.title;
+    }
+  }
+
+  if (family === "pizza") {
+    if (normalized.includes("focaccia")) return "Focaccia Pizza";
+    if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Pizza`;
+    return "Pizza";
+  }
 
   if (family === "pasta") {
     if (anchor === "eggplant" || anchor === "aubergine" || anchor === "vinete") return "Eggplant Pasta";
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Pasta`;
-    return "Chef-Directed Pasta";
+    return "Pasta";
   }
 
   if (family === "skillet") {
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Skillet`;
-    return "Chef-Directed Skillet";
+    return "Skillet Dinner";
   }
 
   if (family === "bowl") {
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Bowl`;
-    return "Chef-Directed Bowl";
+    return "Rice Bowl";
   }
 
   if (family === "salad") {
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Salad`;
-    return "Chef-Directed Salad";
+    return "Salad";
   }
 
   if (family === "tacos") {
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Tacos`;
-    return "Chef-Directed Tacos";
+    return "Tacos";
   }
 
   if (family === "soup") {
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Soup`;
-    return "Chef-Directed Soup";
+    return "Soup";
   }
 
   if (family === "dip") {
     if (anchor === "eggplant" || anchor === "aubergine" || anchor === "vinete") return "Eggplant Dip";
-    return "Chef-Directed Dip";
+    return "Dip";
   }
 
   if (protein) {
@@ -128,6 +159,13 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
   const requestedFamily = detectRequestedDishFamily(normalizedContext);
   const requestedProtein = detectRequestedProtein(normalizedContext);
   const requestedAnchor = detectRequestedAnchorIngredient(normalizedContext);
+
+  if (
+    requestedFamily === "pizza" &&
+    !includesAny(recipeText, ["pizza", "focaccia", "flatbread", "dough", "crust", "mozzarella", "bake until the crust", "bake until golden"])
+  ) {
+    return false;
+  }
 
   if (requestedFamily === "pasta" && !includesAny(recipeText, ["pasta", "linguine", "fettuccine", "spaghetti", "penne", "rigatoni", "noodle", "noodles"])) {
     return false;

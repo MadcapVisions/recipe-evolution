@@ -1,4 +1,5 @@
 import type { AIMessage } from "./chatPromptBuilder";
+import { estimateUsageCostUsd, type AiUsageMetrics } from "./usageMetrics";
 
 export type AICallOptions = {
   max_tokens?: number;
@@ -14,6 +15,7 @@ export type AICallResult = {
   provider: AIProvider;
   model?: string;
   finishReason?: string | null;
+  usage: AiUsageMetrics;
 };
 
 class AIProviderError extends Error {
@@ -137,11 +139,29 @@ async function callOpenRouter(messages: AIMessage[], options: AICallOptions, mod
       }
     );
 
+    const promptTokens = typeof response.usage?.prompt_tokens === "number" ? response.usage.prompt_tokens : null;
+    const completionTokens = typeof response.usage?.completion_tokens === "number" ? response.usage.completion_tokens : null;
+    const totalTokens = typeof response.usage?.total_tokens === "number" ? response.usage.total_tokens : null;
+    const costFromResponse =
+      typeof (response as { usage?: { cost?: number | string | null } }).usage?.cost === "number"
+        ? (response as { usage?: { cost?: number } }).usage?.cost ?? null
+        : typeof (response as { usage?: { cost?: number | string | null } }).usage?.cost === "string"
+          ? Number((response as { usage?: { cost?: string } }).usage?.cost)
+          : null;
     return {
       text: response.choices[0]?.message?.content ?? "",
       provider: "openrouter",
       model,
       finishReason: response.choices[0]?.finish_reason ?? null,
+      usage: {
+        input_tokens: promptTokens,
+        output_tokens: completionTokens,
+        total_tokens: totalTokens,
+        estimated_cost_usd:
+          typeof costFromResponse === "number" && Number.isFinite(costFromResponse)
+            ? costFromResponse
+            : estimateUsageCostUsd(model, promptTokens, completionTokens),
+      },
     };
   } catch (error) {
     const statusCode = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : undefined;
