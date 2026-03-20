@@ -25,6 +25,37 @@ const extractIngredientsFromPrompt = (prompt: string) =>
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
 
+const RECIPE_CONTEXT_INGREDIENT_STOP_WORDS = new Set([
+  "make",
+  "great",
+  "sounds",
+  "nice",
+  "spicy",
+  "bright",
+  "crunchy",
+  "crispy",
+  "quick",
+  "dinner",
+  "style",
+]);
+
+const extractRecipeContextIngredients = (prompt: string) => {
+  const trimmed = prompt.trim();
+  if (!trimmed || (!trimmed.includes(",") && !trimmed.includes("\n"))) {
+    return [];
+  }
+
+  return extractIngredientsFromPrompt(trimmed).filter((item) => {
+    const normalized = item.toLowerCase();
+    const wordCount = normalized.split(/\s+/).length;
+    return (
+      wordCount <= 4 &&
+      !/[.!?]/.test(item) &&
+      !Array.from(RECIPE_CONTEXT_INGREDIENT_STOP_WORDS).some((token) => normalized.includes(token))
+    );
+  });
+};
+
 const buildHeroConversationContext = (messages: ChatMessage[]) =>
   messages
     .filter((message) => message.kind !== "direction_selected")
@@ -89,22 +120,17 @@ const buildRecipeSeedFromConversation = (
       .find((message) => message.role === "user")
       ?.text.trim() ?? conversationText;
   const selectedSummary = selectedDirection?.summary?.trim() ?? "";
-  const buildPrompt =
-    [selectedSummary, buildDirectionSummary(focusedMessages), latestAssistantReply, latestUserPrompt]
-      .filter((item) => item.length > 0)
-      .join("\n\n")
-      .trim();
   const ideaTitle =
     selectedDirection?.title?.trim() ||
-    deriveIdeaTitleFromConversationContext(buildPrompt || conversationText) ||
-    generateLocalRecipeIdeas(buildPrompt || conversationText, [], userTasteProfile ?? undefined)[0]?.title ||
+    deriveIdeaTitleFromConversationContext(latestAssistantReply || conversationText) ||
+    generateLocalRecipeIdeas(latestAssistantReply || conversationText, [], userTasteProfile ?? undefined)[0]?.title ||
     "Chef Conversation Recipe";
 
   return {
     conversationText,
     latestAssistantReply,
     ideaTitle,
-    latestUserPrompt: buildPrompt || latestUserPrompt,
+    latestUserPrompt,
     ingredients: undefined,
     conversationHistory: buildConversationHistory(focusedMessages),
   };
@@ -489,7 +515,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         activeDirectionMessages.length > 0
           ? {
               title: selectedChefDirection?.title || deriveIdeaTitleFromConversationContext(activeDirectionSummary || buildHeroConversationContext(activeDirectionMessages)),
-              ingredients: extractIngredientsFromPrompt(activeDirectionSummary || trimmedPrompt),
+              ingredients: extractRecipeContextIngredients(trimmedPrompt),
               steps: activeDirectionMessages.filter((message) => message.role === "ai").map((message) => message.text),
             }
           : null;
@@ -548,6 +574,11 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         setSelectedChefDirection(null);
         setTransientStatus("Choose one direction, then refine it.");
       } else if (selectedChefDirection) {
+        setSelectedChefDirection({
+          ...selectedChefDirection,
+          replyIndex: heroChatMessages.length + 1,
+          summary: data.reply!,
+        });
         setTransientStatus("Direction refined. Build the recipe when it feels right.");
       } else {
         setTransientStatus("Chef responded. Build the recipe when the direction feels right.");

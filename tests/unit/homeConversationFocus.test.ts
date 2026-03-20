@@ -55,7 +55,7 @@ test("buildReplyBranch isolates a specific assistant direction", () => {
   ]);
 });
 
-test("buildDirectionSummary prioritizes the active assistant direction and latest user refinement", () => {
+test("buildDirectionSummary returns the active assistant direction without merging the user refinement text", () => {
   const summary = buildDirectionSummary([
     { role: "user", text: "Let's do the pasta." },
     { role: "ai", text: "Make it a bright shrimp and eggplant pasta with tomato and garlic." },
@@ -63,5 +63,5 @@ test("buildDirectionSummary prioritizes the active assistant direction and lates
   ]);
 
   assert.match(summary, /shrimp and eggplant pasta/i);
-  assert.match(summary, /spicy and not too heavy/i);
+  assert.doesNotMatch(summary, /spicy and not too heavy/i);
 });

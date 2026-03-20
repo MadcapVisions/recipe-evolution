@@ -73,6 +73,7 @@ export function buildRecipePlanFromBrief(brief: CookingBrief): RecipePlan {
   plan.core_components = inferCoreComponents(brief);
   plan.key_ingredients = unique([
     ...brief.ingredients.required,
+    ...brief.ingredients.preferred,
     ...(brief.ingredients.centerpiece ? [brief.ingredients.centerpiece] : []),
   ]);
   plan.blocked_ingredients = unique(brief.ingredients.forbidden);

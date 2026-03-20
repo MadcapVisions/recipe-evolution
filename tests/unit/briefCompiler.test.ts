@@ -34,6 +34,23 @@ test("compileCookingBrief captures exclusions and time limits", () => {
   assert.ok(brief.constraints.dietary_tags.includes("high protein"));
 });
 
+test("compileCookingBrief keeps recipe-context ingredients as preferred and only extracts explicit hard requirements", () => {
+  const brief = compileCookingBrief({
+    userMessage: "this sounds great, lets make sure it has jalapeños and make it nice and spicy",
+    assistantReply: "Locked direction: Chicken Fajita Bowls with Bell Peppers and Crispy Rice. Bright, crunchy Mexican-style chicken bowl.",
+    conversationHistory: [],
+    recipeContext: {
+      title: "Chicken Fajita Bowls with Bell Peppers and Crispy Rice",
+      ingredients: ["chicken", "bell peppers", "crispy rice"],
+      steps: ["Cook the chicken and peppers, then serve over crispy rice."],
+    },
+  });
+
+  assert.deepEqual(brief.ingredients.required, ["jalapeños"]);
+  assert.deepEqual(brief.ingredients.preferred, ["chicken", "bell peppers", "crispy rice"]);
+  assert.equal(brief.ingredients.centerpiece, "Chicken Fajita Bowl");
+});
+
 test("compileCookingBrief preserves obscure named dishes instead of collapsing to fallback protein titles", () => {
   const okonomiyakiBrief = compileCookingBrief({
     userMessage: "I want Osaka-style okonomiyaki with cabbage and pork belly",

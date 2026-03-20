@@ -66,3 +66,28 @@ test("verifyRecipeAgainstBrief passes obscure named dish when title preserves th
 
   assert.equal(result.passes, true);
 });
+
+test("verifyRecipeAgainstBrief allows refined titles that preserve the locked direction tokens", () => {
+  const brief = compileCookingBrief({
+    userMessage: "this sounds great, lets make sure it has jalapeños and make it nice and spicy",
+    assistantReply: "Locked direction: Chicken Fajita Bowls with Bell Peppers and Crispy Rice. Bright, crunchy Mexican-style chicken bowl.",
+    recipeContext: {
+      title: "Chicken Fajita Bowls with Bell Peppers and Crispy Rice",
+      ingredients: ["chicken", "bell peppers", "rice", "jalapeños"],
+      steps: ["Cook the chicken and peppers, then serve over crispy rice."],
+    },
+  });
+
+  const result = verifyRecipeAgainstBrief({
+    brief,
+    recipe: {
+      title: "Spicy Chicken Fajita Bowl with Jalapeños",
+      description: "A bright chicken fajita bowl with crispy rice, peppers, and extra heat.",
+      ingredients: [{ name: "1 lb chicken" }, { name: "2 bell peppers" }, { name: "2 jalapeños" }, { name: "2 cups cooked rice" }],
+      steps: [{ text: "Cook the chicken and peppers, then pile them over crispy rice with sliced jalapeños." }],
+    },
+  });
+
+  assert.equal(result.passes, true);
+  assert.equal(result.checks.centerpiece_match, true);
+});

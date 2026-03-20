@@ -79,6 +79,7 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     { terms: ["chicken-filled ravioli", "fresh ravioli", "ravioli"], title: "Ravioli" },
     { terms: ["salata de vinete", "salată de vinete"], title: "Salata de Vinete" },
     { terms: ["flatbread-style pizza", "flatbread pizza"], title: "Flatbread Pizza" },
+    { terms: ["chicken fajita bowls", "chicken fajita bowl", "fajita bowls", "fajita bowl"], title: "Chicken Fajita Bowl" },
     { terms: ["okonomiyaki"], title: "Okonomiyaki" },
     { terms: ["adjarian khachapuri", "khachapuri"], title: "Adjarian Khachapuri" },
     { terms: ["socca"], title: "Socca" },

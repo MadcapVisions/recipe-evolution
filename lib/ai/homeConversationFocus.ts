@@ -87,11 +87,5 @@ export function buildDirectionSummary(messages: HomeChatMessage[]) {
       .reverse()
       .find((message) => message.role === "ai")
       ?.text.trim() ?? "";
-  const latestUser =
-    [...focused]
-      .reverse()
-      .find((message) => message.role === "user")
-      ?.text.trim() ?? "";
-
-  return [latestAi, latestUser].filter((item) => item.length > 0).join("\n\n").trim();
+  return latestAi;
 }

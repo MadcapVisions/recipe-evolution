@@ -11,6 +11,57 @@ function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
 }
 
+const REQUIRED_INGREDIENT_STOP_WORDS = new Set([
+  "make",
+  "keep",
+  "stay",
+  "be",
+  "nice",
+  "spicy",
+  "bright",
+  "crunchy",
+  "crispy",
+  "quick",
+  "traditional",
+  "extra",
+  "more",
+  "less",
+]);
+
+function splitIngredientCandidates(value: string) {
+  return value
+    .split(/,|\band\b/gi)
+    .map((item) => item.trim().replace(/^with\s+/i, ""))
+    .filter((item) => item.length > 0)
+    .filter((item) => item.split(/\s+/).length <= 4)
+    .filter((item) => {
+      const normalized = normalizeText(item);
+      return !Array.from(REQUIRED_INGREDIENT_STOP_WORDS).some((token) => normalized.includes(token));
+    });
+}
+
+function extractExplicitRequiredIngredients(text: string) {
+  const normalized = normalizeText(text);
+  const results: string[] = [];
+  const patterns = [
+    /\bmake sure (?:it|this|the dish|the recipe) has ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:\s+and\s+(?:make|keep|stay|be)\b|[.!?]|$))/gu,
+    /\bmust have ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
+    /\bneeds? ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
+    /\binclude ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      const candidate = (match[1] ?? "").trim();
+      if (candidate.length > 0) {
+        results.push(...splitIngredientCandidates(candidate));
+      }
+    }
+  }
+
+  return unique(results);
+}
+
 function extractForbiddenIngredients(text: string) {
   const normalized = normalizeText(text);
   const results: string[] = [];
@@ -78,6 +129,7 @@ export function compileCookingBrief(input: {
   const dishFamily = detectRequestedDishFamily(conversationText);
   const normalizedName = deriveIdeaTitleFromConversationContext(conversationText);
   const forbiddenIngredients = extractForbiddenIngredients(conversationText);
+  const requiredIngredients = extractExplicitRequiredIngredients(conversationText);
   const brief = createEmptyCookingBrief();
   const requestMode = deriveBriefRequestMode({
     latestUserMessage: input.userMessage,
@@ -108,10 +160,10 @@ export function compileCookingBrief(input: {
     format_tags: unique(extractFormatTags(conversationText)),
   };
   brief.ingredients = {
-    required: unique(recipeContext?.ingredients ?? []),
-    preferred: [],
+    required: requiredIngredients,
+    preferred: unique(recipeContext?.ingredients ?? []),
     forbidden: forbiddenIngredients,
-    centerpiece: recipeContext?.title?.trim() || brief.dish.normalized_name,
+    centerpiece: brief.dish.normalized_name || recipeContext?.title?.trim() || null,
   };
   brief.constraints = {
     servings: null,
@@ -130,7 +182,12 @@ export function compileCookingBrief(input: {
     dish_family: dishFamily ? (requestMode === "locked" ? "locked" : "inferred") : "unknown",
     normalized_name: brief.dish.normalized_name ? (requestMode === "locked" ? "locked" : "inferred") : "unknown",
     cuisine: "unknown",
-    ingredients: brief.ingredients.required.length > 0 || brief.ingredients.forbidden.length > 0 ? "inferred" : "unknown",
+    ingredients:
+      brief.ingredients.required.length > 0 ||
+      brief.ingredients.preferred.length > 0 ||
+      brief.ingredients.forbidden.length > 0
+        ? "inferred"
+        : "unknown",
     constraints: brief.constraints.time_max_minutes != null || brief.constraints.dietary_tags.length > 0 ? "inferred" : "unknown",
   };
   brief.source_turn_ids = input.sourceTurnIds ?? [];

@@ -16,6 +16,19 @@ const GENERIC_TITLE_PATTERNS = [
   /^chef special$/i,
 ];
 
+const CENTERPIECE_STOP_WORDS = new Set(["the", "a", "an", "with", "and", "of", "style", "recipe"]);
+
+function normalizeMatchToken(value: string) {
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalized.length > 4 && normalized.endsWith("es")) {
+    return normalized.slice(0, -2);
+  }
+  if (normalized.length > 3 && normalized.endsWith("s")) {
+    return normalized.slice(0, -1);
+  }
+  return normalized;
+}
+
 function buildVerificationContext(brief: CookingBrief, fallbackText = "") {
   return [
     brief.dish.normalized_name,
@@ -55,7 +68,30 @@ function forbiddenIngredientsAvoided(recipe: RecipeLike, brief: CookingBrief) {
 function centerpieceMatch(recipe: RecipeLike, brief: CookingBrief) {
   if (!brief.ingredients.centerpiece) return true;
   const text = `${recipe.title} ${recipe.description ?? ""} ${recipe.ingredients.map((item) => item.name).join(" ")}`.toLowerCase();
-  return text.includes(brief.ingredients.centerpiece.toLowerCase());
+  const normalizedCenterpiece = brief.ingredients.centerpiece.toLowerCase().trim();
+  if (text.includes(normalizedCenterpiece)) {
+    return true;
+  }
+
+  const centerpieceTokens = normalizedCenterpiece
+    .split(/\s+/)
+    .map(normalizeMatchToken)
+    .filter((token) => token.length > 1 && !CENTERPIECE_STOP_WORDS.has(token));
+
+  if (centerpieceTokens.length === 0) {
+    return true;
+  }
+
+  const recipeTokens = new Set(
+    text
+      .split(/\s+/)
+      .map(normalizeMatchToken)
+      .filter((token) => token.length > 1)
+  );
+  const matchedTokenCount = centerpieceTokens.filter((token) => recipeTokens.has(token)).length;
+  const requiredMatches = centerpieceTokens.length <= 2 ? centerpieceTokens.length : Math.ceil(centerpieceTokens.length * 0.6);
+
+  return matchedTokenCount >= requiredMatches;
 }
 
 function styleMatch(recipe: RecipeLike, brief: CookingBrief) {
