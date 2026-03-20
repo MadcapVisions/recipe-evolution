@@ -142,7 +142,7 @@ const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => 
   }
 
   if (message.includes("Each ingredient needs a quantity")) {
-    return "Chef drafted a recipe, but some ingredients were missing amounts. Please try again or switch to a stronger recipe model in Admin.";
+    return "Chef drafted the right direction, but the recipe details were incomplete. Please try again and Chef will rebuild it.";
   }
 
   if (message.startsWith("[{") || message.startsWith('["')) {
@@ -164,7 +164,7 @@ const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => 
   }
 
   if (retryStrategy === "upgrade_model") {
-    return "Chef could not build this reliably with the current model settings. Try again or switch to a stronger recipe model in Admin.";
+    return "Chef could not build this reliably on that attempt. Please try again or tighten the direction a bit.";
   }
 
   return message;

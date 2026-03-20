@@ -1,4 +1,4 @@
-import { normalizeRecipeDraft, type RecipeDraft } from "@/lib/recipes/recipeDraft";
+import { normalizeRecipeDraft, repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
 
 export class LimitExceededError extends Error {
   constructor(message: string) {
@@ -87,7 +87,20 @@ export function mapVersionToCanonicalVersion(version: {
 export async function createRecipeFromDraft(input: {
   draft: RecipeDraft;
 }) {
-  const draft = normalizeRecipeDraft(input.draft);
+  let draft: RecipeDraft;
+  try {
+    draft = normalizeRecipeDraft(input.draft);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!message.includes("Each ingredient needs a quantity")) {
+      throw error;
+    }
+
+    draft = normalizeRecipeDraft({
+      ...input.draft,
+      ingredients: repairRecipeDraftIngredientLines(input.draft.ingredients),
+    });
+  }
   const response = await fetch("/api/recipes", {
     method: "POST",
     headers: {
