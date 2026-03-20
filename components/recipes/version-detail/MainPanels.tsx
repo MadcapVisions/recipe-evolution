@@ -35,6 +35,7 @@ export function VersionMainPanels({
   recipeSwitchOpen,
   onToggleRecipeSwitch,
   onOpenChefWorkshop,
+  onAddToMealPlan,
   photosWithUrls,
   galleryLoading,
 }: {
@@ -64,18 +65,48 @@ export function VersionMainPanels({
   recipeSwitchOpen: boolean;
   onToggleRecipeSwitch: () => void;
   onOpenChefWorkshop: () => void;
+  onAddToMealPlan: (day: string) => void;
   photosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
   galleryLoading: boolean;
 }) {
+  const weekdayOptions = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+  const todayDay = weekdayOptions[(new Date().getDay() + 6) % 7];
+  const [selectedPlanDay, setSelectedPlanDay] = useState<string>(todayDay);
+
   return (
     <section className="space-y-5">
       <section className="app-panel overflow-hidden">
         {topPhotoUrl ? (
-          <div className="h-56 overflow-hidden border-b border-[rgba(57,75,70,0.08)] sm:h-64 lg:h-80">
+          <div className="relative h-56 overflow-hidden border-b border-[rgba(57,75,70,0.08)] sm:h-64 lg:h-80">
             <Image src={topPhotoUrl} alt={`${recipe.title} recipe`} width={1280} height={720} unoptimized className="h-full w-full object-cover object-center" />
+            <button
+              type="button"
+              onClick={onShare}
+              aria-label="Share recipe"
+              className="absolute right-4 top-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(255,255,255,0.72)] bg-[rgba(255,251,246,0.94)] text-[color:var(--text)] shadow-[0_10px_24px_rgba(44,26,21,0.16)] backdrop-blur-sm transition hover:bg-white"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 16V4" />
+                <path d="m7 9 5-5 5 5" />
+                <path d="M5 20h14" />
+              </svg>
+            </button>
           </div>
         ) : (
-          <div className="h-56 bg-gradient-to-br from-[#dce7e3] to-[#eaf1f4] sm:h-64 lg:h-80" />
+          <div className="relative h-56 bg-gradient-to-br from-[rgba(210,76,47,0.14)] to-[rgba(242,185,75,0.18)] sm:h-64 lg:h-80">
+            <button
+              type="button"
+              onClick={onShare}
+              aria-label="Share recipe"
+              className="absolute right-4 top-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(255,255,255,0.72)] bg-[rgba(255,251,246,0.94)] text-[color:var(--text)] shadow-[0_10px_24px_rgba(44,26,21,0.16)] backdrop-blur-sm transition hover:bg-white"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 16V4" />
+                <path d="m7 9 5-5 5 5" />
+                <path d="M5 20h14" />
+              </svg>
+            </button>
+          </div>
         )}
 
         <div className="space-y-4 p-4 sm:p-6 lg:p-7">
@@ -133,18 +164,23 @@ export function VersionMainPanels({
               <Button href={`/recipes/${recipe.id}/versions/${version.id}/cook`} className="w-full justify-center lg:w-auto">
                 Cook This Version
               </Button>
-              <Button href={`/recipes/${recipe.id}/versions/${version.id}/grocery`} variant="secondary" className="w-full justify-center lg:w-auto">
-                Shopping List
-              </Button>
-              <Button href={`/planner?version=${version.id}`} variant="secondary" className="w-full justify-center lg:w-auto">
-                Add to Plan
-              </Button>
-              <Button href={`/recipes/${recipe.id}/versions/new`} variant="secondary" className="w-full justify-center lg:w-auto">
-                Develop New Version
-              </Button>
-              <Button onClick={onShare} variant="secondary" className="w-full justify-center lg:w-auto">
-                Share
-              </Button>
+              <div className="flex w-full flex-col gap-2 min-[380px]:col-span-2 lg:w-auto lg:flex-row lg:items-center">
+                <select
+                  value={selectedPlanDay}
+                  onChange={(event) => setSelectedPlanDay(event.target.value)}
+                  aria-label="Choose meal plan day"
+                  className="min-h-11 rounded-full border border-[rgba(142,84,60,0.12)] bg-[rgba(255,249,243,0.96)] px-4 text-sm font-semibold text-[color:var(--text)] shadow-[0_6px_16px_rgba(101,47,29,0.05)]"
+                >
+                  {weekdayOptions.map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+                <Button onClick={() => onAddToMealPlan(selectedPlanDay)} variant="secondary" className="w-full justify-center lg:w-auto">
+                  Add to Meal Plan
+                </Button>
+              </div>
               <div className="relative">
                 <Button onClick={onViewVersionHistory} variant="secondary" className="w-full justify-center lg:w-auto">
                   View Version History

@@ -1230,6 +1230,7 @@ export function VersionDetailClient({
           recipeSwitchOpen={recipeSwitchOpen}
           onToggleRecipeSwitch={() => setRecipeSwitchOpen((current) => !current)}
           onOpenChefWorkshop={() => setOpenPanel("left")}
+          onAddToMealPlan={(day) => router.push(`/planner?recipe=${recipeId}&version=${versionId}&day=${encodeURIComponent(day)}`)}
           galleryLoading={galleryLoading}
         />
 

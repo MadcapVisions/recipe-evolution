@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useAppShell } from "@/components/shell/AppShellContext";
@@ -15,10 +16,73 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 type PlannerFilter = "all" | "in-plan" | "available";
 type PlannerTab = "week" | "groceries" | "prep";
 type DayAssignment = {
+  recipeId: string;
   versionId: string;
   servings: number;
 };
 type WeekAssignments = Record<string, DayAssignment[]>;
+type InitialWeekEntry = {
+  plan_date: string;
+  sort_order: number;
+  recipe_id: string;
+  version_id: string;
+  servings: number;
+};
+
+function formatDateOnly(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function buildWeekDays(weekStartDate: string) {
+  const start = new Date(`${weekStartDate}T00:00:00`);
+  return DAYS.map((label, index) => {
+    const date = addDays(start, index);
+    return {
+      label,
+      isoDate: formatDateOnly(date),
+      longDate: new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(date),
+      shortDate: new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+      }).format(date),
+    };
+  });
+}
+
+function buildInitialAssignments(weekStartDate: string, entries: InitialWeekEntry[]): WeekAssignments {
+  const weekDays = buildWeekDays(weekStartDate);
+  const assignments: WeekAssignments = {};
+
+  for (const day of weekDays) {
+    const dayEntries = entries
+      .filter((entry) => entry.plan_date === day.isoDate)
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((entry) => ({
+        recipeId: entry.recipe_id,
+        versionId: entry.version_id,
+        servings: entry.servings,
+      }));
+
+    if (dayEntries.length > 0) {
+      assignments[day.label] = dayEntries;
+    }
+  }
+
+  return assignments;
+}
 
 function prepSection(title: string, items: string[], empty: string) {
   return { title, items: items.slice(0, 3), empty };
@@ -42,12 +106,21 @@ export function MealPlannerClient({
   pantryStaples,
   initialSelectedRecipeIds = [],
   initialSelectedVersionIds = [],
+  initialWeekEntries = [],
+  weekStartDate,
+  plannerPersistenceAvailable = true,
+  autoAssignedFromQuery = false,
 }: {
   recipeOptions: PlannerRecipeOption[];
   pantryStaples: string[];
   initialSelectedRecipeIds?: string[];
   initialSelectedVersionIds?: string[];
+  initialWeekEntries?: InitialWeekEntry[];
+  weekStartDate: string;
+  plannerPersistenceAvailable?: boolean;
+  autoAssignedFromQuery?: boolean;
 }) {
+  const router = useRouter();
   const { setOpenPanel } = useAppShell();
   const defaultSelectedVersionIds = useMemo(
     () =>
@@ -62,7 +135,7 @@ export function MealPlannerClient({
   );
   const [modalText, setModalText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [weekAssignments, setWeekAssignments] = useState<WeekAssignments>({});
+  const [weekAssignments, setWeekAssignments] = useState<WeekAssignments>(() => buildInitialAssignments(weekStartDate, initialWeekEntries));
   const [searchQuery, setSearchQuery] = useState("");
   const [plannerFilter, setPlannerFilter] = useState<PlannerFilter>("all");
   const [focusedVersionId, setFocusedVersionId] = useState<string | null>(defaultSelectedVersionIds[0] ?? recipeOptions[0]?.versionId ?? null);
@@ -71,6 +144,38 @@ export function MealPlannerClient({
   const [checkedGroceries, setCheckedGroceries] = useState<Record<string, boolean>>({});
   const [collapsedAisles, setCollapsedAisles] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<PlannerTab>("week");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const weekDays = useMemo(() => buildWeekDays(weekStartDate), [weekStartDate]);
+  const currentWeekStart = useMemo(() => {
+    const today = new Date();
+    const weekday = today.getDay();
+    const daysFromMonday = (weekday + 6) % 7;
+    today.setDate(today.getDate() - daysFromMonday);
+    today.setHours(0, 0, 0, 0);
+    return formatDateOnly(today);
+  }, []);
+  const weekPickerOptions = useMemo(() => {
+    const selected = new Date(`${weekStartDate}T00:00:00`);
+    const current = new Date(`${currentWeekStart}T00:00:00`);
+    return Array.from({ length: 16 }, (_, index) => {
+      const offset = index - 6;
+      const start = addDays(selected, offset * 7);
+      const end = addDays(start, 6);
+      const startIso = formatDateOnly(start);
+      const diffWeeks = Math.round((start.getTime() - current.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      return {
+        value: startIso,
+        label: `${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(start)} - ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(end)}`,
+        note:
+          diffWeeks === 0
+            ? "Current week"
+            : diffWeeks < 0
+              ? `${Math.abs(diffWeeks)} week${Math.abs(diffWeeks) === 1 ? "" : "s"} ago`
+              : `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ahead`,
+      };
+    });
+  }, [currentWeekStart, weekStartDate]);
 
   const recipeOptionsById = useMemo(() => new Map(recipeOptions.map((option) => [option.versionId, option])), [recipeOptions]);
   const allScheduledAssignments = useMemo(() => Object.values(weekAssignments).flat(), [weekAssignments]);
@@ -106,7 +211,7 @@ export function MealPlannerClient({
   );
   const plan = useMemo(() => buildMealPlan(selectedRecipes, pantryStaples), [pantryStaples, selectedRecipes]);
 
-  const assignedDayCount = useMemo(() => DAYS.filter((day) => (weekAssignments[day]?.length ?? 0) > 0).length, [weekAssignments]);
+  const assignedDayCount = useMemo(() => weekDays.filter((day) => (weekAssignments[day.label]?.length ?? 0) > 0).length, [weekAssignments, weekDays]);
   const unassignedRecipeCount = Math.max(0, recipeOptions.length - scheduledVersionIds.size);
 
   const filteredRecipeOptions = useMemo(
@@ -140,10 +245,10 @@ export function MealPlannerClient({
     const prepSections = plan.prepPlans.map((entry) =>
       [`${entry.recipeTitle} (${entry.versionLabel?.trim() || "Latest version"})`, ...entry.prepPlan.checklist.map((item) => `- ${item.title}`)].join("\n")
     );
-    const weekSection = DAYS.map((day) => {
-      const assignments = weekAssignments[day] ?? [];
+    const weekSection = weekDays.map((day) => {
+      const assignments = weekAssignments[day.label] ?? [];
       if (assignments.length === 0) {
-        return `${day}: Open`;
+        return `${day.label} (${day.longDate}): Open`;
       }
 
       const labels = assignments
@@ -153,7 +258,7 @@ export function MealPlannerClient({
         })
         .filter((value): value is string => Boolean(value));
 
-      return `${day}: ${labels.join("; ")}`;
+      return `${day.label} (${day.longDate}): ${labels.join("; ")}`;
     });
 
     return [
@@ -168,7 +273,7 @@ export function MealPlannerClient({
       "Prep plan",
       ...prepSections,
     ].join("\n");
-  }, [plan, selectedRecipesById, weekAssignments]);
+  }, [plan, selectedRecipesById, weekAssignments, weekDays]);
 
   const isCompactViewport = () => (typeof window !== "undefined" ? window.innerWidth < 1280 : false);
 
@@ -203,6 +308,7 @@ export function MealPlannerClient({
       [day]: [
         ...(current[day] ?? []).filter((assignment) => assignment.versionId !== versionId),
         {
+          recipeId: recipeOptionsById.get(versionId)?.recipeId ?? "",
           versionId,
           servings: targetServingsByVersion[versionId] ?? recipeOptionsById.get(versionId)?.servings ?? 1,
         },
@@ -293,6 +399,56 @@ export function MealPlannerClient({
       window.print();
     }
   };
+
+  useEffect(() => {
+    if (!autoAssignedFromQuery) {
+      return;
+    }
+
+    router.replace(`/planner?week=${weekStartDate}`);
+    router.refresh();
+  }, [autoAssignedFromQuery, router, weekStartDate]);
+
+  useEffect(() => {
+    if (!plannerPersistenceAvailable) {
+      return;
+    }
+
+    const persistWeek = async () => {
+      const payload = {
+        start_date: weekDays[0]?.isoDate,
+        end_date: weekDays[weekDays.length - 1]?.isoDate,
+        entries: weekDays.flatMap((day) =>
+          (weekAssignments[day.label] ?? []).map((assignment, index) => ({
+            plan_date: day.isoDate,
+            sort_order: index,
+            recipe_id: assignment.recipeId,
+            version_id: assignment.versionId,
+            servings: assignment.servings,
+          }))
+        ),
+      };
+
+      const response = await fetch("/api/planner/week", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        const missingTable =
+          result.message?.includes("meal_plan_entries") ||
+          result.message?.includes("schema cache");
+        setSaveError(missingTable ? null : (result.message ?? "Could not save the meal plan."));
+        return;
+      }
+
+      setSaveError(null);
+    };
+
+    persistWeek();
+  }, [plannerPersistenceAvailable, weekAssignments, weekDays]);
 
   const mobilePanelContent =
     leftSidebarMode === "selection" ? (
@@ -584,7 +740,21 @@ export function MealPlannerClient({
                     </button>
                   ))}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={weekStartDate}
+                    onChange={(event) => {
+                      router.push(`/planner?week=${event.target.value}`);
+                      router.refresh();
+                    }}
+                    className="min-h-10 min-w-[16rem] rounded-full border bg-[rgba(255,252,246,0.96)] px-4 text-sm font-semibold text-[color:var(--text)]"
+                  >
+                    {weekPickerOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label} · {option.note}
+                      </option>
+                    ))}
+                  </select>
                   <Button onClick={copyPlan} variant="secondary" className="min-h-10 px-4">
                     {copied ? "Copied!" : "Copy"}
                   </Button>
@@ -603,19 +773,19 @@ export function MealPlannerClient({
               {activeTab === "week" ? (
                 <div className="space-y-5">
                   <div className="space-y-3">
-                    {DAYS.map((day) => {
-                      const assignments = weekAssignments[day] ?? [];
-                      const dropActive = dragOverDay === day;
+                    {weekDays.map((day) => {
+                      const assignments = weekAssignments[day.label] ?? [];
+                      const dropActive = dragOverDay === day.label;
 
                       return (
                         <div
-                          key={day}
+                          key={day.label}
                           onDragOver={(event) => {
                             event.preventDefault();
-                            setDragOverDay(day);
+                            setDragOverDay(day.label);
                           }}
                           onDragLeave={() => {
-                            if (dragOverDay === day) {
+                            if (dragOverDay === day.label) {
                               setDragOverDay(null);
                             }
                           }}
@@ -623,7 +793,7 @@ export function MealPlannerClient({
                             event.preventDefault();
                             const versionId = event.dataTransfer.getData("text/plain") || draggingVersionId;
                             if (versionId) {
-                              assignRecipeToDay(day, versionId);
+                              assignRecipeToDay(day.label, versionId);
                             }
                             setDragOverDay(null);
                             setDraggingVersionId(null);
@@ -636,8 +806,8 @@ export function MealPlannerClient({
                         >
                           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div className="min-w-0 lg:w-[148px]">
-                              <p className="text-[28px] font-semibold leading-none text-[color:var(--text)]">{day}</p>
-                              <p className="mt-2 text-[12px] uppercase tracking-[0.18em] text-[color:var(--muted)]">Dinner</p>
+                              <p className="text-[28px] font-semibold leading-none text-[color:var(--text)]">{day.label}</p>
+                              <p className="mt-2 text-[12px] uppercase tracking-[0.18em] text-[color:var(--muted)]">{day.longDate}</p>
                             </div>
 
                             <div className="min-w-0 flex-1 space-y-3">
@@ -668,7 +838,7 @@ export function MealPlannerClient({
 
                                 return (
                                   <div
-                                    key={`${day}-${assignment.versionId}-${assignmentIndex}`}
+                                    key={`${day.label}-${assignment.versionId}-${assignmentIndex}`}
                                     className="flex min-h-[108px] w-full flex-col justify-between rounded-[18px] border border-[rgba(210,76,47,0.16)] bg-[rgba(210,76,47,0.08)] px-4 py-3 text-left"
                                   >
                                     <div className="flex items-start justify-between gap-3">
@@ -682,7 +852,7 @@ export function MealPlannerClient({
                                       </div>
                                       <button
                                         type="button"
-                                        onClick={() => clearDayAssignment(day, assignmentIndex)}
+                                        onClick={() => clearDayAssignment(day.label, assignmentIndex)}
                                         className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.92)] px-3 py-1 text-xs font-semibold text-[color:var(--muted)]"
                                       >
                                         Clear
@@ -691,7 +861,7 @@ export function MealPlannerClient({
                                     <div className="flex items-center gap-3 pt-3">
                                       <select
                                         value={assignment.servings}
-                                        onChange={(event) => updateDayServings(day, assignmentIndex, Number(event.target.value) || 1)}
+                                        onChange={(event) => updateDayServings(day.label, assignmentIndex, Number(event.target.value) || 1)}
                                         className="min-h-10 min-w-[8.5rem] rounded-xl border bg-white px-3 text-sm font-semibold text-[color:var(--primary-strong)]"
                                       >
                                         {servingOptions.map((value) => (
@@ -710,7 +880,7 @@ export function MealPlannerClient({
 
                               <button
                                 type="button"
-                                onClick={() => handleDayClick(day)}
+                                onClick={() => handleDayClick(day.label)}
                                 className={`flex min-h-[108px] w-full items-center justify-between gap-4 rounded-[18px] border border-dashed px-4 py-3 text-left ${
                                   focusedVersionId
                                     ? "border-[rgba(210,76,47,0.16)] bg-[rgba(255,248,243,0.92)] text-[color:var(--text)]"
@@ -737,6 +907,12 @@ export function MealPlannerClient({
                       );
                     })}
                   </div>
+
+                  {saveError ? (
+                    <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {saveError}
+                    </div>
+                  ) : null}
 
                 </div>
               ) : null}
