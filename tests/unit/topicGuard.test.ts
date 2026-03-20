@@ -89,6 +89,33 @@ test("allows scaling follow-up with active recipe context", () => {
   assert.equal(result.reason, "recipe_context");
 });
 
+test("allows short ingredient-addition follow-up with active recipe context", () => {
+  const result = guardCookingTopic({
+    message: "lets add jalapeños",
+    recipeContext: {
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      ingredients: ["chicken", "tostada shells", "avocado", "lime"],
+      steps: ["Pile the chicken onto tostada shells and finish with avocado crema."],
+    },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "recipe_context");
+});
+
+test("allows short natural refinements with active recipe context even without explicit cooking keywords", () => {
+  const recipeContext = {
+    title: "Crispy Chicken Tostadas with Avocado Crema",
+    ingredients: ["chicken", "tostada shells", "avocado", "lime"],
+    steps: ["Pile the chicken onto tostada shells and finish with avocado crema."],
+  };
+
+  assert.deepEqual(guardCookingTopic({ message: "more lime", recipeContext }), { allowed: true, reason: "recipe_context" });
+  assert.deepEqual(guardCookingTopic({ message: "skip the crema", recipeContext }), { allowed: true, reason: "recipe_context" });
+  assert.deepEqual(guardCookingTopic({ message: "use thighs instead", recipeContext }), { allowed: true, reason: "recipe_context" });
+  assert.deepEqual(guardCookingTopic({ message: "make it crunchier", recipeContext }), { allowed: true, reason: "recipe_context" });
+});
+
 test("blocks obvious programming requests", () => {
   const result = guardCookingTopic({
     message: "Can you help me write a React component and fix a TypeScript error?",

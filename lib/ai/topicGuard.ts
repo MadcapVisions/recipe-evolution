@@ -131,6 +131,10 @@ const FOOD_TERMS = [
   "cabbage",
   "avocado",
   "yogurt",
+  "jalapeño",
+  "jalapeños",
+  "serrano",
+  "chipotle",
 ];
 
 const OFF_TOPIC_KEYWORDS = [
@@ -231,6 +235,8 @@ const RECIPE_CONTEXT_PATTERNS = [
   /\bi (?:don't|do not) want\b/,
   /\bi prefer\b/,
   /\bwithout\b/,
+  /\blet'?s add\b/,
+  /\badd\b/,
   /\bleave out\b/,
   /\bskip\b/,
   /\bremove\b/,
@@ -288,6 +294,27 @@ function looksLikeRecipeScopedFollowUp(text: string) {
   return RECIPE_CONTEXT_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+function looksLikeRecipeScopedIngredientAdjustment(text: string) {
+  return /\b(?:add|swap|replace|remove|skip|leave out|without)\b/.test(text) && countMatches(text, FOOD_TERMS) > 0;
+}
+
+function looksLikeShortRecipeScopedRefinement(text: string) {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 8) {
+    return false;
+  }
+
+  if (hasStrongOffTopicIntent(text)) {
+    return false;
+  }
+
+  return (
+    /\b(?:add|use|swap|replace|skip|remove|leave out|without|more|less|extra|make|keep)\b/.test(text) ||
+    countMatches(text, FOOD_TERMS) > 0 ||
+    countMatches(text, COOKING_KEYWORDS) > 0
+  );
+}
+
 function looksLikeCookingIntent(text: string) {
   return COOKING_INTENT_PATTERNS.some((pattern) => pattern.test(text));
 }
@@ -317,9 +344,11 @@ export function guardCookingTopic({ message, recipeContext }: TopicGuardInput): 
   const cookingIntent = looksLikeCookingIntent(normalized);
   const ingredientList = looksLikeIngredientList(normalized);
   const recipeScopedFollowUp = hasScopedRecipeContext && looksLikeRecipeScopedFollowUp(normalized);
+  const recipeScopedIngredientAdjustment = hasScopedRecipeContext && looksLikeRecipeScopedIngredientAdjustment(normalized);
+  const shortRecipeScopedRefinement = hasScopedRecipeContext && looksLikeShortRecipeScopedRefinement(normalized);
   const strongOffTopic = hasStrongOffTopicIntent(normalized);
 
-  if (recipeScopedFollowUp && offTopicSignals === 0) {
+  if ((recipeScopedFollowUp || recipeScopedIngredientAdjustment || shortRecipeScopedRefinement) && offTopicSignals === 0) {
     return { allowed: true, reason: "recipe_context" };
   }
 
