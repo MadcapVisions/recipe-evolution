@@ -576,7 +576,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       } else if (selectedChefDirection) {
         setSelectedChefDirection({
           ...selectedChefDirection,
-          replyIndex: heroChatMessages.length + 1,
           summary: data.reply!,
         });
         setTransientStatus("Direction refined. Build the recipe when it feels right.");
@@ -647,6 +646,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setTransientStatus("Direction cleared. Choose another option or ask Chef for a new one.");
   };
 
+  const handleBuildSelectedDirection = async () => {
+    if (!selectedChefDirection) {
+      return;
+    }
+
+    await createRecipeFromConversation(heroChatMessages, "chef-selected-direction", selectedChefDirection);
+  };
+
   const handleStartOver = () => {
     setHeroChatMessages([]);
     setSelectedChefDirection(null);
@@ -682,6 +689,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
+    handleBuildSelectedDirection,
     handleStartOver,
   };
 }

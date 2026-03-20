@@ -26,6 +26,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
+    handleBuildSelectedDirection,
     handleStartOver,
   } = useHomeHubAi(userTasteProfile);
 
@@ -111,6 +112,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
           onPromptInputChange={setPromptInput}
           onPromptInputKeyDown={handleHeroInputKeyDown}
           onAskChef={() => void handleAskChefInHero()}
+          onBuildSelectedDirection={() => void handleBuildSelectedDirection()}
           onCreateRecipeFromReply={(replyIndex) => void handleCreateRecipeFromReply(replyIndex)}
           onSelectChefDirection={handleSelectChefDirection}
           onClearChefDirection={handleClearChefDirection}

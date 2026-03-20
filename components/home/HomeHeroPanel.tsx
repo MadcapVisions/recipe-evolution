@@ -21,6 +21,7 @@ type HomeHeroPanelProps = {
   onPromptInputChange: (value: string) => void;
   onPromptInputKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onAskChef: () => void;
+  onBuildSelectedDirection: () => void;
   onCreateRecipeFromReply: (replyIndex: number) => void;
   onSelectChefDirection: (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => void;
   onClearChefDirection: () => void;
@@ -42,6 +43,7 @@ export function HomeHeroPanel({
   onPromptInputChange,
   onPromptInputKeyDown,
   onAskChef,
+  onBuildSelectedDirection,
   onCreateRecipeFromReply,
   onSelectChefDirection,
   onClearChefDirection,
@@ -131,6 +133,16 @@ export function HomeHeroPanel({
                 Change direction
               </button>
             </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={onBuildSelectedDirection}
+                disabled={loading || generatingRecipe}
+                className="rounded-full bg-[color:var(--primary)] px-5 py-3 text-[14px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+              >
+                {generatingRecipe ? "Building recipe..." : "Build recipe"}
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -171,7 +183,7 @@ export function HomeHeroPanel({
                       </div>
                       {message.role === "ai" ? (
                         <div className="space-y-2">
-                          {options.length > 0 && !selectedFromThisMessage ? (
+                          {options.length > 0 && !selectedChefDirection && !selectedFromThisMessage ? (
                             <div className="space-y-2">
                               <div className="space-y-2 md:hidden">
                                 {options.map((option) => {
@@ -214,8 +226,6 @@ export function HomeHeroPanel({
                               </div>
                               <div className="hidden gap-2 md:grid md:grid-cols-2">
                               {options.map((option) => {
-                                const selected =
-                                  selectedChefDirection?.replyIndex === index && selectedChefDirection.optionId === option.id;
                                 const recommended = message.recommendedOptionId === option.id;
                                 return (
                                   <button
@@ -223,9 +233,7 @@ export function HomeHeroPanel({
                                     type="button"
                                     onClick={() => onSelectChefDirection(index, option)}
                                     className={`rounded-[20px] border px-4 py-3 text-left transition ${
-                                      selected
-                                        ? "border-[rgba(74,106,96,0.28)] bg-[rgba(247,250,248,0.95)] shadow-[inset_3px_0_0_var(--primary)]"
-                                        : "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(74,106,96,0.05)]"
+                                      "border-[rgba(57,75,70,0.08)] bg-white hover:bg-[rgba(74,106,96,0.05)]"
                                     }`}
                                   >
                                     <div className="flex items-start justify-between gap-3">
@@ -247,7 +255,7 @@ export function HomeHeroPanel({
                                       </div>
                                     ) : null}
                                     <p className="mt-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
-                                      {selected ? "Selected direction" : "Choose this direction"}
+                                      Choose this direction
                                     </p>
                                   </button>
                                 );
@@ -255,7 +263,7 @@ export function HomeHeroPanel({
                               </div>
                             </div>
                           ) : null}
-                          {!selectedFromThisMessage && isLastAiMessage ? (
+                          {!selectedChefDirection && !selectedFromThisMessage && isLastAiMessage ? (
                             <button
                               type="button"
                               onClick={() => onCreateRecipeFromReply(index)}
