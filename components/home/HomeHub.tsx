@@ -1,11 +1,76 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { HomeHeroPanel } from "@/components/home/HomeHeroPanel";
-import { useHomeHubAi } from "@/components/home/useHomeHubAi";
+import { useHomeHubAi, type BuildDebugEntry } from "@/components/home/useHomeHubAi";
 import type { HomeHubProps } from "@/components/home/types";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
+
+function BuildDebugPanel({ log }: { log: BuildDebugEntry[] }) {
+  const [open, setOpen] = useState(true);
+  if (log.length === 0) return null;
+  return (
+    <div className="mt-4 rounded-xl border border-amber-400/40 bg-neutral-950 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 px-4 py-2 text-left font-mono text-amber-300 hover:bg-white/5"
+      >
+        <span className="text-amber-500">⚠</span>
+        <span className="font-semibold uppercase tracking-widest">AI Debug Log</span>
+        <span className="ml-auto text-neutral-500">{open ? "▲ hide" : "▼ show"}</span>
+      </button>
+      {open && (
+        <div className="max-h-80 overflow-y-auto px-4 pb-4 font-mono">
+          {log.map((entry, i) => {
+            const time = new Date(entry.ts).toISOString().slice(11, 23);
+            if (entry.type === "status") {
+              return (
+                <div key={i} className="mt-1 text-neutral-400">
+                  <span className="text-neutral-600">{time}</span>{" "}
+                  <span className="text-sky-400">STATUS</span>{" "}
+                  {entry.message}
+                </div>
+              );
+            }
+            if (entry.type === "result") {
+              return (
+                <div key={i} className="mt-1 text-neutral-400">
+                  <span className="text-neutral-600">{time}</span>{" "}
+                  <span className="text-emerald-400">RESULT</span>{" "}
+                  {entry.title}
+                </div>
+              );
+            }
+            return (
+              <div key={i} className="mt-2 rounded border border-red-900/60 bg-red-950/40 p-2 text-red-300">
+                <div>
+                  <span className="text-neutral-600">{time}</span>{" "}
+                  <span className="text-red-400 font-semibold">ERROR</span>{" "}
+                  {entry.message}
+                </div>
+                {entry.failure_kind && (
+                  <div className="mt-0.5 text-neutral-500">kind: <span className="text-red-400">{entry.failure_kind}</span></div>
+                )}
+                {entry.retry_strategy && (
+                  <div className="text-neutral-500">strategy: <span className="text-amber-400">{entry.retry_strategy}</span></div>
+                )}
+                {entry.reasons && entry.reasons.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {entry.reasons.map((r, j) => (
+                      <li key={j} className="text-neutral-400">— {r}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
   const {
@@ -15,6 +80,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
     generatingRecipe,
     error,
     status,
+    buildDebugLog,
     heroChatMessages,
     selectedChefDirection,
     appliedRefinements,
@@ -124,6 +190,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
           heroChatFrameRef={heroChatFrameRef}
           heroChatViewportRef={heroChatViewportRef}
         />
+        <BuildDebugPanel log={buildDebugLog} />
       </div>
     </div>
   );

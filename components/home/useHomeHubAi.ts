@@ -169,6 +169,11 @@ type RecipeBuildStreamError = Error & {
   failureKind?: "verification_failed" | "invalid_payload" | "generation_failed";
 };
 
+export type BuildDebugEntry =
+  | { type: "status"; message: string; ts: number }
+  | { type: "result"; title: string; ts: number }
+  | { type: "error"; message: string; failure_kind?: string; retry_strategy?: string; reasons?: string[]; ts: number };
+
 const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
   const typedError = error as RecipeBuildStreamError;
   const message = error instanceof Error ? error.message.trim() : "";
@@ -305,6 +310,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const [generatingRecipe, setGeneratingRecipe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+
+  const [buildDebugLog, setBuildDebugLog] = useState<BuildDebugEntry[]>([]);
 
   const [heroChatMessages, setHeroChatMessages] = useState<ChatMessage[]>([]);
   const [heroChatReadyToApply, setHeroChatReadyToApply] = useState(false);
@@ -517,6 +524,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     body: Record<string, unknown>,
     handlers: {
       onStatus: (message: string) => void;
+      onDebugEvent?: (entry: BuildDebugEntry) => void;
     }
   ) => {
     const response = await fetch("/api/ai/home/build", {
@@ -565,9 +573,20 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
         if (event.type === "status") {
           handlers.onStatus(event.message);
+          handlers.onDebugEvent?.({ type: "status", message: event.message, ts: Date.now() });
         } else if (event.type === "result") {
           finalResult = event.result;
+          const resultRecipe = event.result?.recipe as { title?: string } | undefined;
+          handlers.onDebugEvent?.({ type: "result", title: resultRecipe?.title ?? "(no title)", ts: Date.now() });
         } else if (event.type === "error") {
+          handlers.onDebugEvent?.({
+            type: "error",
+            message: event.message,
+            failure_kind: event.failure_kind,
+            retry_strategy: event.retry_strategy,
+            reasons: event.reasons,
+            ts: Date.now(),
+          });
           const streamError = new Error(event.message) as RecipeBuildStreamError;
           streamError.retryStrategy = event.retry_strategy;
           streamError.reasons = Array.isArray(event.reasons) ? event.reasons : [];
@@ -653,6 +672,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setGeneratingRecipe(true);
     setError(null);
     setStatus("Understanding your request...");
+    setBuildDebugLog([{ type: "status", message: "Understanding your request...", ts: Date.now() }]);
 
     try {
       const data = await invokeRecipeBuildStream({
@@ -664,6 +684,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         lockedSession: effectiveLockedSession,
       }, {
         onStatus: (message) => setStatus(message),
+        onDebugEvent: (entry) => setBuildDebugLog((prev) => [...prev, entry]),
       });
 
       const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
@@ -673,6 +694,22 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       const created = await saveGeneratedRecipe(recipe, source);
       goToCreatedRecipe(created.recipeId, created.versionId);
     } catch (saveError) {
+      const typedSaveError = saveError as RecipeBuildStreamError;
+      const alreadyLoggedError =
+        buildDebugLog.length > 0 && buildDebugLog[buildDebugLog.length - 1]?.type === "error";
+      if (!alreadyLoggedError) {
+        setBuildDebugLog((prev) => [
+          ...prev,
+          {
+            type: "error",
+            message: saveError instanceof Error ? saveError.message : "Unknown error",
+            failure_kind: typedSaveError.failureKind,
+            retry_strategy: typedSaveError.retryStrategy,
+            reasons: typedSaveError.reasons,
+            ts: Date.now(),
+          },
+        ]);
+      }
       setError(
         getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe from this conversation. Please refine the direction and try again.")
       );
@@ -936,6 +973,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     generatingRecipe,
     error,
     status,
+    buildDebugLog,
     heroChatMessages,
     selectedChefDirection,
     appliedRefinements: lockedSession?.refinements ?? [],
