@@ -179,99 +179,6 @@ export function HomeHeroPanel({
           </div>
         ) : null}
 
-        {selectedChefDirection ? (
-          <div className="mb-4 rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] p-4 shadow-[inset_3px_0_0_var(--primary)]">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
-              <div className="min-w-0">
-                <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
-                <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)] md:text-[20px]">{selectedChefDirection.title}</p>
-                <p className="mt-2 text-[14px] leading-6 text-[color:var(--muted)] md:max-w-3xl md:text-[15px] md:leading-7">{selectedChefDirection.summary}</p>
-                {selectedChefDirection.tags.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-2 md:mt-3">
-                    {selectedChefDirection.tags.map((tag) => (
-                      <span key={tag} className="rounded-full bg-[rgba(111,102,95,0.08)] px-2.5 py-1 text-xs font-medium text-[color:var(--muted)]">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {appliedRefinements.length > 0 ? (
-                  <div className="mt-4 rounded-[20px] border border-[rgba(57,75,70,0.08)] bg-white/80 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Applied refinements</p>
-                    <div className="mt-3 space-y-2">
-                      {appliedRefinements.slice(-4).map((refinement, index) => {
-                        const isLatest = index === appliedRefinements.slice(-4).length - 1;
-                        const structuredItems = [
-                          ...refinement.extracted_changes.required_ingredients.map((item) => `Add ${item}`),
-                          ...refinement.extracted_changes.preferred_ingredients.map((item) => `Finish with ${item}`),
-                          ...refinement.extracted_changes.forbidden_ingredients.map((item) => `No ${item}`),
-                          ...refinement.extracted_changes.style_tags.map((item) => item.charAt(0).toUpperCase() + item.slice(1)),
-                        ];
-
-                        return (
-                          <div key={`${refinement.user_text}-${index}`} className="rounded-[16px] border border-[rgba(57,75,70,0.06)] bg-[rgba(250,248,242,0.88)] px-3 py-2">
-                            <div className="flex items-start justify-between gap-3">
-                              <p className="text-[13px] font-medium text-[color:var(--text)]">{refinement.user_text}</p>
-                              {isLatest ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
-                                    Latest
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={onRemoveLastRefinement}
-                                    disabled={loading || generatingRecipe}
-                                    className="text-[12px] font-semibold text-[color:var(--primary)] underline underline-offset-2 transition hover:opacity-80 disabled:opacity-50"
-                                  >
-                                    Undo
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                            {structuredItems.length > 0 ? (
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {structuredItems.map((item) => (
-                                  <span
-                                    key={`${refinement.user_text}-${item}`}
-                                    className="rounded-full bg-[rgba(74,106,96,0.08)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--primary)]"
-                                  >
-                                    {item}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : refinement.ambiguity_reason ? (
-                              <p className="mt-2 text-[12px] text-[color:var(--muted)]">{refinement.ambiguity_reason}</p>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={onClearChefDirection}
-                className="self-start shrink-0 rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
-              >
-                Change direction
-              </button>
-            </div>
-            <div className="mt-4">
-              <p className="mb-2 text-[12px] font-medium text-[color:var(--muted)]">
-                Base direction {appliedRefinements.length > 0 ? `+ ${appliedRefinements.length} refinement${appliedRefinements.length === 1 ? "" : "s"} locked` : "locked"}
-              </p>
-              <button
-                type="button"
-                onClick={onBuildSelectedDirection}
-                disabled={loading || generatingRecipe}
-                className="rounded-full bg-[color:var(--primary)] px-5 py-3 text-[14px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
-              >
-                {generatingRecipe ? "Building recipe..." : "Build recipe"}
-              </button>
-            </div>
-          </div>
-        ) : null}
 
         <div ref={heroChatFrameRef} className="flex min-h-[280px] flex-1 rounded-[28px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,253,250,0.9)] p-3 sm:min-h-[360px] sm:p-4">
           <div
@@ -423,22 +330,44 @@ export function HomeHeroPanel({
                     </div>
                   </div>
                 ) : null}
-                {selectedChefDirection && !loading ? (
-                  <div className="flex justify-start">
-                    <button
-                      type="button"
-                      onClick={onBuildSelectedDirection}
-                      disabled={generatingRecipe}
-                      className="rounded-full bg-[color:var(--primary)] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {generatingRecipe ? "Building recipe..." : "Build recipe"}
-                    </button>
-                  </div>
-                ) : null}
               </>
             )}
           </div>
         </div>
+
+        {selectedChefDirection ? (
+          <div className="mt-3 rounded-[20px] border border-[rgba(74,106,96,0.18)] bg-[rgba(247,250,248,0.95)] px-4 py-3 shadow-[inset_3px_0_0_var(--primary)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
+                <p className="mt-1 truncate text-[15px] font-semibold text-[color:var(--text)]">{selectedChefDirection.title}</p>
+                <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
+                  {appliedRefinements.length > 0
+                    ? `Base + ${appliedRefinements.length} refinement${appliedRefinements.length === 1 ? "" : "s"} locked`
+                    : "Base direction locked"}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClearChefDirection}
+                  disabled={loading || generatingRecipe}
+                  className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-50"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  onClick={onBuildSelectedDirection}
+                  disabled={loading || generatingRecipe}
+                  className="rounded-full bg-[color:var(--primary)] px-4 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+                >
+                  {generatingRecipe ? "Building..." : "Build recipe"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-3 flex flex-col gap-3">
           <input
