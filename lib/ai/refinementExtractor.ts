@@ -97,14 +97,18 @@ function extractSwapIngredients(text: string) {
 function extractRequiredIngredients(text: string) {
   const normalized = normalizeText(text);
   const matches = Array.from(
-    normalized.matchAll(/\b(?:add|include|make sure (?:it|this|the dish|the recipe) has)\s+([\p{L}][\p{L}\s-]{1,60}?)(?=(?:[.!?]|$))/gu)
+    normalized.matchAll(/\b(?:add|include|make sure (?:it|this|the dish|the recipe) has)\s+([\p{L}][\p{L}\s-]{1,60}?)(?=(?:[.!?,]|$))/gu)
   );
   const longingMatches = Array.from(
-    normalized.matchAll(/\b(?:i(?:'d| would)?\s+love|need|craving)\s+(?:some\s+)?([\p{L}][\p{L}\s-]{1,40}?)(?=(?:[.!?]|$))/gu)
+    normalized.matchAll(/\b(?:i(?:'d| would)?\s+love|need|craving)\s+(?:some\s+)?([\p{L}][\p{L}\s-]{1,40}?)(?=(?:[.!?,]|$))/gu)
+  );
+  const howAboutMatches = Array.from(
+    normalized.matchAll(/\b(?:how about|what about)\s+(?:some\s+|a\s+)?([\p{L}][\p{L}\s-]{1,60}?)(?=(?:[.!?,]|$))/gu)
   );
   return normalizeIngredientList([
     ...matches.map((match) => match[1] ?? ""),
     ...longingMatches.map((match) => match[1] ?? ""),
+    ...howAboutMatches.map((match) => match[1] ?? ""),
   ]);
 }
 

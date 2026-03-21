@@ -196,8 +196,8 @@ const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => 
       : "Chef rejected the draft because it drifted from your request. Try again or refine the direction.";
   }
 
-  if (retryStrategy === "regenerate_same_model") {
-    return "Chef produced an incomplete draft this time. Try building the recipe again.";
+  if (retryStrategy === "regenerate_same_model" || retryStrategy === "try_fallback_model") {
+    return "Chef had trouble completing the recipe draft. Please try building again.";
   }
 
   if (retryStrategy === "upgrade_model") {
