@@ -166,7 +166,7 @@ export function HomeHeroPanel({
           <div className="space-y-4">
             <div className="space-y-3">
               <p className="app-kicker">Your personal Chef</p>
-              <h1 className="font-display text-[28px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[52px] lg:text-[60px]">
+              <h1 className="font-display text-[24px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] min-[480px]:text-[36px] sm:text-[52px] lg:text-[60px]">
                 What do you feel like cooking tonight?
               </h1>
               <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[18px] sm:leading-8">
@@ -199,7 +199,7 @@ export function HomeHeroPanel({
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="app-kicker">Chef session</p>
-            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">
+            <p className="mt-2 text-[16px] font-semibold text-[color:var(--text)] sm:text-[18px]">
               {isRefining ? "Refine the selected direction." : hasConversation ? "Keep shaping the dish." : "What do you want to cook?"}
             </p>
           </div>
@@ -215,8 +215,8 @@ export function HomeHeroPanel({
               </div>
               <div className="min-w-0">
                 <p className="app-kicker opacity-80">{statusPresentation.kicker}</p>
-                <p className="mt-1 text-[18px] font-semibold md:text-[20px]">{statusPresentation.stageLabel}</p>
-                <p className="mt-1 text-[14px] leading-6 opacity-90 md:text-[15px]">{statusPresentation.waitMessage}</p>
+                <p className="mt-1 text-[15px] font-semibold sm:text-[18px] md:text-[20px]">{statusPresentation.stageLabel}</p>
+                <p className="mt-1 text-[13px] leading-6 opacity-90 sm:text-[14px] md:text-[15px]">{statusPresentation.waitMessage}</p>
                 {status ? <p className="mt-2 text-[13px] font-medium opacity-75">{status}</p> : null}
               </div>
             </div>
@@ -231,9 +231,9 @@ export function HomeHeroPanel({
           >
             {heroChatMessages.length === 0 && !loading ? (
               <div className="space-y-3">
-                <p className="text-[14px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Start with a prompt like this</p>
-                <p className="text-[18px] font-semibold text-[color:var(--text)]">"I want a bright, quick dinner with chicken, lemon, and some crunch."</p>
-                <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)]">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Start with a prompt like this</p>
+                <p className="text-[15px] font-semibold text-[color:var(--text)] sm:text-[18px]">"I want a bright, quick dinner with chicken, lemon, and some crunch."</p>
+                <p className="max-w-2xl text-[14px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
                   Ask for structure, technique, substitutions, timing, or flavor balance before you turn it into a saved recipe.
                 </p>
               </div>
@@ -380,7 +380,7 @@ export function HomeHeroPanel({
                 : "border-[rgba(74,106,96,0.18)] bg-[rgba(247,250,248,0.95)] shadow-[inset_3px_0_0_var(--primary)]"
             }`}
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
                 <p className="mt-1 truncate text-[15px] font-semibold text-[color:var(--text)]">{selectedChefDirection.title}</p>
@@ -440,7 +440,7 @@ export function HomeHeroPanel({
                 ? "Refine this direction: flavor, texture, timing, substitutions..."
                 : "What do you feel like cooking? Describe a dish, ingredient, or constraint..."
             }
-            className="min-h-14 flex-1 rounded-full bg-white px-5 py-3 text-[18px]"
+            className="min-h-14 flex-1 rounded-full bg-white px-5 py-3 text-[16px] sm:text-[18px]"
           />
           <button
             type="button"
