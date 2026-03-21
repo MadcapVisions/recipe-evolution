@@ -56,12 +56,17 @@ export function getRecipeBuildFailureDetails(error: unknown, fallbackMessage = "
   }
 
   const message = error instanceof Error && error.message.trim().length > 0 ? error.message.trim() : fallbackMessage;
+  const isMissingQuantityError = message.includes("Each ingredient needs a quantity");
+  const retryStrategy = isMissingQuantityError ? ("regenerate_stricter" as const) : ("ask_user" as const);
+  const reasons = isMissingQuantityError
+    ? ["Some ingredients are missing explicit quantities. Every ingredient must include a quantity (e.g. '2 tbsp olive oil', '1 onion')."]
+    : [message];
   return {
     message,
     kind: "generation_failed" as const,
-    verification: createFailedVerificationResult(message, "ask_user"),
-    retryStrategy: "ask_user" as const,
-    reasons: [message],
+    verification: createFailedVerificationResult(message, retryStrategy),
+    retryStrategy,
+    reasons,
     outcome: "generation_failed" as const,
   };
 }
