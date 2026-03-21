@@ -13,10 +13,10 @@ export function RandomHeroTagline() {
 
   return (
     <div className="space-y-4" data-tagline-id={selection.id}>
-      <h1 className="max-w-[11ch] font-display text-[54px] font-semibold leading-[0.9] tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[72px] lg:text-[92px]">
+      <h1 className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[54px] lg:text-[92px]">
         {selection.copy}
       </h1>
-      <p className="max-w-2xl text-[19px] leading-8 text-[color:var(--landing-muted)] sm:text-[21px]">
+      <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[19px] sm:leading-8">
         <span className="font-semibold text-[color:var(--landing-ink)]">
           <span className="tracking-[0.16em]">AI</span>
           <span>cook</span>

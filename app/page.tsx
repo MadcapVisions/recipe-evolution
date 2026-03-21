@@ -177,7 +177,7 @@ export default function HomePage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="app-kicker">Tonight in AIcook</p>
-                    <p className="mt-2 text-[26px] font-semibold leading-tight text-[color:var(--landing-ink)]">
+                    <p className="mt-2 text-[20px] font-semibold leading-tight text-[color:var(--landing-ink)] sm:text-[26px]">
                       Lemon basil chicken pasta
                     </p>
                   </div>
@@ -221,10 +221,10 @@ export default function HomePage() {
       <section id="how-it-works" className="landing-section">
         <div className="max-w-3xl">
           <p className="app-kicker">How it works</p>
-          <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[52px]">
+          <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
             From fridge to dinner in 3 steps.
           </h2>
-          <p className="mt-4 text-[18px] leading-8 text-[color:var(--landing-muted)]">
+          <p className="mt-4 text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[18px] sm:leading-8">
             The flow is built for real-life cooking: fewer tabs, fewer dead-end ideas, and faster decisions.
           </p>
         </div>
@@ -236,7 +236,7 @@ export default function HomePage() {
                 <span className="landing-step-number">{item.step}</span>
                 <span className="landing-step-line" />
               </div>
-              <h3 className="mt-5 text-[28px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.title}</h3>
+              <h3 className="mt-5 text-[20px] font-semibold leading-tight text-[color:var(--landing-ink)] sm:text-[28px]">{item.title}</h3>
               <p className="mt-3 text-[16px] leading-7 text-[color:var(--landing-muted)]">{item.description}</p>
               <div className="landing-step-image mt-6">
                 <Image
@@ -262,7 +262,7 @@ export default function HomePage() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
           <div>
             <p className="app-kicker">Built for real-life cooking</p>
-            <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[54px]">
+            <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
               A smarter dinner workflow, not another recipe rabbit hole.
             </h2>
           </div>
@@ -281,10 +281,10 @@ export default function HomePage() {
             >
               <div className="space-y-4">
                 <p className="app-kicker">{section.kicker}</p>
-                <h3 className="font-display text-[38px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)]">
+                <h3 className="font-display text-[22px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[38px]">
                   {section.title}
                 </h3>
-                <p className="text-[17px] leading-8 text-[color:var(--landing-muted)]">{section.description}</p>
+                <p className="text-[15px] leading-7 text-[color:var(--landing-muted)] sm:text-[17px] sm:leading-8">{section.description}</p>
                 <ul className="space-y-3">
                   {section.bullets.map((bullet) => (
                     <li key={bullet} className="flex gap-3 text-[16px] leading-7 text-[color:var(--landing-ink)]">
@@ -313,13 +313,13 @@ export default function HomePage() {
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.68fr)]">
           <div>
             <p className="app-kicker">Why people keep using it</p>
-            <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[54px]">
+            <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
               Less waste. Less decision fatigue. More meals worth repeating.
             </h2>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {features.map((feature) => (
                 <article key={feature.title} className="landing-feature-card">
-                  <h3 className="text-[22px] font-semibold leading-tight text-[color:var(--landing-ink)]">{feature.title}</h3>
+                  <h3 className="text-[18px] font-semibold leading-tight text-[color:var(--landing-ink)] sm:text-[22px]">{feature.title}</h3>
                   <p className="mt-3 text-[16px] leading-7 text-[color:var(--landing-muted)]">{feature.description}</p>
                 </article>
               ))}
@@ -354,13 +354,13 @@ export default function HomePage() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
           <div className="landing-proof">
             <p className="app-kicker">Proof points</p>
-            <h2 className="mt-3 font-display text-[40px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)]">
+            <h2 className="mt-3 font-display text-[24px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[40px]">
               Clear value before the first scroll is over.
             </h2>
             <div className="mt-6 grid gap-3">
               {stats.map((item) => (
                 <div key={item.label} className="landing-stat-card">
-                  <div className="text-[30px] font-semibold text-[color:var(--landing-ink)]">{item.value}</div>
+                  <div className="text-[24px] font-semibold text-[color:var(--landing-ink)] sm:text-[30px]">{item.value}</div>
                   <div className="text-[15px] leading-6 text-[color:var(--landing-muted)]">{item.label}</div>
                 </div>
               ))}
@@ -372,7 +372,7 @@ export default function HomePage() {
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               {testimonials.map((item) => (
                 <article key={item.name} className="landing-testimonial">
-                  <p className="text-[18px] leading-8 text-[color:var(--landing-ink)]">“{item.quote}”</p>
+                  <p className="text-[16px] leading-7 text-[color:var(--landing-ink)] sm:text-[18px] sm:leading-8">”{item.quote}”</p>
                   <p className="mt-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-[color:var(--landing-muted)]">
                     {item.name}
                   </p>
@@ -395,10 +395,10 @@ export default function HomePage() {
         </div>
         <div className="landing-cta-copy">
           <p className="app-kicker text-white/80">Ready when dinner gets complicated</p>
-          <h2 className="mt-3 font-display text-[42px] font-semibold tracking-[-0.04em] text-white sm:text-[58px]">
+          <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-white sm:text-[42px]">
             Open the fridge. We&apos;ll take it from there.
           </h2>
-          <p className="mt-4 max-w-2xl text-[18px] leading-8 text-white/82">
+          <p className="mt-4 max-w-2xl text-[16px] leading-7 text-white/82 sm:text-[18px] sm:leading-8">
             AIcook helps you turn ingredients, cravings, and constraints into meals you will actually want to make tonight.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
