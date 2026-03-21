@@ -35,13 +35,13 @@ export default function PricingPage() {
   return (
     <div className="mx-auto max-w-[1320px] space-y-8">
       <section className="app-panel overflow-hidden">
-        <div className="grid gap-8 bg-[radial-gradient(circle_at_top_left,rgba(210,76,47,0.1),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(242,185,75,0.12),transparent_24%),linear-gradient(180deg,rgba(255,251,246,0.98)_0%,rgba(255,245,236,0.94)_100%)] p-8 lg:grid-cols-[minmax(0,1.15fr)_360px] lg:p-10">
+        <div className="grid gap-8 bg-[radial-gradient(circle_at_top_left,rgba(210,76,47,0.1),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(242,185,75,0.12),transparent_24%),linear-gradient(180deg,rgba(255,251,246,0.98)_0%,rgba(255,245,236,0.94)_100%)] p-5 sm:p-8 lg:grid-cols-[minmax(0,1.15fr)_360px] lg:p-10">
           <div className="space-y-5">
             <p className="app-kicker">Pricing</p>
-            <h1 className="font-display text-[46px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[60px]">
+            <h1 className="font-display text-[28px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] sm:text-[46px]">
               Choose the plan that fits how seriously you develop recipes.
             </h1>
-            <p className="max-w-3xl text-[19px] leading-8 text-[color:var(--muted)]">
+            <p className="max-w-3xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[19px] sm:leading-8">
               Start with a limited free tier, then upgrade when you want more guided refinement, deeper recipe evolution, and more room to build a cookbook around your real cooking habits.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -76,7 +76,7 @@ export default function PricingPage() {
         <article className="app-panel p-6 lg:p-8">
           <div className="space-y-3">
             <p className="app-kicker">Starter</p>
-            <h2 className="text-[38px] font-semibold tracking-tight text-[color:var(--text)]">Free</h2>
+            <h2 className="text-[26px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[38px]">Free</h2>
             <p className="text-[16px] leading-7 text-[color:var(--muted)]">
               A limited free tier for trying the workflow, saving recipes, and building the foundation of your cookbook without committing up front.
             </p>
@@ -84,12 +84,12 @@ export default function PricingPage() {
 
           <div className="mt-6 rounded-[24px] border border-[rgba(142,84,60,0.08)] bg-[rgba(210,76,47,0.06)] p-5">
             <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Best for</p>
-            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Trying the workflow and building the first shelf of your cookbook</p>
+            <p className="mt-2 text-[16px] font-semibold text-[color:var(--text)] sm:text-[18px]">Trying the workflow and building the first shelf of your cookbook</p>
           </div>
 
           <ul className="mt-6 space-y-3">
             {freeFeatures.map((feature) => (
-              <li key={feature} className="flex gap-3 text-[17px] leading-7 text-[color:var(--text)]">
+              <li key={feature} className="flex gap-3 text-[15px] leading-7 text-[color:var(--text)] sm:text-[17px]">
                 <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-[color:var(--accent)]" />
                 <span>{feature}</span>
               </li>
@@ -114,8 +114,8 @@ export default function PricingPage() {
           <div className="space-y-3">
             <p className="app-kicker">Recipe Evolution Pro</p>
             <div className="flex flex-wrap items-end gap-3">
-              <h2 className="text-[38px] font-semibold tracking-tight text-[color:var(--text)]">$49.99/year</h2>
-              <p className="pb-1 text-[18px] font-medium text-[color:var(--muted)]">$4.17/month billed annually</p>
+              <h2 className="text-[26px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[38px]">$49.99/year</h2>
+              <p className="pb-1 text-[15px] font-medium text-[color:var(--muted)] sm:text-[18px]">$4.17/month billed annually</p>
             </div>
             <p className="text-[16px] leading-7 text-[color:var(--muted)]">
               For cooks who want Chef available more often, deeper personalization, and more room to evolve recipes into repeatable standards.
@@ -124,12 +124,12 @@ export default function PricingPage() {
 
           <div className="mt-6 rounded-[24px] border border-[rgba(142,84,60,0.08)] bg-[rgba(242,185,75,0.12)] p-5">
             <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Best for</p>
-            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Frequent cooking, active recipe development, and long-term kitchen planning</p>
+            <p className="mt-2 text-[16px] font-semibold text-[color:var(--text)] sm:text-[18px]">Frequent cooking, active recipe development, and long-term kitchen planning</p>
           </div>
 
           <ul className="mt-6 space-y-3">
             {proFeatures.map((feature) => (
-              <li key={feature} className="flex gap-3 text-[17px] leading-7 text-[color:var(--text)]">
+              <li key={feature} className="flex gap-3 text-[15px] leading-7 text-[color:var(--text)] sm:text-[17px]">
                 <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-[color:var(--primary)]" />
                 <span>{feature}</span>
               </li>
@@ -150,7 +150,7 @@ export default function PricingPage() {
       <section className="app-panel p-6 lg:p-8">
         <div className="space-y-2">
           <p className="app-kicker">Feature comparison</p>
-          <h2 className="text-[36px] font-semibold tracking-tight text-[color:var(--text)]">What changes as you upgrade</h2>
+          <h2 className="text-[22px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[36px]">What changes as you upgrade</h2>
         </div>
 
         <div className="mt-6 space-y-3 md:hidden">
@@ -159,8 +159,8 @@ export default function PricingPage() {
               key={row.label}
               className="rounded-[24px] border border-[rgba(142,84,60,0.1)] bg-[rgba(255,253,249,0.9)] p-4"
             >
-              <p className="text-[17px] font-semibold leading-7 text-[color:var(--text)]">{row.label}</p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <p className="text-[15px] font-semibold leading-7 text-[color:var(--text)] sm:text-[17px]">{row.label}</p>
+              <div className="mt-3 grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
                 <div className="rounded-[18px] border border-[rgba(142,84,60,0.08)] bg-[rgba(210,76,47,0.05)] px-3 py-3">
                   <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Free</p>
                   <p className="mt-2 text-[15px] leading-6 text-[color:var(--text)]">{row.free}</p>
@@ -193,10 +193,10 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="app-panel p-8 text-center">
+      <section className="app-panel p-5 text-center sm:p-8">
         <p className="app-kicker">Start now</p>
-        <h2 className="mt-3 text-[42px] font-semibold tracking-tight text-[color:var(--text)]">Start free, upgrade when recipe development becomes part of how you cook.</h2>
-        <p className="mx-auto mt-4 max-w-3xl text-[18px] leading-8 text-[color:var(--muted)]">
+        <h2 className="mt-3 text-[24px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[42px]">Start free, upgrade when recipe development becomes part of how you cook.</h2>
+        <p className="mx-auto mt-4 max-w-3xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[18px] sm:leading-8">
           The free tier gets you into the workflow. Pro is there when you want more guidance, more recipe evolution, and a stronger personal cooking system.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
