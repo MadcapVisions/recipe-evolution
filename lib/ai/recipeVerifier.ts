@@ -16,7 +16,7 @@ const GENERIC_TITLE_PATTERNS = [
   /^chef special$/i,
 ];
 
-const CENTERPIECE_STOP_WORDS = new Set(["the", "a", "an", "with", "and", "of", "style", "recipe"]);
+const CENTERPIECE_STOP_WORDS = new Set(["the", "a", "an", "with", "and", "of", "style", "recipe", "dish"]);
 
 function normalizeMatchToken(value: string) {
   const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
