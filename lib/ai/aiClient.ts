@@ -6,6 +6,10 @@ export type AICallOptions = {
   temperature?: number;
   model?: string;
   fallback_models?: string[];
+  /** When true, skip appending DEFAULT_OPENROUTER_MODEL as a last-resort fallback. */
+  strict_model?: boolean;
+  /** Force JSON output mode. Only pass for calls that require JSON responses. */
+  response_format?: { type: "json_object" };
 };
 
 type AIProvider = "openrouter";
@@ -121,7 +125,11 @@ function uniqueModels(models: Array<string | null | undefined>) {
 }
 
 function getModelOrder(options: AICallOptions) {
-  return uniqueModels([options.model, ...(options.fallback_models ?? []), DEFAULT_OPENROUTER_MODEL]);
+  const models = uniqueModels([options.model, ...(options.fallback_models ?? [])]);
+  if (!options.strict_model && !models.includes(DEFAULT_OPENROUTER_MODEL)) {
+    models.push(DEFAULT_OPENROUTER_MODEL);
+  }
+  return models;
 }
 
 async function callOpenRouter(messages: AIMessage[], options: AICallOptions, model: string): Promise<AICallResult> {
@@ -133,6 +141,7 @@ async function callOpenRouter(messages: AIMessage[], options: AICallOptions, mod
         messages,
         max_tokens: options.max_tokens || 400,
         temperature: options.temperature || 0.6,
+        ...(options.response_format ? { response_format: options.response_format } : {}),
       },
       {
         timeout: DEFAULT_TIMEOUT_MS,

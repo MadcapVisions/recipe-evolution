@@ -745,6 +745,8 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     temperature: taskSetting.temperature,
     model: resolvedModel,
     fallback_models: input.retryContext?.modelOverride ? [] : (taskSetting.fallbackModel ? [taskSetting.fallbackModel] : []),
+    strict_model: !!input.retryContext?.modelOverride,
+    response_format: { type: "json_object" as const },
   };
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
