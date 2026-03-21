@@ -22,14 +22,19 @@ export function parseJsonResponse(text: string): unknown {
     // Fall through to brace slice extraction.
   }
 
-  const firstBrace = withoutFences.indexOf("{");
+  // Try every { position (left to right) against the last }.
+  // Handles models that prepend reasoning text containing {placeholder} before the real JSON object.
   const lastBrace = withoutFences.lastIndexOf("}");
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    const sliced = withoutFences.slice(firstBrace, lastBrace + 1);
-    try {
-      return JSON.parse(sliced);
-    } catch {
-      return null;
+  if (lastBrace >= 0) {
+    let searchPos = 0;
+    while (true) {
+      const bracePos = withoutFences.indexOf("{", searchPos);
+      if (bracePos < 0 || bracePos >= lastBrace) break;
+      try {
+        return JSON.parse(withoutFences.slice(bracePos, lastBrace + 1));
+      } catch {
+        searchPos = bracePos + 1;
+      }
     }
   }
 
@@ -41,7 +46,8 @@ export async function callAIForJson(messages: AIMessage[], options: AICallOption
   const parsed = parseJsonResponse(result.text);
 
   if (parsed == null) {
-    throw new Error(`AI returned invalid JSON (${result.provider}${result.model ? `:${result.model}` : ""}).`);
+    const preview = result.text.trim().slice(0, 200).replace(/\n/g, " ");
+    throw new Error(`AI returned invalid JSON (${result.provider}${result.model ? `:${result.model}` : ""}). Response preview: ${preview}`);
   }
 
   return {
