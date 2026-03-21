@@ -11,6 +11,7 @@ import { verifyRecipeAgainstBrief } from "./recipeVerifier";
 import { RecipeBuildError } from "./recipeBuildError";
 import { createFailedVerificationResult } from "./contracts/verificationResult";
 import { buildRetryInstructions } from "./homeRecipeRetry";
+import { shouldEscalateVerification, findMissingQuantities, buildVerificationRepairInstructions } from "./recipeRepair";
 
 type HomeIdea = {
   title: string;
@@ -821,19 +822,63 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     input.retryContext ? "Checking the revised recipe..." : "Checking that it matches..."
   );
   if (!verification.passes) {
-    throw new RecipeBuildError({
-      message: verification.reasons[0] ?? "AI recipe drifted from the chef conversation.",
-      kind: "verification_failed",
-      verification,
-    });
+    // Attempt a targeted repair for patchable failures before escalating to a full retry.
+    // Only escalate immediately if dish_family_match = false (model built the wrong dish entirely).
+    if (!shouldEscalateVerification(verification.checks)) {
+      const verificationRepairs = buildVerificationRepairInstructions(verification, input.cookingBrief);
+      if (verificationRepairs.length > 0) {
+        try {
+          onStage?.("recipe_verify", "Fixing the recipe alignment...");
+          const verificationRepairMessages = [
+            ...messages,
+            { role: "assistant" as const, content: JSON.stringify(recipe) },
+            {
+              role: "user" as const,
+              content: `Fix these specific issues in the recipe without changing the dish identity:\n${verificationRepairs.join("\n")}\nReturn the corrected recipe using the same JSON format. Do not change anything else.`,
+            },
+          ];
+          const verificationRepairResult = await callAIForJson(verificationRepairMessages, aiCallOptions);
+          if (
+            verificationRepairResult.usage.input_tokens != null ||
+            verificationRepairResult.usage.output_tokens != null ||
+            verificationRepairResult.usage.estimated_cost_usd != null
+          ) {
+            totalInputTokens += verificationRepairResult.usage.input_tokens ?? 0;
+            totalOutputTokens += verificationRepairResult.usage.output_tokens ?? 0;
+            totalEstimatedCostUsd += verificationRepairResult.usage.estimated_cost_usd ?? 0;
+            hasUsageMetrics = true;
+          }
+          const repairedVerificationRecipe = normalizeRecipe(verificationRepairResult.parsed, input.ideaTitle);
+          if (repairedVerificationRecipe) {
+            recipe = repairedVerificationRecipe;
+            verification = verifyRecipeAgainstBrief({
+              recipe,
+              brief: input.cookingBrief,
+              fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+            });
+          }
+        } catch {
+          // fail soft — fall through to existing throw
+        }
+      }
+    }
+
+    if (!verification.passes) {
+      throw new RecipeBuildError({
+        message: verification.reasons[0] ?? "AI recipe drifted from the chef conversation.",
+        kind: "verification_failed",
+        verification,
+      });
+    }
   }
 
-  // Quality repair pass: fix vague steps (Item 7) and taste violations (Item 8)
+  // Quality repair pass: fix vague steps, taste violations, and missing quantities
   const vagueSteps = recipe.steps.filter((s) => isVagueStep(s.text));
   const disliked = userTasteSummary ? extractDislikedFromSummary(userTasteSummary) : [];
   const violations = findTasteViolations(recipe, disliked);
+  const missingQty = findMissingQuantities(recipe.ingredients);
 
-  if (vagueSteps.length > 0 || violations.length > 0) {
+  if (vagueSteps.length > 0 || violations.length > 0 || missingQty.length > 0) {
     const repairs: string[] = [];
     if (vagueSteps.length > 0) {
       repairs.push(
@@ -843,6 +888,11 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     if (violations.length > 0) {
       repairs.push(
         `The user dislikes: ${violations.join(", ")}. Remove these ingredients and substitute a compatible alternative that preserves the dish format and flavor direction.`
+      );
+    }
+    if (missingQty.length > 0) {
+      repairs.push(
+        `These ingredients are missing explicit quantities: ${missingQty.join("; ")}. Add a realistic quantity to each one (e.g. "2 tbsp", "1 lb", "3 cloves"). Do not change anything else.`
       );
     }
     try {
