@@ -19,6 +19,7 @@ import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeR
 import { buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
 import { getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
+import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -189,6 +190,8 @@ export async function POST(request: Request) {
         let activeRecipePlan = recipePlan;
         let result = null;
         let verification = null;
+        const taskSetting = await resolveAiTaskSettings("home_recipe");
+        let modelOverride: string | undefined;
 
         while (!result) {
           const attemptGenerateStartedAt = new Date().toISOString();
@@ -207,6 +210,7 @@ export async function POST(request: Request) {
                         attemptNumber,
                         retryStrategy,
                         reasons: retryReasons,
+                        modelOverride,
                       }
                     : null,
               },
@@ -270,11 +274,26 @@ export async function POST(request: Request) {
               })
             );
 
-            if (shouldAutoRetryRecipeBuild(failure.retryStrategy, attemptNumber) && activeRecipePlan) {
+            // Escalate same-model failures on attempt 2 to try the fallback model
+            const effectiveStrategy =
+              !shouldAutoRetryRecipeBuild(failure.retryStrategy, attemptNumber) &&
+              (failure.retryStrategy === "regenerate_same_model" || failure.retryStrategy === "regenerate_stricter") &&
+              taskSetting.fallbackModel
+                ? "try_fallback_model"
+                : failure.retryStrategy;
+
+            if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
               attemptNumber += 1;
-              retryStrategy = failure.retryStrategy as "regenerate_same_model" | "regenerate_stricter";
+              retryStrategy = effectiveStrategy as "regenerate_same_model" | "regenerate_stricter" | "try_fallback_model";
               retryReasons = failure.reasons;
-              send({ type: "status", message: "Tightening the recipe constraints..." });
+
+              if (effectiveStrategy === "try_fallback_model") {
+                modelOverride = taskSetting.fallbackModel ?? undefined;
+                send({ type: "status", message: "Trying a different approach..." });
+              } else {
+                send({ type: "status", message: "Retrying..." });
+              }
+
               const retryPlanStartedAt = new Date().toISOString();
               activeRecipePlan = buildRetryRecipePlan(activeRecipePlan, {
                 retryStrategy: failure.retryStrategy,

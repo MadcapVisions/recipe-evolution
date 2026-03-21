@@ -4,6 +4,49 @@ import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { LockedDirectionRefinement } from "@/lib/ai/contracts/lockedDirectionSession";
 import type { ChatMessage, SelectedChefDirection } from "@/components/home/types";
 
+function distillRefinementLabels(refinements: LockedDirectionRefinement[]): string | null {
+  const added: string[] = [];
+  const removed: string[] = [];
+  const seen = new Set<string>();
+
+  for (const r of refinements) {
+    const changes = r.extracted_changes;
+    for (const item of [...(changes.required_ingredients ?? []), ...(changes.preferred_ingredients ?? [])]) {
+      const key = `+${item.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        added.push(item);
+      }
+    }
+    for (const item of changes.forbidden_ingredients ?? []) {
+      const key = `-${item.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        removed.push(item);
+      }
+    }
+    for (const tag of changes.style_tags ?? []) {
+      const key = `tag:${tag.toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        added.push(tag.charAt(0).toUpperCase() + tag.slice(1));
+      }
+    }
+  }
+
+  const parts = [
+    ...added.map((item) => `+ ${item}`),
+    ...removed.map((item) => `- ${item}`),
+  ];
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const label = parts.slice(0, 4).join(", ");
+  return parts.length > 4 ? `${label} (+${parts.length - 4} more)` : label;
+}
+
 function compactOptionSummary(summary: string) {
   const firstSentence = summary.split(/[.!?]/)[0]?.trim() ?? summary.trim();
   return firstSentence.length > 88 ? `${firstSentence.slice(0, 85).trim()}...` : firstSentence;
@@ -22,9 +65,15 @@ function getStatusPresentation(input: { loading: boolean; generatingRecipe: bool
     } else if (normalized.includes("planning")) {
       stageLabel = "Planning the recipe";
       waitMessage = "Chef is mapping the structure, ingredients, and technique.";
-    } else if (normalized.includes("writing") || normalized.includes("retrying")) {
+    } else if (normalized.includes("writing")) {
       stageLabel = "Writing the recipe";
       waitMessage = "Chef is drafting the full recipe now.";
+    } else if (normalized.includes("retrying")) {
+      stageLabel = "Retrying";
+      waitMessage = "Chef is making another attempt at the recipe.";
+    } else if (normalized.includes("trying a different")) {
+      stageLabel = "Trying a different approach";
+      waitMessage = "Chef is switching strategies to get you a better result.";
     } else if (normalized.includes("checking")) {
       stageLabel = "Checking the recipe";
       waitMessage = "Chef is verifying that the recipe still matches your selected direction.";
@@ -352,10 +401,11 @@ export function HomeHeroPanel({
                 ) : appliedRefinements.length > 0 ? (
                   <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
                     {(() => {
+                      const distilled = distillRefinementLabels(appliedRefinements);
+                      if (distilled) return distilled;
                       const last = appliedRefinements[appliedRefinements.length - 1].user_text;
                       return last.length > 48 ? `${last.slice(0, 45).trim()}…` : last;
                     })()}
-                    {appliedRefinements.length > 1 ? ` (+${appliedRefinements.length - 1} more)` : ""}
                   </p>
                 ) : (
                   <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">Base direction locked</p>

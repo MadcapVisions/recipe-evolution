@@ -6,6 +6,10 @@ function unique(values: string[]) {
 }
 
 export function shouldAutoRetryRecipeBuild(retryStrategy: VerificationRetryStrategy, attemptNumber: number) {
+  if (retryStrategy === "try_fallback_model") {
+    return attemptNumber < 3;
+  }
+
   if (attemptNumber >= 2) {
     return false;
   }

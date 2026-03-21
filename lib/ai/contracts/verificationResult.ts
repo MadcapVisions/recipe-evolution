@@ -3,6 +3,7 @@ export const VERIFICATION_RETRY_STRATEGIES = [
   "regenerate_same_model",
   "regenerate_stricter",
   "upgrade_model",
+  "try_fallback_model",
   "ask_user",
 ] as const;
 

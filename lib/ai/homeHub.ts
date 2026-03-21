@@ -611,8 +611,9 @@ export async function generateHomeRecipe(input: {
   recipePlan?: RecipePlan | null;
   retryContext?: {
     attemptNumber: number;
-    retryStrategy: "regenerate_same_model" | "regenerate_stricter";
+    retryStrategy: "regenerate_same_model" | "regenerate_stricter" | "try_fallback_model";
     reasons: string[];
+    modelOverride?: string;
   } | null;
 }, userTasteSummary?: string, cacheContext?: AiCacheContext, onStage?: HomeRecipeStageReporter): Promise<AiRecipeResult> {
   const inputHash = cacheContext
@@ -737,21 +738,34 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
   if (!taskSetting.enabled) {
     throw new Error("Home recipe AI task is disabled.");
   }
+  const resolvedModel = input.retryContext?.modelOverride ?? taskSetting.primaryModel;
   const aiCallOptions = {
     max_tokens: taskSetting.maxTokens,
     temperature: taskSetting.temperature,
-    model: taskSetting.primaryModel,
-    fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
+    model: resolvedModel,
+    fallback_models: input.retryContext?.modelOverride ? [] : (taskSetting.fallbackModel ? [taskSetting.fallbackModel] : []),
   };
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalEstimatedCostUsd = 0;
   let hasUsageMetrics = false;
-  onStage?.(
-    "recipe_generate",
-    input.retryContext ? "Retrying the recipe with tighter constraints..." : "Writing the recipe..."
-  );
-  const result = await callAIForJson(messages, aiCallOptions);
+  const retryStageMessage = input.retryContext
+    ? input.retryContext.retryStrategy === "try_fallback_model"
+      ? "Trying a different approach..."
+      : "Retrying with same model..."
+    : "Writing the recipe...";
+  onStage?.("recipe_generate", retryStageMessage);
+  let result;
+  try {
+    result = await callAIForJson(messages, aiCallOptions);
+  } catch (callError) {
+    const errMessage = callError instanceof Error ? callError.message : String(callError);
+    throw new RecipeBuildError({
+      message: errMessage,
+      kind: "invalid_payload",
+      verification: createFailedVerificationResult(errMessage, "regenerate_same_model"),
+    });
+  }
   if (result.usage.input_tokens != null || result.usage.output_tokens != null || result.usage.estimated_cost_usd != null) {
     totalInputTokens += result.usage.input_tokens ?? 0;
     totalOutputTokens += result.usage.output_tokens ?? 0;
