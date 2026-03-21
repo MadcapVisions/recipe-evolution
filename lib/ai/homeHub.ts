@@ -3,7 +3,7 @@ import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "
 import type { AIMessage } from "./chatPromptBuilder";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatIngredientLine } from "../recipes/recipeDraft";
+import { formatIngredientLine, repairRecipeDraftIngredientLines } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 import type { CookingBrief } from "./contracts/cookingBrief";
 import type { RecipePlan } from "./contracts/recipePlan";
@@ -953,6 +953,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       estimatedCostUsd: hasUsageMetrics ? Number(totalEstimatedCostUsd.toFixed(6)) : null,
       recipe: {
         ...recipe,
+      ingredients: repairRecipeDraftIngredientLines(recipe.ingredients),
       tags: null,
       notes: recipe.chefTips.length > 0 ? recipe.chefTips.map((tip) => `• ${tip}`).join("\n") : null,
       change_log: null,
