@@ -341,11 +341,17 @@ export function HomeHeroPanel({
               <div className="min-w-0 flex-1">
                 <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
                 <p className="mt-1 truncate text-[15px] font-semibold text-[color:var(--text)]">{selectedChefDirection.title}</p>
-                <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
-                  {appliedRefinements.length > 0
-                    ? `Base + ${appliedRefinements.length} refinement${appliedRefinements.length === 1 ? "" : "s"} locked`
-                    : "Base direction locked"}
-                </p>
+                {appliedRefinements.length > 0 ? (
+                  <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
+                    {(() => {
+                      const last = appliedRefinements[appliedRefinements.length - 1].user_text;
+                      return last.length > 48 ? `${last.slice(0, 45).trim()}…` : last;
+                    })()}
+                    {appliedRefinements.length > 1 ? ` (+${appliedRefinements.length - 1} more)` : ""}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">Base direction locked</p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button

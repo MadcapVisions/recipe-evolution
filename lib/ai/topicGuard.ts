@@ -336,37 +336,38 @@ function hasStrongOffTopicIntent(text: string) {
   return STRONG_OFF_TOPIC_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+const FOOD_ADJACENT_PATTERN =
+  /\b(?:cream|sauce|spice|herb|dairy|ingredient|food|eat|drink|flavor|flavour|taste|yummy|delicious|bland|salty|sweet|bitter|sour|savory|savoury|creamy|crunchy|tender|juicy|fresh|raw|cooked|fried|baked|grilled|roasted|steamed|boiled|crisp|crema|topping|garnish|condiment|dressing|marinade|glaze|rub|broth|stock|braise|simmer|sauté|sear|drizzle|sprinkle|season)\b/i;
+
 export function guardCookingTopic({ message, recipeContext }: TopicGuardInput): TopicGuardResult {
   const normalized = normalize(message);
+  const strongOffTopic = hasStrongOffTopicIntent(normalized);
   const cookingSignals = countMatches(normalized, COOKING_KEYWORDS) + countMatches(normalized, FOOD_TERMS);
   const offTopicSignals = countMatches(normalized, OFF_TOPIC_KEYWORDS);
-  const hasScopedRecipeContext = hasRecipeContext(recipeContext);
   const cookingIntent = looksLikeCookingIntent(normalized);
   const ingredientList = looksLikeIngredientList(normalized);
-  const recipeScopedFollowUp = hasScopedRecipeContext && looksLikeRecipeScopedFollowUp(normalized);
-  const recipeScopedIngredientAdjustment = hasScopedRecipeContext && looksLikeRecipeScopedIngredientAdjustment(normalized);
-  const shortRecipeScopedRefinement = hasScopedRecipeContext && looksLikeShortRecipeScopedRefinement(normalized);
-  const strongOffTopic = hasStrongOffTopicIntent(normalized);
+  const hasScopedRecipeContext = hasRecipeContext(recipeContext);
+  const foodAdjacent = FOOD_ADJACENT_PATTERN.test(normalized);
 
-  if ((recipeScopedFollowUp || recipeScopedIngredientAdjustment || shortRecipeScopedRefinement) && offTopicSignals === 0) {
-    return { allowed: true, reason: "recipe_context" };
-  }
-
-  if (strongOffTopic && cookingSignals === 0 && !cookingIntent && !ingredientList && !hasScopedRecipeContext) {
+  // Block definitively off-topic requests that match a strong pattern
+  // (airline, mortgage, crypto, politics, code, etc.) with no food context.
+  if (strongOffTopic && !cookingIntent && !ingredientList && !hasScopedRecipeContext && !foodAdjacent) {
     return { allowed: false, reason: "off_topic" };
   }
 
-  if (cookingSignals > 0 && offTopicSignals === 0) {
-    return { allowed: true, reason: "cooking" };
+  // Block messages with off-topic keyword signals and zero food/cooking content.
+  if (
+    offTopicSignals > 0 &&
+    cookingSignals === 0 &&
+    !cookingIntent &&
+    !hasScopedRecipeContext &&
+    !foodAdjacent &&
+    !ingredientList
+  ) {
+    return { allowed: false, reason: "off_topic" };
   }
 
-  if ((cookingIntent || ingredientList) && !strongOffTopic) {
-    return { allowed: true, reason: "cooking" };
-  }
-
-  if (cookingSignals >= 2 && cookingSignals >= offTopicSignals) {
-    return { allowed: true, reason: "cooking" };
-  }
-
-  return { allowed: false, reason: "off_topic" };
+  // Everything else is allowed — users are here to cook, and the AI handles
+  // anything that slips through. Never block food-adjacent language.
+  return { allowed: true, reason: "cooking" };
 }
