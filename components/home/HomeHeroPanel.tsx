@@ -161,7 +161,7 @@ export function HomeHeroPanel({
           </div>
         </div>
 
-        {statusPresentation ? (
+        {statusPresentation && !(generatingRecipe && selectedChefDirection) ? (
           <div className={`mb-4 rounded-[24px] border px-4 py-4 shadow-[0_12px_30px_rgba(57,75,70,0.08)] ${statusPresentation.toneClass}`}>
             <div className="flex items-start gap-3">
               <div className="mt-1 flex shrink-0 gap-1.5">
@@ -323,25 +323,33 @@ export function HomeHeroPanel({
                     </div>
                   </div>
                 ) : null}
-                {generatingRecipe ? (
-                  <div className="flex justify-start">
-                    <div className="rounded-[22px] border border-[rgba(74,106,96,0.16)] bg-[rgba(247,250,248,0.96)] px-4 py-3 text-[15px] font-medium text-[color:var(--primary)]">
-                      Recipe build in progress. Please wait.
-                    </div>
-                  </div>
-                ) : null}
               </>
             )}
           </div>
         </div>
 
         {selectedChefDirection ? (
-          <div className="mt-3 rounded-[20px] border border-[rgba(74,106,96,0.18)] bg-[rgba(247,250,248,0.95)] px-4 py-3 shadow-[inset_3px_0_0_var(--primary)]">
+          <div
+            className={`mt-3 rounded-[20px] border px-4 py-3 transition-all duration-500 ${
+              generatingRecipe
+                ? "border-[rgba(74,106,96,0.35)] bg-[rgba(247,250,248,0.98)] shadow-[inset_3px_0_0_var(--primary),0_0_0_3px_rgba(74,106,96,0.12),0_0_20px_rgba(74,106,96,0.18)] animate-pulse-border"
+                : "border-[rgba(74,106,96,0.18)] bg-[rgba(247,250,248,0.95)] shadow-[inset_3px_0_0_var(--primary)]"
+            }`}
+          >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <p className="app-kicker text-[color:var(--primary)]">Current direction</p>
                 <p className="mt-1 truncate text-[15px] font-semibold text-[color:var(--text)]">{selectedChefDirection.title}</p>
-                {appliedRefinements.length > 0 ? (
+                {generatingRecipe ? (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--primary)]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--primary)] [animation-delay:150ms]" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--primary)] [animation-delay:300ms]" />
+                    <p className="text-[12px] font-medium text-[color:var(--primary)]">
+                      {status ?? "Building recipe…"}
+                    </p>
+                  </div>
+                ) : appliedRefinements.length > 0 ? (
                   <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">
                     {(() => {
                       const last = appliedRefinements[appliedRefinements.length - 1].user_text;
@@ -353,24 +361,26 @@ export function HomeHeroPanel({
                   <p className="mt-0.5 text-[12px] text-[color:var(--muted)]">Base direction locked</p>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClearChefDirection}
-                  disabled={loading || generatingRecipe}
-                  className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-50"
-                >
-                  Change
-                </button>
-                <button
-                  type="button"
-                  onClick={onBuildSelectedDirection}
-                  disabled={loading || generatingRecipe}
-                  className="rounded-full bg-[color:var(--primary)] px-4 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
-                >
-                  {generatingRecipe ? "Building..." : "Build recipe"}
-                </button>
-              </div>
+              {!generatingRecipe ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClearChefDirection}
+                    disabled={loading}
+                    className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-50"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onBuildSelectedDirection}
+                    disabled={loading}
+                    className="rounded-full bg-[color:var(--primary)] px-4 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+                  >
+                    Build recipe
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -397,19 +407,13 @@ export function HomeHeroPanel({
           </button>
         </div>
 
-        {(loading || generatingRecipe) ? (
+        {loading ? (
           <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.1)] bg-[rgba(255,255,255,0.82)] px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[color:var(--primary)]" />
-              <p className="text-sm font-semibold text-[color:var(--text)]">
-                {generatingRecipe ? "Recipe build is running." : "Chef is working on your request."}
-              </p>
+              <p className="text-sm font-semibold text-[color:var(--text)]">Chef is working on your request.</p>
             </div>
-            <p className="mt-1 text-sm text-[color:var(--muted)]">
-              {generatingRecipe
-                ? "Keep this page open while Chef plans, writes, and checks the recipe."
-                : "Wait for Chef to finish refining before sending another message."}
-            </p>
+            <p className="mt-1 text-sm text-[color:var(--muted)]">Wait for Chef to finish refining before sending another message.</p>
           </div>
         ) : null}
         {!heroChatReadyToApply && !hasConversation && !error && !loading ? (

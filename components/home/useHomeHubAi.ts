@@ -204,6 +204,18 @@ const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => 
     return "Chef could not build this reliably on that attempt. Please try again or tighten the direction a bit.";
   }
 
+  if (message.toLowerCase().includes("invalid json") || message.toLowerCase().includes("unexpected token")) {
+    return "Chef's response came back in an unexpected format. Please try building the recipe again.";
+  }
+
+  if (message.toLowerCase().includes("timeout") || message.toLowerCase().includes("timed out")) {
+    return "Chef took too long to respond. Please try again.";
+  }
+
+  if (message.startsWith("AI returned") || message.includes("openrouter") || message.includes("openai")) {
+    return "Chef hit a temporary issue. Please try building the recipe again.";
+  }
+
   return message;
 };
 
