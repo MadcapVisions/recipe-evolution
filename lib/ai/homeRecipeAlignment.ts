@@ -22,7 +22,7 @@ export function detectRequestedDishFamily(context: string) {
   if (includesAny(normalized, ["pasta", "linguine", "fettuccine", "spaghetti", "penne", "rigatoni", "noodle", "noodles"])) {
     return "pasta";
   }
-  if (includesAny(normalized, ["taco", "tacos", "wrap"])) {
+  if (includesAny(normalized, ["taco", "tacos", "tostada", "tostadas", "wrap"])) {
     return "tacos";
   }
   if (includesAny(normalized, ["soup", "stew", "congee", "moqueca"])) {
@@ -79,6 +79,7 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     { terms: ["chicken-filled ravioli", "fresh ravioli", "ravioli"], title: "Ravioli" },
     { terms: ["salata de vinete", "salată de vinete"], title: "Salata de Vinete" },
     { terms: ["flatbread-style pizza", "flatbread pizza"], title: "Flatbread Pizza" },
+    { terms: ["crispy chicken tostadas with avocado crema", "chicken tostadas with avocado crema", "chicken tostadas", "tostadas"], title: "Chicken Tostadas" },
     { terms: ["chicken fajita bowls", "chicken fajita bowl", "fajita bowls", "fajita bowl"], title: "Chicken Fajita Bowl" },
     { terms: ["okonomiyaki"], title: "Okonomiyaki" },
     { terms: ["adjarian khachapuri", "khachapuri"], title: "Adjarian Khachapuri" },

@@ -74,3 +74,20 @@ test("compileCookingBrief preserves obscure named dishes instead of collapsing t
   assert.equal(moquecaBrief.dish.normalized_name, "Brazilian Moqueca");
   assert.equal(moquecaBrief.dish.dish_family, "soup");
 });
+
+test("compileCookingBrief keeps tostada directions in the taco lane", () => {
+  const brief = compileCookingBrief({
+    userMessage: "lets add jalapeños",
+    assistantReply: "Locked direction: Crispy Chicken Tostadas with Avocado Crema. Add jalapeños to the avocado crema or use them as a garnish.",
+    conversationHistory: [],
+    recipeContext: {
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      ingredients: ["chicken", "tostada shells", "avocado crema"],
+      steps: ["Pile the chicken onto tostada shells and finish with avocado crema."],
+    },
+  });
+
+  assert.equal(brief.dish.dish_family, "tacos");
+  assert.equal(brief.dish.normalized_name, "Chicken Tostadas");
+  assert.equal(brief.ingredients.centerpiece, "Chicken Tostadas");
+});

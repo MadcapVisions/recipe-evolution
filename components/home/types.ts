@@ -1,5 +1,6 @@
 import type { RecipeDraft } from "@/lib/recipes/recipeDraft";
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
+import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 
 export type RecentRecipe = {
   id: string;
@@ -52,3 +53,5 @@ export type SelectedChefDirection = {
   summary: string;
   tags: string[];
 };
+
+export type { LockedDirectionSession };

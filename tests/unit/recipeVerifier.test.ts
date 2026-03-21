@@ -91,3 +91,27 @@ test("verifyRecipeAgainstBrief allows refined titles that preserve the locked di
   assert.equal(result.passes, true);
   assert.equal(result.checks.centerpiece_match, true);
 });
+
+test("verifyRecipeAgainstBrief fails mismatched named dishes even when family is unknown", () => {
+  const brief = compileCookingBrief({
+    userMessage: "make mushroom risotto",
+    recipeContext: {
+      title: "Mushroom Risotto",
+      ingredients: ["mushrooms", "arborio rice"],
+      steps: ["Stir the risotto until creamy."],
+    },
+  });
+
+  const result = verifyRecipeAgainstBrief({
+    brief,
+    recipe: {
+      title: "Chicken Skillet with Mushrooms",
+      description: "A savory chicken skillet with sauteed mushrooms.",
+      ingredients: [{ name: "1 lb chicken" }, { name: "8 oz mushrooms" }],
+      steps: [{ text: "Cook the chicken and mushrooms in a skillet." }],
+    },
+  });
+
+  assert.equal(result.passes, false);
+  assert.equal(result.checks.dish_family_match, false);
+});

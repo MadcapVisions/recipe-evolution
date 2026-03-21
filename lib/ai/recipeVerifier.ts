@@ -94,6 +94,39 @@ function centerpieceMatch(recipe: RecipeLike, brief: CookingBrief) {
   return matchedTokenCount >= requiredMatches;
 }
 
+function specificDishNameMatch(recipe: RecipeLike, brief: CookingBrief) {
+  const normalizedName = brief.dish.normalized_name?.trim();
+  if (!normalizedName || brief.dish.dish_family) {
+    return true;
+  }
+
+  const text = `${recipe.title} ${recipe.description ?? ""}`.toLowerCase();
+  const normalizedDish = normalizedName.toLowerCase();
+  if (text.includes(normalizedDish)) {
+    return true;
+  }
+
+  const dishTokens = normalizedDish
+    .split(/\s+/)
+    .map(normalizeMatchToken)
+    .filter((token) => token.length > 2 && !CENTERPIECE_STOP_WORDS.has(token));
+
+  if (dishTokens.length === 0) {
+    return true;
+  }
+
+  const recipeTokens = new Set(
+    text
+      .split(/\s+/)
+      .map(normalizeMatchToken)
+      .filter((token) => token.length > 2)
+  );
+  const matchedTokenCount = dishTokens.filter((token) => recipeTokens.has(token)).length;
+  const requiredMatches = dishTokens.length <= 2 ? dishTokens.length : Math.ceil(dishTokens.length * 0.6);
+
+  return matchedTokenCount >= requiredMatches;
+}
+
 function styleMatch(recipe: RecipeLike, brief: CookingBrief) {
   if (brief.style.tags.length === 0 && brief.style.texture_tags.length === 0 && brief.style.format_tags.length === 0) {
     return true;
@@ -135,7 +168,7 @@ export function verifyRecipeAgainstBrief(input: {
   }
 
   const context = buildVerificationContext(brief, input.fallbackContext);
-  const dishFamilyMatch = recipeMatchesRequestedDirection(input.recipe, context);
+  const dishFamilyMatch = recipeMatchesRequestedDirection(input.recipe, context) && specificDishNameMatch(input.recipe, brief);
   const titlePass = titleQualityPass(input.recipe.title);
   const requiredPass = requiredIngredientsPresent(input.recipe, brief);
   const forbiddenPass = forbiddenIngredientsAvoided(input.recipe, brief);

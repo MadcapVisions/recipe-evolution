@@ -127,6 +127,7 @@ function buildStructuredMessages(
 Rules:
 - Use mode "options" only when the user explicitly asked for multiple ideas, options, directions, or variations.
 - If the conversation already has a locked or chosen direction, stay in refine mode unless the user explicitly asks for new options again.
+- If the user rejects the presented options (for example "none of these" or "not quite right"), stay in options mode and offer a revised set of distinct options instead of treating it as a refinement.
 - In options mode, return exactly 2 or 3 options. Each option must have a distinct flavor angle — do not return minor variations of the same idea.
 - In refine mode, return no options and recommended_option_id must be null.
 - The "reply" field MUST always be a complete, non-empty chef response — it is the main text the user reads. NEVER leave it empty or null.

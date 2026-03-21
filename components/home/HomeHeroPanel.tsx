@@ -1,6 +1,7 @@
 "use client";
 
 import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { LockedDirectionRefinement } from "@/lib/ai/contracts/lockedDirectionSession";
 import type { ChatMessage, SelectedChefDirection } from "@/components/home/types";
 
 function compactOptionSummary(summary: string) {
@@ -8,9 +9,57 @@ function compactOptionSummary(summary: string) {
   return firstSentence.length > 88 ? `${firstSentence.slice(0, 85).trim()}...` : firstSentence;
 }
 
+function getStatusPresentation(input: { loading: boolean; generatingRecipe: boolean; status: string | null }) {
+  const normalized = input.status?.toLowerCase() ?? "";
+
+  if (input.generatingRecipe) {
+    let stageLabel = "Building recipe";
+    let waitMessage = "Chef is assembling the final recipe. Stay here while the build finishes.";
+
+    if (normalized.includes("understanding")) {
+      stageLabel = "Understanding your request";
+      waitMessage = "Chef is locking the dish direction before writing the recipe.";
+    } else if (normalized.includes("planning")) {
+      stageLabel = "Planning the recipe";
+      waitMessage = "Chef is mapping the structure, ingredients, and technique.";
+    } else if (normalized.includes("writing") || normalized.includes("retrying")) {
+      stageLabel = "Writing the recipe";
+      waitMessage = "Chef is drafting the full recipe now.";
+    } else if (normalized.includes("checking")) {
+      stageLabel = "Checking the recipe";
+      waitMessage = "Chef is verifying that the recipe still matches your selected direction.";
+    } else if (normalized.includes("saving")) {
+      stageLabel = "Saving your recipe";
+      waitMessage = "Chef finished the recipe. Saving it to your cookbook now.";
+    } else if (normalized.includes("tightening")) {
+      stageLabel = "Tightening constraints";
+      waitMessage = "Chef is correcting drift and rebuilding with stricter constraints.";
+    }
+
+    return {
+      kicker: "Recipe in progress",
+      stageLabel,
+      waitMessage,
+      toneClass: "border-[rgba(74,106,96,0.16)] bg-[rgba(247,250,248,0.96)] text-[color:var(--primary)]",
+    };
+  }
+
+  if (input.loading) {
+    return {
+      kicker: "Chef is working",
+      stageLabel: "Refining the direction",
+      waitMessage: "Chef is thinking through your request. Give it a moment.",
+      toneClass: "border-[rgba(181,123,77,0.14)] bg-[rgba(255,246,237,0.96)] text-[color:var(--text)]",
+    };
+  }
+
+  return null;
+}
+
 type HomeHeroPanelProps = {
   heroChatMessages: ChatMessage[];
   selectedChefDirection: SelectedChefDirection | null;
+  appliedRefinements: LockedDirectionRefinement[];
   promptInput: string;
   loading: boolean;
   generatingRecipe: boolean;
@@ -25,6 +74,7 @@ type HomeHeroPanelProps = {
   onCreateRecipeFromReply: (replyIndex: number) => void;
   onSelectChefDirection: (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => void;
   onClearChefDirection: () => void;
+  onRemoveLastRefinement: () => void;
   onStartOver: () => void;
   heroChatFrameRef: RefObject<HTMLDivElement | null>;
   heroChatViewportRef: RefObject<HTMLDivElement | null>;
@@ -33,6 +83,7 @@ type HomeHeroPanelProps = {
 export function HomeHeroPanel({
   heroChatMessages,
   selectedChefDirection,
+  appliedRefinements,
   promptInput,
   loading,
   generatingRecipe,
@@ -47,12 +98,14 @@ export function HomeHeroPanel({
   onCreateRecipeFromReply,
   onSelectChefDirection,
   onClearChefDirection,
+  onRemoveLastRefinement,
   onStartOver,
   heroChatFrameRef,
   heroChatViewportRef,
 }: HomeHeroPanelProps) {
   const hasConversation = heroChatMessages.length > 0;
   const isRefining = selectedChefDirection != null;
+  const statusPresentation = getStatusPresentation({ loading, generatingRecipe, status });
   const promptSuggestions = [
     "Bright 30-minute chicken dinner with herbs",
     "A cozy vegetarian skillet with depth",
@@ -108,6 +161,24 @@ export function HomeHeroPanel({
           </div>
         </div>
 
+        {statusPresentation ? (
+          <div className={`mb-4 rounded-[24px] border px-4 py-4 shadow-[0_12px_30px_rgba(57,75,70,0.08)] ${statusPresentation.toneClass}`}>
+            <div className="flex items-start gap-3">
+              <div className="mt-1 flex shrink-0 gap-1.5">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-current" />
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-current [animation-delay:180ms]" />
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-current [animation-delay:360ms]" />
+              </div>
+              <div className="min-w-0">
+                <p className="app-kicker opacity-80">{statusPresentation.kicker}</p>
+                <p className="mt-1 text-[18px] font-semibold md:text-[20px]">{statusPresentation.stageLabel}</p>
+                <p className="mt-1 text-[14px] leading-6 opacity-90 md:text-[15px]">{statusPresentation.waitMessage}</p>
+                {status ? <p className="mt-2 text-[13px] font-medium opacity-75">{status}</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {selectedChefDirection ? (
           <div className="mb-4 rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.92)] p-4 shadow-[inset_3px_0_0_var(--primary)]">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
@@ -124,6 +195,59 @@ export function HomeHeroPanel({
                     ))}
                   </div>
                 ) : null}
+                {appliedRefinements.length > 0 ? (
+                  <div className="mt-4 rounded-[20px] border border-[rgba(57,75,70,0.08)] bg-white/80 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Applied refinements</p>
+                    <div className="mt-3 space-y-2">
+                      {appliedRefinements.slice(-4).map((refinement, index) => {
+                        const isLatest = index === appliedRefinements.slice(-4).length - 1;
+                        const structuredItems = [
+                          ...refinement.extracted_changes.required_ingredients.map((item) => `Add ${item}`),
+                          ...refinement.extracted_changes.preferred_ingredients.map((item) => `Finish with ${item}`),
+                          ...refinement.extracted_changes.forbidden_ingredients.map((item) => `No ${item}`),
+                          ...refinement.extracted_changes.style_tags.map((item) => item.charAt(0).toUpperCase() + item.slice(1)),
+                        ];
+
+                        return (
+                          <div key={`${refinement.user_text}-${index}`} className="rounded-[16px] border border-[rgba(57,75,70,0.06)] bg-[rgba(250,248,242,0.88)] px-3 py-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-[13px] font-medium text-[color:var(--text)]">{refinement.user_text}</p>
+                              {isLatest ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-full bg-[rgba(74,106,96,0.1)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--primary)]">
+                                    Latest
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={onRemoveLastRefinement}
+                                    disabled={loading || generatingRecipe}
+                                    className="text-[12px] font-semibold text-[color:var(--primary)] underline underline-offset-2 transition hover:opacity-80 disabled:opacity-50"
+                                  >
+                                    Undo
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                            {structuredItems.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {structuredItems.map((item) => (
+                                  <span
+                                    key={`${refinement.user_text}-${item}`}
+                                    className="rounded-full bg-[rgba(74,106,96,0.08)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--primary)]"
+                                  >
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : refinement.ambiguity_reason ? (
+                              <p className="mt-2 text-[12px] text-[color:var(--muted)]">{refinement.ambiguity_reason}</p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -134,6 +258,9 @@ export function HomeHeroPanel({
               </button>
             </div>
             <div className="mt-4">
+              <p className="mb-2 text-[12px] font-medium text-[color:var(--muted)]">
+                Base direction {appliedRefinements.length > 0 ? `+ ${appliedRefinements.length} refinement${appliedRefinements.length === 1 ? "" : "s"} locked` : "locked"}
+              </p>
               <button
                 type="button"
                 onClick={onBuildSelectedDirection}
@@ -263,14 +390,18 @@ export function HomeHeroPanel({
                               </div>
                             </div>
                           ) : null}
-                          {!selectedChefDirection && !selectedFromThisMessage && isLastAiMessage ? (
+                          {!selectedChefDirection && !selectedFromThisMessage ? (
                             <button
                               type="button"
                               onClick={() => onCreateRecipeFromReply(index)}
                               disabled={loading || generatingRecipe}
                               className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-60"
                             >
-                              {activeChatRecipeIndex === index && generatingRecipe ? "Building recipe..." : options.length > 0 ? "Build from this reply" : "Build recipe from this direction"}
+                              {generatingRecipe
+                                ? "Building recipe..."
+                                : options.length > 0
+                                ? "Build from this reply"
+                                : "Build recipe from this direction"}
                             </button>
                           ) : null}
                         </div>
@@ -280,16 +411,28 @@ export function HomeHeroPanel({
                 )})}
                 {loading ? (
                   <div className="flex justify-start">
-                    <div className="rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] px-4 py-3 text-[15px] text-[color:var(--muted)]">
-                      Chef is thinking...
+                    <div className="rounded-[22px] border border-[rgba(181,123,77,0.14)] bg-[rgba(255,246,237,0.96)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)]">
+                      Chef is refining your direction. Hold on.
                     </div>
                   </div>
                 ) : null}
                 {generatingRecipe ? (
                   <div className="flex justify-start">
-                    <div className="rounded-[22px] border border-[rgba(74,106,96,0.14)] bg-[rgba(247,250,248,0.94)] px-4 py-3 text-[15px] text-[color:var(--primary)]">
-                      Building your recipe...
+                    <div className="rounded-[22px] border border-[rgba(74,106,96,0.16)] bg-[rgba(247,250,248,0.96)] px-4 py-3 text-[15px] font-medium text-[color:var(--primary)]">
+                      Recipe build in progress. Please wait.
                     </div>
+                  </div>
+                ) : null}
+                {selectedChefDirection && !loading ? (
+                  <div className="flex justify-start">
+                    <button
+                      type="button"
+                      onClick={onBuildSelectedDirection}
+                      disabled={generatingRecipe}
+                      className="rounded-full bg-[color:var(--primary)] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {generatingRecipe ? "Building recipe..." : "Build recipe"}
+                    </button>
                   </div>
                 ) : null}
               </>
@@ -320,9 +463,18 @@ export function HomeHeroPanel({
         </div>
 
         {(loading || generatingRecipe) ? (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[color:var(--primary)]" />
-            <p className="text-sm text-[color:var(--muted)]">{generatingRecipe ? "Building your dish — this takes a moment." : "Chef is thinking..."}</p>
+          <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.1)] bg-[rgba(255,255,255,0.82)] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[color:var(--primary)]" />
+              <p className="text-sm font-semibold text-[color:var(--text)]">
+                {generatingRecipe ? "Recipe build is running." : "Chef is working on your request."}
+              </p>
+            </div>
+            <p className="mt-1 text-sm text-[color:var(--muted)]">
+              {generatingRecipe
+                ? "Keep this page open while Chef plans, writes, and checks the recipe."
+                : "Wait for Chef to finish refining before sending another message."}
+            </p>
           </div>
         ) : null}
         {!heroChatReadyToApply && !hasConversation && !error && !loading ? (

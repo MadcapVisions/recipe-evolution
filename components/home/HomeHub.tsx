@@ -17,6 +17,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
     status,
     heroChatMessages,
     selectedChefDirection,
+    appliedRefinements,
     heroChatReadyToApply,
     activeChatRecipeIndex,
     heroChatFrameRef,
@@ -26,6 +27,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
+    handleRemoveLastRefinement,
     handleBuildSelectedDirection,
     handleStartOver,
   } = useHomeHubAi(userTasteProfile);
@@ -102,6 +104,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
         <HomeHeroPanel
           heroChatMessages={heroChatMessages}
           selectedChefDirection={selectedChefDirection}
+          appliedRefinements={appliedRefinements}
           promptInput={promptInput}
           loading={loading}
           generatingRecipe={generatingRecipe}
@@ -116,6 +119,7 @@ export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
           onCreateRecipeFromReply={(replyIndex) => void handleCreateRecipeFromReply(replyIndex)}
           onSelectChefDirection={handleSelectChefDirection}
           onClearChefDirection={handleClearChefDirection}
+          onRemoveLastRefinement={handleRemoveLastRefinement}
           onStartOver={handleStartOver}
           heroChatFrameRef={heroChatFrameRef}
           heroChatViewportRef={heroChatViewportRef}

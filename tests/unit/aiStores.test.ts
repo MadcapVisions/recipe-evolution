@@ -4,6 +4,9 @@ import { createEmptyCookingBrief } from "../../lib/ai/contracts/cookingBrief";
 import { createAiStageMetric } from "../../lib/ai/contracts/stageMetrics";
 import { upsertCookingBrief, getCookingBrief } from "../../lib/ai/briefStore";
 import { storeGenerationAttempt } from "../../lib/ai/generationAttemptStore";
+import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "../../lib/ai/lockedSessionStore";
+import { createLockedSessionFromDirection } from "../../lib/ai/lockedSession";
+import { getConversationTurns } from "../../lib/ai/conversationStore";
 
 test("upsertCookingBrief writes the normalized brief payload", async () => {
   let recordedArgs: unknown[] = [];
@@ -129,4 +132,187 @@ test("storeGenerationAttempt writes structured attempt artifacts", async () => {
   assert.equal(payload.conversation_key, "conv-1");
   assert.equal(payload.request_mode, "generate");
   assert.equal(payload.model, "openai/gpt-4o-mini");
+});
+
+test("upsertLockedDirectionSession writes immutable selected-direction state", async () => {
+  let recordedArgs: unknown[] = [];
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_locked_direction_sessions");
+      return {
+        upsert(...args: unknown[]) {
+          recordedArgs = args;
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+  };
+
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Chicken Tostadas",
+      summary: "Crunchy tostadas with chicken.",
+      tags: ["Crunchy"],
+    },
+  });
+
+  await upsertLockedDirectionSession(supabase as any, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "home_hub",
+    session,
+  });
+
+  const [payload, options] = recordedArgs as [Record<string, unknown>, Record<string, unknown>];
+  assert.equal(payload.owner_id, "user-1");
+  assert.equal(payload.conversation_key, "conv-1");
+  assert.equal(payload.state, "direction_locked");
+  assert.deepEqual(options, { onConflict: "owner_id,conversation_key,scope" });
+});
+
+test("getLockedDirectionSession returns the fetched locked session row", async () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Chicken Tostadas",
+      summary: "Crunchy tostadas with chicken.",
+      tags: ["Crunchy"],
+    },
+  });
+
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_locked_direction_sessions");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: {
+              id: "session-1",
+              owner_id: "user-1",
+              conversation_key: "conv-1",
+              scope: "home_hub",
+              session_json: session,
+              state: "direction_locked",
+              created_at: "2026-03-21T12:00:00Z",
+              updated_at: "2026-03-21T12:00:01Z",
+            },
+            error: null,
+          });
+        },
+      };
+    },
+  };
+
+  const result = await getLockedDirectionSession(supabase as any, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "home_hub",
+  });
+
+  assert.ok(result);
+  assert.equal(result?.state, "direction_locked");
+  assert.equal(result?.session_json.selected_direction?.title, "Chicken Tostadas");
+});
+
+test("deleteLockedDirectionSession clears a persisted session", async () => {
+  const calls: Array<{ column: string; value: string }> = [];
+  const chain = {
+    delete() {
+      return this;
+    },
+    eq(column: string, value: string) {
+      calls.push({ column, value });
+      if (calls.length === 3) {
+        return Promise.resolve({ error: null });
+      }
+      return this;
+    },
+  };
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_locked_direction_sessions");
+      return chain;
+    },
+  };
+
+  await deleteLockedDirectionSession(supabase as any, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "home_hub",
+  });
+
+  assert.deepEqual(calls, [
+    { column: "owner_id", value: "user-1" },
+    { column: "conversation_key", value: "conv-1" },
+    { column: "scope", value: "home_hub" },
+  ]);
+});
+
+test("getConversationTurns returns ordered home-hub turns", async () => {
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_conversation_turns");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        order() {
+          return this;
+        },
+        limit() {
+          return Promise.resolve({
+            data: [
+              {
+                id: "turn-1",
+                owner_id: "user-1",
+                conversation_key: "conv-1",
+                scope: "home_hub",
+                recipe_id: null,
+                version_id: null,
+                role: "user",
+                message: "I want tacos",
+                metadata_json: null,
+                created_at: "2026-03-21T10:00:00Z",
+              },
+              {
+                id: "turn-2",
+                owner_id: "user-1",
+                conversation_key: "conv-1",
+                scope: "home_hub",
+                recipe_id: null,
+                version_id: null,
+                role: "assistant",
+                message: "Here are three taco directions.",
+                metadata_json: { mode: "options", reply: "Here are three taco directions.", options: [] },
+                created_at: "2026-03-21T10:00:01Z",
+              },
+            ],
+            error: null,
+          });
+        },
+      };
+    },
+  };
+
+  const result = await getConversationTurns(supabase as any, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "home_hub",
+  });
+
+  assert.equal(result.length, 2);
+  assert.equal(result[0]?.role, "user");
+  assert.equal(result[1]?.role, "assistant");
 });

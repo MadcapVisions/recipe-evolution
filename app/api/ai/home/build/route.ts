@@ -13,13 +13,50 @@ import { verifyRecipeAgainstBrief } from "@/lib/ai/recipeVerifier";
 import { buildRecipePlanFromBrief } from "@/lib/ai/recipePlanner";
 import type { CookingBrief } from "@/lib/ai/contracts/cookingBrief";
 import type { RecipePlan } from "@/lib/ai/contracts/recipePlan";
-import { getRecipeBuildFailureDetails, type RecipeBuildFailureKind } from "@/lib/ai/recipeBuildError";
+import { getRecipeBuildFailureDetails, RecipeBuildError, type RecipeBuildFailureKind } from "@/lib/ai/recipeBuildError";
 import type { VerificationRetryStrategy } from "@/lib/ai/contracts/verificationResult";
 import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeRecipeRetry";
+import { buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
+import { getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
+import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
   content: z.string(),
+});
+
+const lockedSessionSchema = z.object({
+  conversation_key: z.string(),
+  state: z.enum(["exploring", "direction_locked", "ready_to_build", "building", "built"]),
+  selected_direction: z
+    .object({
+      id: z.string(),
+      title: z.string(),
+      summary: z.string(),
+      tags: z.array(z.string()),
+    })
+    .nullable(),
+  refinements: z.array(
+    z.object({
+      user_text: z.string(),
+      assistant_text: z.string().nullable(),
+      confidence: z.number(),
+      ambiguity_reason: z.string().nullable(),
+      extracted_changes: z.object({
+        required_ingredients: z.array(z.string()),
+        preferred_ingredients: z.array(z.string()),
+        forbidden_ingredients: z.array(z.string()),
+        style_tags: z.array(z.string()),
+        notes: z.array(z.string()),
+      }),
+      field_state: z.object({
+        ingredients: z.enum(["locked", "inferred", "unknown"]),
+        style: z.enum(["locked", "inferred", "unknown"]),
+        notes: z.enum(["locked", "inferred", "unknown"]),
+      }),
+    })
+  ),
+  brief_snapshot: z.any().nullable(),
 });
 
 const buildRequestSchema = z.object({
@@ -28,6 +65,7 @@ const buildRequestSchema = z.object({
   ingredients: z.array(z.string()).optional(),
   conversationHistory: z.array(aiMessageSchema).optional(),
   conversationKey: z.string().optional(),
+  lockedSession: lockedSessionSchema.optional(),
 });
 
 type StreamEvent =
@@ -107,16 +145,29 @@ export async function POST(request: Request) {
               scope: "home_hub",
             })
           : null;
-        effectiveBrief =
-          persistedBrief?.brief_json ??
-          compileCookingBrief({
-            userMessage: prompt || body.ideaTitle,
-            conversationHistory,
-            recipeContext: {
-              title: body.ideaTitle,
-              ingredients,
-            },
-          });
+        const persistedSession = conversationKey
+          ? await getLockedDirectionSession(access.supabase as any, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+            })
+          : null;
+        const lockedSession: LockedDirectionSession | null = body.lockedSession ?? persistedSession?.session_json ?? null;
+        const compiledBrief = compileCookingBrief({
+          userMessage: prompt || body.ideaTitle,
+          conversationHistory,
+          recipeContext: {
+            title: body.ideaTitle,
+            ingredients,
+          },
+          lockedSessionState: lockedSession?.state ?? null,
+        });
+        effectiveBrief = lockedSession?.selected_direction
+          ? buildLockedBrief({
+              session: lockedSession,
+              conversationHistory,
+            })
+          : compiledBrief;
         briefCompiledAt = new Date().toISOString();
         const resolvedIdeaTitle = effectiveBrief.dish.normalized_name?.trim() || body.ideaTitle.trim();
         planStartedAt = new Date().toISOString();
@@ -175,6 +226,15 @@ export async function POST(request: Request) {
               recipe: attemptResult.recipe,
               fallbackContext: `${resolvedIdeaTitle} ${prompt ?? ""}`,
             });
+            if (!attemptVerification.passes) {
+              throw new RecipeBuildError({
+                message: attemptVerification.reasons[0] ?? "Recipe failed verification.",
+                kind: "verification_failed",
+                verification: attemptVerification,
+                retryStrategy: attemptVerification.retry_strategy,
+                reasons: attemptVerification.reasons,
+              });
+            }
             const completedAt = new Date().toISOString();
             stageMetrics.push(
               createAiStageMetric("recipe_generate", {
@@ -240,13 +300,21 @@ export async function POST(request: Request) {
         }
 
         if (conversationKey) {
+          if (lockedSession?.selected_direction) {
+            void upsertLockedDirectionSession(access.supabase as any, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+              session: markLockedSessionBuilt(lockedSession, effectiveBrief),
+            });
+          }
           void storeGenerationAttempt(access.supabase as any, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
             requestMode: effectiveBrief.request_mode,
-            stateBefore: persistedBrief?.is_locked ? "direction_locked" : "ready_for_recipe",
-            stateAfter: "recipe_generated",
+            stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+            stateAfter: lockedSession?.selected_direction ? "built" : "recipe_generated",
             attempt: {
               conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
               cooking_brief: effectiveBrief,
