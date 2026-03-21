@@ -3,20 +3,21 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
-import type { ChefChatEnvelope, ChefDirectionOption } from "@/lib/ai/chefOptions";
+import type { ChefChatEnvelope } from "@/lib/ai/chefOptions";
 import { deriveIdeaTitleFromConversationContext } from "@/lib/ai/homeRecipeAlignment";
+import { createLockedSessionFromDirection, removeLastLockedSessionRefinement } from "@/lib/ai/lockedSession";
 import {
   buildDirectionSummary,
   buildFocusedChatHistory,
   buildFocusedRecipeConversation,
   buildReplyBranch,
 } from "@/lib/ai/homeConversationFocus";
-import { generateLocalChefReply, generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
+import { generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
 import { createRecipeFromDraft, getCreatedRecipeHref } from "@/lib/client/recipeMutations";
 import { repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
-import type { ChatMessage, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
+import type { ChatMessage, LockedDirectionSession, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
 import type { VerificationRetryStrategy } from "@/lib/ai/contracts/verificationResult";
 
 const extractIngredientsFromPrompt = (prompt: string) =>
@@ -102,7 +103,8 @@ const buildLockedDirectionMessages = (messages: ChatMessage[], selectedDirection
 const buildRecipeSeedFromConversation = (
   messages: ChatMessage[],
   userTasteProfile: UserTasteProfile | null,
-  selectedDirection: SelectedChefDirection | null
+  selectedDirection: SelectedChefDirection | null,
+  lockedSession: LockedDirectionSession | null
 ) => {
   const focusedMessages =
     selectedDirection != null
@@ -131,7 +133,16 @@ const buildRecipeSeedFromConversation = (
     latestAssistantReply,
     ideaTitle,
     latestUserPrompt,
-    ingredients: undefined,
+    ingredients: lockedSession
+      ? Array.from(
+          new Set(
+            lockedSession.refinements.flatMap((item) => [
+              ...item.extracted_changes.required_ingredients,
+              ...item.extracted_changes.preferred_ingredients,
+            ])
+          )
+        )
+      : undefined,
     conversationHistory: buildConversationHistory(focusedMessages),
   };
 };
@@ -235,11 +246,48 @@ function shouldStartNewChefDirection(prompt: string) {
   return asksForFreshExploration && !looksLikeRefinement;
 }
 
+function createConversationKey() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `home-${Date.now()}`;
+}
+
+const HOME_HUB_STORAGE_SCOPE = "home-hub";
+const HOME_HUB_CONVERSATION_KEY_STORAGE = `home-hub-conversation-key-${HOME_HUB_STORAGE_SCOPE}`;
+const HOME_HUB_MESSAGES_STORAGE = `home-hub-messages-${HOME_HUB_STORAGE_SCOPE}`;
+const HOME_HUB_SELECTED_DIRECTION_STORAGE = `home-hub-selected-direction-${HOME_HUB_STORAGE_SCOPE}`;
+const HOME_HUB_LOCKED_SESSION_STORAGE = `home-hub-locked-session-${HOME_HUB_STORAGE_SCOPE}`;
+
+function deriveSelectedDirectionFromSession(messages: ChatMessage[], session: LockedDirectionSession | null): SelectedChefDirection | null {
+  if (!session?.selected_direction) {
+    return null;
+  }
+
+  const selected = session.selected_direction;
+  let replyIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== "ai") {
+      continue;
+    }
+    const matchedOption = message.options?.some((option) => option.id === selected.id) ?? false;
+    const matchedTitle = message.text.toLowerCase().includes(selected.title.toLowerCase());
+    if (matchedOption || matchedTitle) {
+      replyIndex = index;
+      break;
+    }
+  }
+
+  return {
+    replyIndex,
+    optionId: selected.id,
+    title: selected.title,
+    summary: selected.summary,
+    tags: selected.tags,
+  };
+}
+
 export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const router = useRouter();
-  const conversationKeyRef = useRef(
-    typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `home-${Date.now()}`
-  );
+  const conversationKeyRef = useRef(createConversationKey());
   const [promptInput, setPromptInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatingRecipe, setGeneratingRecipe] = useState(false);
@@ -249,6 +297,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const [heroChatMessages, setHeroChatMessages] = useState<ChatMessage[]>([]);
   const [heroChatReadyToApply, setHeroChatReadyToApply] = useState(false);
   const [selectedChefDirection, setSelectedChefDirection] = useState<SelectedChefDirection | null>(null);
+  const [lockedSession, setLockedSession] = useState<LockedDirectionSession | null>(null);
   const [activeChatRecipeIndex, setActiveChatRecipeIndex] = useState<number | null>(null);
   const heroChatFrameRef = useRef<HTMLDivElement | null>(null);
   const heroChatViewportRef = useRef<HTMLDivElement | null>(null);
@@ -264,12 +313,144 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   }, [heroChatMessages]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedConversationKey = window.localStorage.getItem(HOME_HUB_CONVERSATION_KEY_STORAGE);
+    if (storedConversationKey?.trim()) {
+      conversationKeyRef.current = storedConversationKey.trim();
+    } else {
+      window.localStorage.setItem(HOME_HUB_CONVERSATION_KEY_STORAGE, conversationKeyRef.current);
+    }
+
+    const rawMessages = window.localStorage.getItem(HOME_HUB_MESSAGES_STORAGE);
+    if (rawMessages) {
+      try {
+        const parsed = JSON.parse(rawMessages) as ChatMessage[];
+        if (Array.isArray(parsed)) {
+          setHeroChatMessages(
+            parsed.filter(
+              (item): item is ChatMessage =>
+                (item?.role === "user" || item?.role === "ai") &&
+                typeof item?.text === "string" &&
+                (item?.kind === undefined || item.kind === "message" || item.kind === "direction_selected")
+            )
+          );
+        }
+      } catch {
+        setHeroChatMessages([]);
+      }
+    }
+
+    const rawSelectedDirection = window.localStorage.getItem(HOME_HUB_SELECTED_DIRECTION_STORAGE);
+    if (rawSelectedDirection) {
+      try {
+        const parsed = JSON.parse(rawSelectedDirection) as SelectedChefDirection;
+        if (
+          typeof parsed?.replyIndex === "number" &&
+          typeof parsed?.optionId === "string" &&
+          typeof parsed?.title === "string" &&
+          typeof parsed?.summary === "string" &&
+          Array.isArray(parsed?.tags)
+        ) {
+          setSelectedChefDirection({
+            ...parsed,
+            tags: parsed.tags.filter((tag): tag is string => typeof tag === "string"),
+          });
+        }
+      } catch {
+        setSelectedChefDirection(null);
+      }
+    }
+
+    const rawLockedSession = window.localStorage.getItem(HOME_HUB_LOCKED_SESSION_STORAGE);
+    if (rawLockedSession) {
+      try {
+        const parsed = JSON.parse(rawLockedSession) as LockedDirectionSession;
+        if (
+          typeof parsed?.conversation_key === "string" &&
+          typeof parsed?.state === "string" &&
+          Array.isArray(parsed?.refinements)
+        ) {
+          setLockedSession(parsed);
+        }
+      } catch {
+        setLockedSession(null);
+      }
+    }
+
+    const conversationKey = conversationKeyRef.current;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/ai/home?conversationKey=${encodeURIComponent(conversationKey)}`);
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as {
+          messages?: ChatMessage[];
+          lockedSession?: LockedDirectionSession | null;
+        };
+        const serverMessages = Array.isArray(data.messages) ? data.messages : [];
+        const serverLockedSession = data.lockedSession ?? null;
+
+        if (serverMessages.length > 0) {
+          setHeroChatMessages(serverMessages);
+          setHeroChatReadyToApply(true);
+        }
+        if (serverLockedSession?.selected_direction) {
+          setLockedSession(serverLockedSession);
+          setSelectedChefDirection(deriveSelectedDirectionFromSession(serverMessages, serverLockedSession));
+        }
+      } catch {
+        // Keep local state if rehydration fails.
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (statusTimeoutRef.current) {
         clearTimeout(statusTimeoutRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(HOME_HUB_CONVERSATION_KEY_STORAGE, conversationKeyRef.current);
+  }, [heroChatMessages.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(HOME_HUB_MESSAGES_STORAGE, JSON.stringify(heroChatMessages.slice(-120)));
+  }, [heroChatMessages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!selectedChefDirection) {
+      window.localStorage.removeItem(HOME_HUB_SELECTED_DIRECTION_STORAGE);
+      return;
+    }
+    window.localStorage.setItem(HOME_HUB_SELECTED_DIRECTION_STORAGE, JSON.stringify(selectedChefDirection));
+  }, [selectedChefDirection]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!lockedSession) {
+      window.localStorage.removeItem(HOME_HUB_LOCKED_SESSION_STORAGE);
+      return;
+    }
+    window.localStorage.setItem(HOME_HUB_LOCKED_SESSION_STORAGE, JSON.stringify(lockedSession));
+  }, [lockedSession]);
 
   const saveGeneratedRecipe = async (recipe: RecipeDraft, source: string) => {
     const repairedDraft: RecipeDraft = {
@@ -432,10 +613,25 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     source = "chef-chat",
     selectedDirectionOverride: SelectedChefDirection | null = selectedChefDirection
   ) => {
+    const effectiveLockedSession =
+      selectedDirectionOverride == null
+        ? null
+        : lockedSession?.selected_direction?.id === selectedDirectionOverride.optionId
+        ? lockedSession
+        : createLockedSessionFromDirection({
+            conversationKey: conversationKeyRef.current,
+            selectedDirection: {
+              id: selectedDirectionOverride.optionId,
+              title: selectedDirectionOverride.title,
+              summary: selectedDirectionOverride.summary,
+              tags: selectedDirectionOverride.tags,
+            },
+          });
     const { conversationText, ideaTitle, latestUserPrompt, ingredients, conversationHistory } = buildRecipeSeedFromConversation(
       messages,
       userTasteProfile,
-      selectedDirectionOverride
+      selectedDirectionOverride,
+      effectiveLockedSession
     );
     if (!conversationText.trim()) {
       setError("Ask Chef something first.");
@@ -453,6 +649,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         ingredients,
         conversationHistory,
         conversationKey: conversationKeyRef.current,
+        lockedSession: effectiveLockedSession,
       }, {
         onStatus: (message) => setStatus(message),
       });
@@ -549,13 +746,21 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
             ? buildConversationHistory(buildLockedDirectionMessages(heroChatMessages, selectedChefDirection).slice(-6))
             : buildFocusedChatHistory(heroChatMessages),
         conversationKey: conversationKeyRef.current,
-      })) as ChefChatEnvelope & { message?: string };
+        lockedSession: startsNewDirection ? undefined : lockedSession ?? undefined,
+        reset_session: startsNewDirection ? true : undefined,
+      })) as ChefChatEnvelope & {
+        message?: string;
+        session_action?: "clear_locked_direction" | null;
+        lockedSession?: LockedDirectionSession | null;
+      };
 
       if (!data.reply) {
         throw new Error(data.message ?? "Chef chat failed.");
       }
 
       const options = Array.isArray(data.options) ? data.options : [];
+      const shouldClearLockedDirection = data.session_action === "clear_locked_direction";
+      const canonicalLockedSession = data.lockedSession ?? null;
       if (startsNewDirection) {
         setSelectedChefDirection(null);
       }
@@ -570,30 +775,37 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           recommendedOptionId: data.recommended_option_id ?? null,
         },
       ]);
-      if (data.mode === "options" && options.length > 0) {
+      if (shouldClearLockedDirection) {
         setSelectedChefDirection(null);
+        setLockedSession(null);
+        setTransientStatus("Direction reset. Chef is working from the new request now.");
+      } else if (data.mode === "options" && options.length > 0) {
+        setSelectedChefDirection(null);
+        setLockedSession(null);
         setTransientStatus("Choose one direction, then refine it.");
       } else if (selectedChefDirection) {
-        setSelectedChefDirection({
-          ...selectedChefDirection,
-          summary: data.reply!,
-        });
+        if (canonicalLockedSession) {
+          setLockedSession(canonicalLockedSession);
+          setSelectedChefDirection((current) => deriveSelectedDirectionFromSession([
+            ...heroChatMessages,
+            { role: "user", text: trimmedPrompt, kind: "message" },
+            {
+              role: "ai",
+              text: data.reply!,
+              kind: "message",
+              options,
+              recommendedOptionId: data.recommended_option_id ?? null,
+            },
+          ], canonicalLockedSession) ?? current);
+        }
         setTransientStatus("Direction refined. Build the recipe when it feels right.");
       } else {
         setTransientStatus("Chef responded. Build the recipe when the direction feels right.");
       }
       setHeroChatReadyToApply(true);
     } catch (chatError) {
-      const fallbackReply = generateLocalChefReply(trimmedPrompt, extractIngredientsFromPrompt(trimmedPrompt), userTasteProfile ?? undefined);
-      const fallbackOptions: ChefDirectionOption[] = [];
-      setHeroChatMessages((current) => [
-        ...current,
-        { role: "user", text: trimmedPrompt, kind: "message" },
-        { role: "ai", text: fallbackReply, kind: "message", options: fallbackOptions, recommendedOptionId: null },
-      ]);
-      setHeroChatReadyToApply(true);
-      setError(null);
-      setTransientStatus(describeAiOutage(chatError, "Showing fallback chef guidance"));
+      setError("Chef hit a temporary problem before the direction could be updated. Please try again.");
+      setTransientStatus(describeAiOutage(chatError, "Chef is temporarily unavailable"));
     } finally {
       heroSubmitLockRef.current = false;
       setLoading(false);
@@ -635,6 +847,17 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       summary: option.summary,
       tags: option.tags,
     });
+    setLockedSession(
+      createLockedSessionFromDirection({
+        conversationKey: conversationKeyRef.current,
+        selectedDirection: {
+          id: option.id,
+          title: option.title,
+          summary: option.summary,
+          tags: option.tags,
+        },
+      })
+    );
     setHeroChatReadyToApply(true);
     setError(null);
     setTransientStatus("Direction selected. Refine it or build the recipe when ready.");
@@ -642,6 +865,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
   const handleClearChefDirection = () => {
     setSelectedChefDirection(null);
+    setLockedSession(null);
     setError(null);
     setTransientStatus("Direction cleared. Choose another option or ask Chef for a new one.");
   };
@@ -654,10 +878,32 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     await createRecipeFromConversation(heroChatMessages, "chef-selected-direction", selectedChefDirection);
   };
 
+  const handleRemoveLastRefinement = () => {
+    setLockedSession((current) => {
+      if (!current || current.refinements.length === 0) {
+        return current;
+      }
+      return removeLastLockedSessionRefinement(current);
+    });
+    setError(null);
+    setTransientStatus("Last refinement removed.");
+  };
+
   const handleStartOver = () => {
+    conversationKeyRef.current = createConversationKey();
+    lastHeroPromptRef.current = null;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(HOME_HUB_CONVERSATION_KEY_STORAGE, conversationKeyRef.current);
+      window.localStorage.removeItem(HOME_HUB_MESSAGES_STORAGE);
+      window.localStorage.removeItem(HOME_HUB_SELECTED_DIRECTION_STORAGE);
+      window.localStorage.removeItem(HOME_HUB_LOCKED_SESSION_STORAGE);
+    }
     setHeroChatMessages([]);
     setSelectedChefDirection(null);
+    setLockedSession(null);
     setHeroChatReadyToApply(false);
+    setActiveChatRecipeIndex(null);
+    setPromptInput("");
     setError(null);
     setTransientStatus(null);
   };
@@ -680,6 +926,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     status,
     heroChatMessages,
     selectedChefDirection,
+    appliedRefinements: lockedSession?.refinements ?? [],
     heroChatReadyToApply,
     activeChatRecipeIndex,
     heroChatFrameRef,
@@ -689,6 +936,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handleCreateRecipeFromReply,
     handleSelectChefDirection,
     handleClearChefDirection,
+    handleRemoveLastRefinement,
     handleBuildSelectedDirection,
     handleStartOver,
   };

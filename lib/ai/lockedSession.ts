@@ -1,0 +1,159 @@
+import type { AIMessage } from "./chatPromptBuilder";
+import type { CookingBrief } from "./contracts/cookingBrief";
+import {
+  createLockedDirectionSession,
+  type LockedDirectionRefinement,
+  type LockedDirectionSelected,
+  type LockedDirectionSession,
+} from "./contracts/lockedDirectionSession";
+import { compileCookingBrief } from "./briefCompiler";
+import { deriveIdeaTitleFromConversationContext, detectRequestedDishFamily } from "./homeRecipeAlignment";
+import { extractRefinementDelta } from "./refinementExtractor";
+
+function unique(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
+}
+
+const MAX_LOCKED_REFINEMENTS = 12;
+const GENERIC_SELECTED_TITLE_PATTERNS = [
+  /^chef /i,
+  /^recipe\b/i,
+  /^dish\b/i,
+  /^meal\b/i,
+  /^idea\b/i,
+  /^version\b/i,
+  /^(?:a|an)\s+(?:recipe|dish|meal)\b/i,
+  /^(?:chicken|beef|pork|fish|vegetable)\s+(?:dish|meal|recipe)\b/i,
+];
+
+function recentRefinements(session: LockedDirectionSession) {
+  return session.refinements.slice(-MAX_LOCKED_REFINEMENTS);
+}
+
+function shouldKeepSelectedTitle(title: string) {
+  const trimmed = title.trim();
+  if (trimmed.length < 4) {
+    return false;
+  }
+
+  return !GENERIC_SELECTED_TITLE_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
+export function appendLockedSessionRefinement(
+  session: LockedDirectionSession,
+  input: {
+    userText: string;
+    assistantText: string | null;
+  }
+): LockedDirectionSession {
+  const refinement = extractRefinementDelta(input);
+  return appendLockedSessionRefinementDelta(session, refinement);
+}
+
+export function appendLockedSessionRefinementDelta(
+  session: LockedDirectionSession,
+  refinement: LockedDirectionRefinement
+): LockedDirectionSession {
+  const refinements = [...session.refinements, refinement].slice(-MAX_LOCKED_REFINEMENTS);
+  return {
+    ...session,
+    state: "ready_to_build",
+    brief_snapshot: null,
+    refinements,
+  };
+}
+
+export function removeLastLockedSessionRefinement(session: LockedDirectionSession): LockedDirectionSession {
+  const nextRefinements = session.refinements.slice(0, -1);
+  return {
+    ...session,
+    state: nextRefinements.length > 0 ? "ready_to_build" : "direction_locked",
+    brief_snapshot: null,
+    refinements: nextRefinements,
+  };
+}
+
+export function markLockedSessionBuilt(session: LockedDirectionSession, brief: CookingBrief): LockedDirectionSession {
+  return {
+    ...session,
+    state: "built",
+    brief_snapshot: brief,
+  };
+}
+
+export function buildLockedBrief(input: {
+  session: LockedDirectionSession;
+  conversationHistory?: AIMessage[];
+}): CookingBrief {
+  const selected = input.session.selected_direction;
+  if (!selected) {
+    return compileCookingBrief({
+      userMessage: "",
+      conversationHistory: input.conversationHistory,
+    });
+  }
+
+  const refinements = recentRefinements(input.session);
+  const refinementText = refinements
+    .map((item) => item.user_text)
+    .join("\n");
+  const syntheticUserMessage = [selected.title, selected.summary, refinementText].filter(Boolean).join("\n");
+  const brief = compileCookingBrief({
+    userMessage: syntheticUserMessage,
+    assistantReply: `Locked direction: ${selected.title}. ${selected.summary}`,
+    lockedSessionState: input.session.state,
+    recipeContext: {
+      title: selected.title,
+      ingredients: unique(
+        refinements.flatMap((item) => [
+          ...item.extracted_changes.required_ingredients,
+          ...item.extracted_changes.preferred_ingredients,
+        ])
+      ),
+      steps: [selected.summary],
+    },
+  });
+
+  const canonicalDish = shouldKeepSelectedTitle(selected.title)
+    ? selected.title.trim()
+    : deriveIdeaTitleFromConversationContext(`${selected.title} ${selected.summary}`);
+  const canonicalFamily = detectRequestedDishFamily(`${selected.title} ${selected.summary}`);
+  const requiredIngredients = unique([
+    ...brief.ingredients.required,
+    ...refinements.flatMap((item) => item.extracted_changes.required_ingredients),
+  ]);
+  const forbiddenIngredients = unique([
+    ...brief.ingredients.forbidden,
+    ...refinements.flatMap((item) => item.extracted_changes.forbidden_ingredients),
+  ]);
+  const styleTags = unique([
+    ...brief.style.tags,
+    ...refinements.flatMap((item) => item.extracted_changes.style_tags),
+  ]);
+
+  brief.request_mode = "locked";
+  brief.dish.normalized_name = canonicalDish === "Chef Conversation Recipe" ? selected.title : canonicalDish;
+  brief.dish.dish_family = canonicalFamily ?? brief.dish.dish_family;
+  brief.ingredients.required = requiredIngredients;
+  brief.ingredients.forbidden = forbiddenIngredients;
+  brief.ingredients.centerpiece = brief.dish.normalized_name || selected.title;
+  brief.style.tags = styleTags;
+  brief.style.format_tags = unique(brief.style.format_tags);
+  brief.directives.must_have = unique([...brief.directives.must_have, ...requiredIngredients, ...styleTags]);
+  brief.directives.must_not_have = unique([...brief.directives.must_not_have, ...forbiddenIngredients]);
+  brief.directives.required_techniques = brief.dish.dish_family === "pizza" ? ["bake"] : [];
+  brief.constraints.time_max_minutes = brief.constraints.time_max_minutes ?? null;
+  brief.constraints.dietary_tags = unique(brief.constraints.dietary_tags);
+  brief.field_state.dish_family = brief.dish.dish_family ? "locked" : brief.field_state.dish_family;
+  brief.field_state.normalized_name = brief.dish.normalized_name ? "locked" : brief.field_state.normalized_name;
+  brief.compiler_notes.push("Built from locked direction session.");
+
+  return brief;
+}
+
+export function createLockedSessionFromDirection(input: {
+  conversationKey: string;
+  selectedDirection: LockedDirectionSelected;
+}) {
+  return createLockedDirectionSession(input);
+}

@@ -5,7 +5,6 @@ import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatIngredientLine } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
-import { recipeMatchesRequestedDirection } from "./homeRecipeAlignment";
 import type { CookingBrief } from "./contracts/cookingBrief";
 import type { RecipePlan } from "./contracts/recipePlan";
 import { verifyRecipeAgainstBrief } from "./recipeVerifier";
@@ -391,16 +390,6 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
   };
 }
 
-function recipeMatchesConversation(
-  recipe: HomeGeneratedRecipe,
-  input: { ideaTitle: string; prompt?: string; ingredients?: string[]; conversationHistory?: AIMessage[]; cookingBrief?: CookingBrief | null }
-) {
-  const briefContext = input.cookingBrief
-    ? `${input.cookingBrief.dish.normalized_name ?? ""} ${input.cookingBrief.dish.dish_family ?? ""} ${(input.cookingBrief.directives.must_have ?? []).join(" ")} ${(input.cookingBrief.directives.must_not_have ?? []).join(" ")}`
-    : "";
-  const context = `${input.ideaTitle} ${input.prompt ?? ""} ${briefContext} ${formatConversation(input.conversationHistory)} ${(input.ingredients ?? []).join(" ")}`;
-  return recipeMatchesRequestedDirection(recipe, context);
-}
 
 function buildIdeasPrompt(input: IdeaInput) {
   const requestedCount = Math.max(1, Math.min(input.requestedCount ?? 2, 2));
@@ -638,24 +627,39 @@ export async function generateHomeRecipe(input: {
     if (cached) {
       const parsedCached = parseAiRecipeResult(cached.response_json);
       if (parsedCached) {
-        return parsedCached;
-      }
-      if (isGeneratedRecipe(cached.response_json)) {
-        return createAiRecipeResult({
-          purpose: "home_recipe",
-          source: "cache",
-          model: cached.model,
-          cached: true,
-          inputHash,
-          createdAt: null,
-          recipe: {
-            ...cached.response_json,
-            tags: null,
-            notes: null,
-            change_log: null,
-            ai_metadata_json: null,
-          },
+        const cacheVerification = verifyRecipeAgainstBrief({
+          recipe: parsedCached.recipe,
+          brief: input.cookingBrief,
+          fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""}`,
         });
+        if (cacheVerification.passes) {
+          return parsedCached;
+        }
+        // Cached result failed verification against current brief — fall through to fresh generation
+      } else if (isGeneratedRecipe(cached.response_json)) {
+        const cacheVerification = verifyRecipeAgainstBrief({
+          recipe: cached.response_json,
+          brief: input.cookingBrief,
+          fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""}`,
+        });
+        if (cacheVerification.passes) {
+          return createAiRecipeResult({
+            purpose: "home_recipe",
+            source: "cache",
+            model: cached.model,
+            cached: true,
+            inputHash,
+            createdAt: null,
+            recipe: {
+              ...cached.response_json,
+              tags: null,
+              notes: null,
+              change_log: null,
+              ai_metadata_json: null,
+            },
+          });
+        }
+        // Cached result failed verification against current brief — fall through to fresh generation
       }
     }
   }

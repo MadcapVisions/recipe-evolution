@@ -1,5 +1,6 @@
 import type { AIMessage, RecipeContext } from "./chatPromptBuilder";
 import { createEmptyCookingBrief, type CookingBrief } from "./contracts/cookingBrief";
+import type { LockedDirectionSession } from "./contracts/lockedDirectionSession";
 import { deriveIdeaTitleFromConversationContext, detectRequestedDishFamily } from "./homeRecipeAlignment";
 import { deriveBriefRequestMode } from "./briefStateMachine";
 
@@ -9,6 +10,34 @@ function normalizeText(value: string) {
 
 function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
+}
+
+function deriveCanonicalCenterpiece(input: {
+  normalizedName: string | null;
+  recipeTitle?: string | null;
+  userMessage: string;
+}) {
+  const candidate =
+    input.normalizedName?.trim() ||
+    input.recipeTitle?.trim() ||
+    input.userMessage.trim();
+
+  if (!candidate) {
+    return null;
+  }
+
+  const canonical = deriveIdeaTitleFromConversationContext(candidate);
+  if (canonical && canonical !== "Chef Conversation Recipe" && canonical !== "Tacos" && canonical !== "Pizza") {
+    return canonical;
+  }
+
+  const stripped = candidate.replace(/\s+with\s+.+$/i, "").trim();
+  // Only strip "with X" when the remaining phrase has at least 2 words, to avoid
+  // collapsing "Bowl with Grilled Chicken" into the single vague word "Bowl"
+  if (stripped && stripped.split(/\s+/).filter(Boolean).length > 1) {
+    return stripped;
+  }
+  return candidate;
 }
 
 const REQUIRED_INGREDIENT_STOP_WORDS = new Set([
@@ -76,8 +105,25 @@ function extractForbiddenIngredients(text: string) {
 }
 
 function extractTimeMaxMinutes(text: string) {
-  const match = text.match(/\b(?:in|under|within)\s+(\d{1,3})\s*(?:minutes|min)\b/i);
-  return match ? Number(match[1]) : null;
+  const directMatch = text.match(/\b(?:in|under|within|less than|no more than)\s+(\d{1,3})\s*(?:minutes|min)\b/i);
+  if (directMatch) {
+    return Number(directMatch[1]);
+  }
+
+  const standaloneMinutes = text.match(/\b(\d{1,3})[\s-]?(?:minute|minutes|min)\b/i);
+  if (standaloneMinutes) {
+    return Number(standaloneMinutes[1]);
+  }
+
+  if (/\bhalf an hour\b/i.test(text)) {
+    return 30;
+  }
+
+  if (/\ban hour\b/i.test(text)) {
+    return 60;
+  }
+
+  return null;
 }
 
 function extractDietaryTags(text: string) {
@@ -92,14 +138,27 @@ function extractFormatTags(text: string) {
   return tags.filter((tag) => normalized.includes(tag.replace("-", " ")) || normalized.includes(tag));
 }
 
+function extractStyleTags(text: string) {
+  const normalized = normalizeText(text);
+  const tags = ["spicy", "bright", "crispy", "crunchy", "creamy", "traditional", "lighter", "richer", "heartier"];
+  return tags.filter((tag) => normalized.includes(tag));
+}
+
 function extractTextureTags(text: string) {
   const normalized = normalizeText(text);
   const tags = ["crispy", "airy", "chewy", "creamy", "delicate", "bright"];
   return tags.filter((tag) => normalized.includes(tag));
 }
 
-function inferConfidence(input: { dishFamily: string | null; normalizedName: string | null; latestAssistantMessage: string; recipeContext: RecipeContext }) {
-  if (input.latestAssistantMessage.toLowerCase().includes("locked direction:")) return 0.92;
+function inferConfidence(input: {
+  dishFamily: string | null;
+  normalizedName: string | null;
+  recipeContext: RecipeContext;
+  lockedSessionState?: LockedDirectionSession["state"] | null;
+}) {
+  if (input.lockedSessionState === "direction_locked" || input.lockedSessionState === "ready_to_build" || input.lockedSessionState === "built") {
+    return 0.92;
+  }
   if (input.recipeContext?.title && input.dishFamily) return 0.86;
   if (input.dishFamily && input.normalizedName) return 0.78;
   if (input.dishFamily) return 0.66;
@@ -112,6 +171,8 @@ export function compileCookingBrief(input: {
   conversationHistory?: AIMessage[];
   recipeContext?: RecipeContext;
   sourceTurnIds?: string[];
+  lockedSessionState?: LockedDirectionSession["state"] | null;
+  latestAssistantMode?: "options" | "refine" | null;
 }): CookingBrief {
   const conversationHistory = input.conversationHistory ?? [];
   const assistantReply = input.assistantReply?.trim() ?? "";
@@ -131,16 +192,29 @@ export function compileCookingBrief(input: {
   const forbiddenIngredients = extractForbiddenIngredients(conversationText);
   const requiredIngredients = extractExplicitRequiredIngredients(conversationText);
   const brief = createEmptyCookingBrief();
+  const hasDishSignal = Boolean(
+    dishFamily ||
+      (normalizedName && normalizedName !== "Chef Conversation Recipe") ||
+      recipeContext?.title?.trim()
+  );
+  const hasConstraintSignal =
+    forbiddenIngredients.length > 0 ||
+    requiredIngredients.length > 0 ||
+    extractTimeMaxMinutes(conversationText) != null ||
+    extractDietaryTags(conversationText).length > 0;
   const requestMode = deriveBriefRequestMode({
     latestUserMessage: input.userMessage,
-    latestAssistantMessage: assistantReply,
     conversationHistory,
+    lockedSessionState: input.lockedSessionState,
+    latestAssistantMode: input.latestAssistantMode ?? null,
+    hasDishSignal,
+    hasConstraintSignal,
   });
   const confidence = inferConfidence({
     dishFamily,
     normalizedName,
-    latestAssistantMessage: assistantReply,
     recipeContext,
+    lockedSessionState: input.lockedSessionState,
   });
 
   brief.request_mode = requestMode;
@@ -155,7 +229,7 @@ export function compileCookingBrief(input: {
     authenticity_target: normalizeText(conversationText).includes("traditional") ? "traditional" : null,
   };
   brief.style = {
-    tags: unique(extractFormatTags(conversationText)),
+    tags: unique(extractStyleTags(conversationText)),
     texture_tags: unique(extractTextureTags(conversationText)),
     format_tags: unique(extractFormatTags(conversationText)),
   };
@@ -163,7 +237,11 @@ export function compileCookingBrief(input: {
     required: requiredIngredients,
     preferred: unique(recipeContext?.ingredients ?? []),
     forbidden: forbiddenIngredients,
-    centerpiece: brief.dish.normalized_name || recipeContext?.title?.trim() || null,
+    centerpiece: deriveCanonicalCenterpiece({
+      normalizedName: brief.dish.normalized_name,
+      recipeTitle: recipeContext?.title,
+      userMessage: input.userMessage,
+    }),
   };
   brief.constraints = {
     servings: null,
@@ -193,7 +271,7 @@ export function compileCookingBrief(input: {
   brief.source_turn_ids = input.sourceTurnIds ?? [];
   brief.compiler_notes = [
     recipeContext?.title ? "Recipe context was included in brief compilation." : "Compiled from conversation text only.",
-    assistantReply.toLowerCase().includes("locked direction:") ? "Locked direction signal detected." : "No explicit locked direction signal detected.",
+    input.lockedSessionState ? `Locked session state: ${input.lockedSessionState}.` : "No locked session state provided.",
     `Resolved request mode: ${requestMode}.`,
   ];
 

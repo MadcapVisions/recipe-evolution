@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { chefChat } from "@/lib/ai/chefChat";
 import { generateHomeIdeasWithCache, generateHomeRecipe } from "@/lib/ai/homeHub";
-import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
+import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { storeConversationTurns } from "@/lib/ai/conversationStore";
+import { getConversationTurns } from "@/lib/ai/conversationStore";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
@@ -16,12 +17,52 @@ import { createAiStageMetric } from "@/lib/ai/contracts/stageMetrics";
 import { createFailedVerificationResult } from "@/lib/ai/contracts/verificationResult";
 import { verifyRecipeAgainstBrief } from "@/lib/ai/recipeVerifier";
 import { buildRecipePlanFromBrief } from "@/lib/ai/recipePlanner";
-import { getRecipeBuildFailureDetails } from "@/lib/ai/recipeBuildError";
+import { getRecipeBuildFailureDetails, RecipeBuildError } from "@/lib/ai/recipeBuildError";
 import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeRecipeRetry";
+import { appendLockedSessionRefinementDelta, buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
+import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
+import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
+import { normalizeChefChatEnvelope } from "@/lib/ai/chefOptions";
+import { looksLikePivotRequest } from "@/lib/ai/briefStateMachine";
+import { extractRefinementDeltaWithFallback } from "@/lib/ai/refinementExtraction.server";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
   content: z.string(),
+});
+
+const lockedSessionSchema = z.object({
+  conversation_key: z.string(),
+  state: z.enum(["exploring", "direction_locked", "ready_to_build", "building", "built"]),
+  selected_direction: z
+    .object({
+      id: z.string(),
+      title: z.string(),
+      summary: z.string(),
+      tags: z.array(z.string()),
+    })
+    .nullable(),
+  refinements: z.array(
+    z.object({
+      user_text: z.string(),
+      assistant_text: z.string().nullable(),
+      confidence: z.number(),
+      ambiguity_reason: z.string().nullable(),
+      extracted_changes: z.object({
+        required_ingredients: z.array(z.string()),
+        preferred_ingredients: z.array(z.string()),
+        forbidden_ingredients: z.array(z.string()),
+        style_tags: z.array(z.string()),
+        notes: z.array(z.string()),
+      }),
+      field_state: z.object({
+        ingredients: z.enum(["locked", "inferred", "unknown"]),
+        style: z.enum(["locked", "inferred", "unknown"]),
+        notes: z.enum(["locked", "inferred", "unknown"]),
+      }),
+    })
+  ),
+  brief_snapshot: z.any().nullable(),
 });
 
 const recipeContextSchema = z
@@ -40,6 +81,8 @@ const homeAiRequestSchema = z.discriminatedUnion("mode", [
     recipeContext: recipeContextSchema,
     conversationHistory: z.array(aiMessageSchema).optional(),
     conversationKey: z.string().optional(),
+    lockedSession: lockedSessionSchema.optional(),
+    reset_session: z.boolean().optional(),
   }),
   z.object({
     mode: z.literal("mood_ideas"),
@@ -78,6 +121,7 @@ const homeAiRequestSchema = z.discriminatedUnion("mode", [
     ingredients: z.array(z.string()).optional(),
     conversationHistory: z.array(aiMessageSchema).optional(),
     conversationKey: z.string().optional(),
+    lockedSession: lockedSessionSchema.optional(),
   }),
 ]);
 
@@ -156,9 +200,60 @@ export async function POST(request: Request) {
       );
 
       const envelope = result.envelope;
+      const conversationKey = typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0
+        ? body.conversationKey.trim()
+        : null;
+      const isSessionReset = body.reset_session === true;
+      if (isSessionReset && conversationKey) {
+        void deleteLockedDirectionSession(access.supabase as any, {
+          ownerId: access.userId,
+          conversationKey,
+          scope: "home_hub",
+        });
+      }
+      const persistedSession = conversationKey && !isSessionReset
+        ? await getLockedDirectionSession(access.supabase as any, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "home_hub",
+          })
+        : null;
+      const currentSession: LockedDirectionSession | null = isSessionReset ? null : (body.lockedSession ?? persistedSession?.session_json ?? null);
+      const pivotedAwayFromLockedSession =
+        Boolean(currentSession?.selected_direction) && looksLikePivotRequest(userMessage);
+      const refinedDelta =
+        currentSession?.selected_direction && !pivotedAwayFromLockedSession
+          ? await extractRefinementDeltaWithFallback({
+              userText: userMessage,
+              assistantText: envelope.reply,
+              selectedDirection: currentSession.selected_direction,
+              taskSetting,
+            })
+          : null;
+      const refinedSession =
+        currentSession?.selected_direction && refinedDelta
+          ? appendLockedSessionRefinementDelta(currentSession, refinedDelta)
+          : null;
+      const compiledBrief =
+        refinedSession != null
+          ? buildLockedBrief({
+              session: refinedSession,
+              conversationHistory: [
+                ...conversationHistory,
+                { role: "user", content: userMessage },
+                { role: "assistant", content: envelope.reply },
+              ],
+            })
+          : compileCookingBrief({
+              userMessage,
+              assistantReply: envelope.reply,
+              conversationHistory,
+              recipeContext: body.recipeContext ?? null,
+              lockedSessionState: currentSession?.state ?? null,
+              latestAssistantMode: envelope.mode,
+            });
 
-      if (typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0) {
-        const conversationKey = body.conversationKey.trim();
+      if (conversationKey) {
         void storeConversationTurns(access.supabase as any, {
           ownerId: access.userId,
           conversationKey,
@@ -175,16 +270,25 @@ export async function POST(request: Request) {
             },
           ],
         });
+        if (refinedSession) {
+          void upsertLockedDirectionSession(access.supabase as any, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "home_hub",
+            session: refinedSession,
+          });
+        } else if (pivotedAwayFromLockedSession) {
+          void deleteLockedDirectionSession(access.supabase as any, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "home_hub",
+          });
+        }
         void upsertCookingBrief(access.supabase as any, {
           ownerId: access.userId,
           conversationKey,
           scope: "home_hub",
-          brief: compileCookingBrief({
-            userMessage,
-            assistantReply: envelope.reply,
-            conversationHistory,
-            recipeContext: body.recipeContext ?? null,
-          }),
+          brief: compiledBrief,
         });
       }
 
@@ -200,7 +304,11 @@ export async function POST(request: Request) {
         });
       }
 
-      return NextResponse.json(envelope);
+      return NextResponse.json({
+        ...envelope,
+        session_action: pivotedAwayFromLockedSession ? "clear_locked_direction" : null,
+        lockedSession: refinedSession,
+      });
     }
 
     if (body.mode === "mood_ideas" || body.mode === "ingredients_ideas") {
@@ -270,8 +378,15 @@ export async function POST(request: Request) {
             scope: "home_hub",
           })
         : null;
+      const persistedSession = conversationKey
+        ? await getLockedDirectionSession(access.supabase as any, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "home_hub",
+          })
+        : null;
       const requestStartedAt = new Date().toISOString();
-      const resolvedIdeaTitle = persistedBrief?.brief_json?.dish?.normalized_name?.trim() || ideaTitle;
+      const resolvedIdeaTitle = ideaTitle;
       const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;
       const ingredients = Array.isArray(body.ingredients)
         ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
@@ -285,16 +400,23 @@ export async function POST(request: Request) {
                 message.content.trim().length > 0
           )
         : undefined;
+      const compiledBrief = compileCookingBrief({
+        userMessage: prompt || ideaTitle,
+        conversationHistory,
+        recipeContext: {
+          title: ideaTitle,
+          ingredients,
+        },
+        lockedSessionState: (body.lockedSession ?? persistedSession?.session_json ?? null)?.state ?? null,
+      });
+      const lockedSession: LockedDirectionSession | null = body.lockedSession ?? persistedSession?.session_json ?? null;
       const effectiveBrief =
-        persistedBrief?.brief_json ??
-        compileCookingBrief({
-          userMessage: prompt || ideaTitle,
-          conversationHistory,
-          recipeContext: {
-            title: ideaTitle,
-            ingredients,
-          },
-        });
+        lockedSession?.selected_direction
+          ? buildLockedBrief({
+              session: lockedSession,
+              conversationHistory,
+            })
+          : compiledBrief;
       const briefCompiledAt = new Date().toISOString();
       const planStartedAt = new Date().toISOString();
       const recipePlan = buildRecipePlanFromBrief(effectiveBrief);
@@ -342,6 +464,8 @@ export async function POST(request: Request) {
               userId: access.userId,
             });
             const verifyStartedAt = new Date().toISOString();
+            // Note: generateHomeRecipe already throws RecipeBuildError if verification fails,
+            // so we run this again only for stage metrics and generation attempt logging.
             const attemptVerification = verifyRecipeAgainstBrief({
               brief: effectiveBrief,
               recipe: attemptResult.recipe,
@@ -367,7 +491,6 @@ export async function POST(request: Request) {
             );
             result = attemptResult;
             verification = attemptVerification;
-            activeRecipePlan = activeRecipePlan;
           } catch (error) {
             const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
             const attemptCompletedAt = new Date().toISOString();
@@ -411,13 +534,21 @@ export async function POST(request: Request) {
         }
 
         if (conversationKey) {
+          if (lockedSession?.selected_direction) {
+            void upsertLockedDirectionSession(access.supabase as any, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+              session: markLockedSessionBuilt(lockedSession, effectiveBrief),
+            });
+          }
           void storeGenerationAttempt(access.supabase as any, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
-            requestMode: persistedBrief?.brief_json?.request_mode ?? "generate",
-            stateBefore: persistedBrief?.is_locked ? "direction_locked" : "ready_for_recipe",
-            stateAfter: "recipe_generated",
+            requestMode: effectiveBrief.request_mode,
+            stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+            stateAfter: lockedSession?.selected_direction ? "built" : "recipe_generated",
             attempt: {
               conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
               cooking_brief: effectiveBrief,
@@ -447,8 +578,8 @@ export async function POST(request: Request) {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
-            requestMode: persistedBrief?.brief_json?.request_mode ?? "generate",
-            stateBefore: persistedBrief?.is_locked ? "direction_locked" : "ready_for_recipe",
+            requestMode: effectiveBrief.request_mode,
+            stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
             stateAfter: "ready_for_recipe",
             attempt: {
               conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
@@ -491,4 +622,59 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(request: Request) {
+  const access = await requireAuthenticatedAiAccess({
+    route: "home-hub-session",
+    maxRequests: 60,
+    windowMs: 5 * 60 * 1000,
+  });
+
+  if (access.errorResponse) {
+    return access.errorResponse;
+  }
+
+  const { searchParams } = new URL(request.url);
+  const conversationKey = searchParams.get("conversationKey")?.trim();
+
+  if (!conversationKey) {
+    return NextResponse.json({ error: true, message: "conversationKey is required" }, { status: 400 });
+  }
+
+  const [turns, lockedSession, brief] = await Promise.all([
+    getConversationTurns(access.supabase as any, {
+      ownerId: access.userId,
+      conversationKey,
+      scope: "home_hub",
+    }),
+    getLockedDirectionSession(access.supabase as any, {
+      ownerId: access.userId,
+      conversationKey,
+      scope: "home_hub",
+    }),
+    getCookingBrief(access.supabase as any, {
+      ownerId: access.userId,
+      conversationKey,
+      scope: "home_hub",
+    }),
+  ]);
+
+  const messages = turns.map((turn) => {
+    const envelope = normalizeChefChatEnvelope(turn.metadata_json);
+    return {
+      role: turn.role === "assistant" ? "ai" : "user",
+      text: turn.message,
+      kind: "message" as const,
+      options: envelope?.options ?? undefined,
+      recommendedOptionId: envelope?.recommended_option_id ?? null,
+    };
+  });
+
+  return NextResponse.json({
+    conversationKey,
+    messages,
+    lockedSession: lockedSession?.session_json ?? null,
+    brief: brief?.brief_json ?? null,
+  });
 }
