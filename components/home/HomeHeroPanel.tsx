@@ -25,13 +25,8 @@ function distillRefinementLabels(refinements: LockedDirectionRefinement[]): stri
         removed.push(item);
       }
     }
-    for (const tag of changes.style_tags ?? []) {
-      const key = `tag:${tag.toLowerCase()}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        added.push(tag.charAt(0).toUpperCase() + tag.slice(1));
-      }
-    }
+    // Style tags are excluded — they're extracted from combined user+assistant text
+    // and often reflect the chef's own language, not explicit user requests.
   }
 
   const parts = [
