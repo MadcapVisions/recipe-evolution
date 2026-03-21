@@ -16,7 +16,13 @@ const GENERIC_TITLE_PATTERNS = [
   /^chef special$/i,
 ];
 
-const CENTERPIECE_STOP_WORDS = new Set(["the", "a", "an", "with", "and", "of", "style", "recipe", "dish"]);
+// Dish-format words that appear in derived titles (e.g. "Chicken Bowl", "Skillet Dinner") but
+// would not reliably appear in a recipe's title/description/ingredients. The dish-family check
+// in recipeMatchesRequestedDirection already enforces these, so centerpieceMatch should ignore them.
+const CENTERPIECE_STOP_WORDS = new Set([
+  "the", "a", "an", "with", "and", "of", "style", "recipe",
+  "dish", "bowl", "dinner", "taco", "skillet",
+]);
 
 function normalizeMatchToken(value: string) {
   const normalized = value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -127,6 +133,18 @@ function specificDishNameMatch(recipe: RecipeLike, brief: CookingBrief) {
   return matchedTokenCount >= requiredMatches;
 }
 
+// Style synonyms so that e.g. "crispy" in the brief passes when the AI writes "crunchy".
+const STYLE_TAG_SYNONYMS: Record<string, string[]> = {
+  crispy: ["crunchy", "crisp"],
+  crunchy: ["crispy", "crisp"],
+  bright: ["fresh", "vibrant", "zesty", "citrusy"],
+  creamy: ["velvety", "silky", "smooth"],
+  lighter: ["light", "refreshing"],
+  richer: ["rich", "indulgent"],
+  heartier: ["hearty", "robust", "filling"],
+  spicy: ["spiced", "fiery", "peppery"],
+};
+
 function styleMatch(recipe: RecipeLike, brief: CookingBrief) {
   if (brief.style.tags.length === 0 && brief.style.texture_tags.length === 0 && brief.style.format_tags.length === 0) {
     return true;
@@ -136,7 +154,11 @@ function styleMatch(recipe: RecipeLike, brief: CookingBrief) {
   return (
     targetTags.some((tag) => {
       const normalizedTag = tag.toLowerCase();
-      return text.includes(normalizedTag) || text.includes(normalizedTag.replace(/-/g, " "));
+      if (text.includes(normalizedTag) || text.includes(normalizedTag.replace(/-/g, " "))) {
+        return true;
+      }
+      const synonyms = STYLE_TAG_SYNONYMS[normalizedTag] ?? [];
+      return synonyms.some((synonym) => text.includes(synonym));
     }) || targetTags.length === 0
   );
 }

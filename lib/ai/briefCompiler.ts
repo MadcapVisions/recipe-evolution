@@ -32,9 +32,10 @@ function deriveCanonicalCenterpiece(input: {
   }
 
   const stripped = candidate.replace(/\s+with\s+.+$/i, "").trim();
-  // Only strip "with X" when the remaining phrase has at least 2 words, to avoid
-  // collapsing "Bowl with Grilled Chicken" into the single vague word "Bowl"
-  if (stripped && stripped.split(/\s+/).filter(Boolean).length > 1) {
+  // Allow single-word stripped results (e.g. "Flatbread with Tomato" → "Flatbread").
+  // Generic dish-format words like "Bowl" and "Skillet" are in CENTERPIECE_STOP_WORDS in the
+  // verifier, so they produce no token constraint and pass trivially there.
+  if (stripped) {
     return stripped;
   }
   return candidate;
@@ -55,6 +56,21 @@ const REQUIRED_INGREDIENT_STOP_WORDS = new Set([
   "extra",
   "more",
   "less",
+  // Quality/attribute words that can appear in conversational phrases like
+  // "make sure it has great depth of flavor" — these are never ingredient names
+  "great",
+  "good",
+  "depth",
+  "flavor",
+  "flavour",
+  "taste",
+  "texture",
+  "rich",
+  "complex",
+  "delicious",
+  "perfect",
+  "balance",
+  "quality",
 ]);
 
 function splitIngredientCandidates(value: string) {
