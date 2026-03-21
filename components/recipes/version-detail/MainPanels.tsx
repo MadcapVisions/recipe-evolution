@@ -83,9 +83,9 @@ export function VersionMainPanels({
               type="button"
               onClick={onShare}
               aria-label="Share recipe"
-              className="absolute right-4 top-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(255,255,255,0.72)] bg-[rgba(255,251,246,0.94)] text-[color:var(--text)] shadow-[0_10px_24px_rgba(44,26,21,0.16)] backdrop-blur-sm transition hover:bg-white"
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(255,255,255,0.72)] bg-[rgba(255,251,246,0.94)] text-[color:var(--text)] shadow-[0_10px_24px_rgba(44,26,21,0.16)] backdrop-blur-sm transition hover:bg-white sm:h-12 sm:w-12"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 16V4" />
                 <path d="m7 9 5-5 5 5" />
                 <path d="M5 20h14" />
@@ -98,9 +98,9 @@ export function VersionMainPanels({
               type="button"
               onClick={onShare}
               aria-label="Share recipe"
-              className="absolute right-4 top-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(255,255,255,0.72)] bg-[rgba(255,251,246,0.94)] text-[color:var(--text)] shadow-[0_10px_24px_rgba(44,26,21,0.16)] backdrop-blur-sm transition hover:bg-white"
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(255,255,255,0.72)] bg-[rgba(255,251,246,0.94)] text-[color:var(--text)] shadow-[0_10px_24px_rgba(44,26,21,0.16)] backdrop-blur-sm transition hover:bg-white sm:h-12 sm:w-12"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 16V4" />
                 <path d="m7 9 5-5 5 5" />
                 <path d="M5 20h14" />
@@ -144,7 +144,7 @@ export function VersionMainPanels({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="app-kicker">Current version</p>
-              <h1 className="mt-3 text-[24px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] min-[380px]:text-[28px] sm:text-[42px]">{recipe.title}</h1>
+              <h1 className="mt-3 text-[24px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] min-[380px]:text-[28px] sm:text-[32px] lg:text-[42px]">{recipe.title}</h1>
               {recipe.description ? (
                 <p className="mt-3 text-[15px] leading-relaxed text-[color:var(--muted)]">{recipe.description}</p>
               ) : null}
