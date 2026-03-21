@@ -121,7 +121,7 @@ export function MealPlannerClient({
   autoAssignedFromQuery?: boolean;
 }) {
   const router = useRouter();
-  const { setOpenPanel } = useAppShell();
+  const { setOpenPanel, openPanel } = useAppShell();
   const defaultSelectedVersionIds = useMemo(
     () =>
       recipeOptions
@@ -145,6 +145,7 @@ export function MealPlannerClient({
   const [collapsedAisles, setCollapsedAisles] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<PlannerTab>("week");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [mobileTargetDay, setMobileTargetDay] = useState<string | null>(null);
 
   const weekDays = useMemo(() => buildWeekDays(weekStartDate), [weekStartDate]);
   const currentWeekStart = useMemo(() => {
@@ -285,6 +286,12 @@ export function MealPlannerClient({
     }
   };
 
+  const openPanelForDay = (day: string) => {
+    setMobileTargetDay(day);
+    setLeftSidebarMode("selection");
+    setOpenPanel("left");
+  };
+
   const addRecipe = (versionId: string) => {
     openLeftPanelMode("selection");
     setFocusedVersionId(versionId);
@@ -366,9 +373,12 @@ export function MealPlannerClient({
   };
 
   const handleDayClick = (day: string) => {
+    if (isCompactViewport()) {
+      openPanelForDay(day);
+      return;
+    }
     if (focusedVersionId) {
       assignRecipeToDay(day, focusedVersionId);
-      return;
     }
   };
 
@@ -399,6 +409,12 @@ export function MealPlannerClient({
       window.print();
     }
   };
+
+  useEffect(() => {
+    if (openPanel !== "left" && mobileTargetDay !== null) {
+      setMobileTargetDay(null);
+    }
+  }, [openPanel, mobileTargetDay]);
 
   useEffect(() => {
     if (!autoAssignedFromQuery) {
@@ -453,12 +469,28 @@ export function MealPlannerClient({
   const mobilePanelContent =
     leftSidebarMode === "selection" ? (
       <div className="space-y-4">
-        <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.84)] p-4">
-          <p className="app-kicker">Library</p>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
-            Search your saved recipes, adjust servings, then drag or tap them into the week.
-          </p>
-        </div>
+        {mobileTargetDay ? (
+          <div className="flex items-center justify-between gap-3 rounded-[20px] border border-[rgba(210,76,47,0.18)] bg-[rgba(210,76,47,0.07)] px-4 py-3">
+            <div>
+              <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[color:var(--primary-strong)]">Adding to {mobileTargetDay}</p>
+              <p className="mt-0.5 text-xs text-[color:var(--muted)]">Tap a recipe below to assign it.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setMobileTargetDay(null); setOpenPanel(null); }}
+              className="rounded-full border border-[rgba(57,75,70,0.1)] bg-white px-3 py-1 text-xs font-semibold text-[color:var(--muted)]"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.84)] p-4">
+            <p className="app-kicker">Library</p>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
+              Search your saved recipes, adjust servings, then tap them into the week.
+            </p>
+          </div>
+        )}
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
           <input
             value={searchQuery}
@@ -495,12 +527,24 @@ export function MealPlannerClient({
                   </button>
                     <button
                       type="button"
-                      onClick={() => (active ? removeRecipe(option.versionId) : addRecipe(option.versionId))}
+                      onClick={() => {
+                        if (mobileTargetDay) {
+                          assignRecipeToDay(mobileTargetDay, option.versionId);
+                          setMobileTargetDay(null);
+                          setOpenPanel(null);
+                        } else {
+                          active ? removeRecipe(option.versionId) : addRecipe(option.versionId);
+                        }
+                      }}
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        active ? "bg-[rgba(210,76,47,0.12)] text-[color:var(--primary-strong)]" : "border border-[rgba(57,75,70,0.1)] text-[color:var(--muted)]"
+                        mobileTargetDay
+                          ? "bg-[color:var(--primary)] text-white"
+                          : active
+                            ? "bg-[rgba(210,76,47,0.12)] text-[color:var(--primary-strong)]"
+                            : "border border-[rgba(57,75,70,0.1)] text-[color:var(--muted)]"
                       }`}
                     >
-                      {active ? "Remove" : "Add"}
+                      {mobileTargetDay ? "Add" : active ? "Remove" : "Add"}
                     </button>
                 </div>
                 {active ? (
