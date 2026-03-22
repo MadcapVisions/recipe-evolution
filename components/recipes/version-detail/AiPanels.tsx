@@ -407,10 +407,12 @@ function NutritionRow({
 export function NutritionPanel({
   facts,
   loading,
+  error,
   onRecalculate,
 }: {
   facts: NutritionFacts | null;
   loading: boolean;
+  error?: boolean;
   onRecalculate: () => void;
 }) {
   return (
@@ -457,7 +459,9 @@ export function NutritionPanel({
         </>
       ) : (
         <div className="mt-4 text-center">
-          <p className="text-[13px] text-[color:var(--muted)]">No nutrition data yet.</p>
+          <p className="text-[13px] text-[color:var(--muted)]">
+            {error ? "Could not estimate nutrition. Try again." : "No nutrition data yet."}
+          </p>
         </div>
       )}
 

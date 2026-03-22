@@ -12,6 +12,10 @@ function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
 }
 
+function isGenericCenterpieceTitle(s: string): boolean {
+  return s === "Chef Conversation Recipe" || /^chef\s/i.test(s) || /\sDish$/.test(s);
+}
+
 function deriveCanonicalCenterpiece(input: {
   normalizedName: string | null;
   recipeTitle?: string | null;
@@ -27,16 +31,16 @@ function deriveCanonicalCenterpiece(input: {
   }
 
   const canonical = deriveIdeaTitleFromConversationContext(candidate);
-  // Accept canonical only when it is specific — skip generic "* Dish" fallbacks which lose
+  // Accept canonical only when it is specific — skip generic fallbacks which lose
   // the actual dish name (e.g. "Mushroom Dish" from "make mushroom risotto").
-  if (canonical && canonical !== "Chef Conversation Recipe" && canonical !== "Tacos" && canonical !== "Pizza" && !/\sDish$/.test(canonical)) {
+  if (canonical && !isGenericCenterpieceTitle(canonical) && canonical !== "Tacos" && canonical !== "Pizza") {
     return canonical;
   }
 
   // Canonical was generic — prefer specific sources in order: normalizedName (if non-generic),
   // then recipeTitle, then strip "with ..." from the raw candidate.
   const specifics = [input.normalizedName?.trim(), input.recipeTitle?.trim()].filter(
-    (s): s is string => typeof s === "string" && s.length > 0 && !/\sDish$/.test(s)
+    (s): s is string => typeof s === "string" && s.length > 0 && !isGenericCenterpieceTitle(s)
   );
   for (const specific of specifics) {
     const stripped = specific.replace(/\s+with\s+.+$/i, "").trim();
@@ -47,10 +51,10 @@ function deriveCanonicalCenterpiece(input: {
   // Allow single-word stripped results (e.g. "Flatbread with Tomato" → "Flatbread").
   // Generic dish-format words like "Bowl" and "Skillet" are in CENTERPIECE_STOP_WORDS in the
   // verifier, so they produce no token constraint and pass trivially there.
-  if (stripped) {
+  if (stripped && !isGenericCenterpieceTitle(stripped)) {
     return stripped;
   }
-  return candidate;
+  return null;
 }
 
 const REQUIRED_INGREDIENT_STOP_WORDS = new Set([

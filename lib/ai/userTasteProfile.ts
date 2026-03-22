@@ -287,17 +287,22 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
 
   const combinedSummary = [explicitSummary, inferred.summary].filter(Boolean).join(" ");
 
-  if (combinedSummary && supabase.from("user_taste_profiles").upsert) {
-    void supabase.from("user_taste_profiles").upsert?.(
-      {
-        owner_id: ownerId,
-        explicit_summary: explicitSummary || null,
-        inferred_summary: inferred.summary || null,
-        combined_summary: combinedSummary,
-        inferred_signals_json: inferred.signals,
-      },
-      { onConflict: "owner_id" }
-    );
+  if (combinedSummary) {
+    void (async () => {
+      const { error } = await supabase
+        .from("user_taste_profiles")
+        .upsert(
+          {
+            owner_id: ownerId,
+            explicit_summary: explicitSummary || null,
+            inferred_summary: inferred.summary || null,
+            combined_summary: combinedSummary,
+            inferred_signals_json: inferred.signals,
+          },
+          { onConflict: "owner_id" }
+        );
+      if (error) console.warn("Failed to update user taste profile", error.message);
+    })();
   }
 
   return combinedSummary;

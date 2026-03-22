@@ -36,7 +36,9 @@ export function useRecipeAssistant(recipeId: string, versionId: string) {
     const storedConversationKey = window.localStorage.getItem(conversationKeyStorage);
     const rawSelectedDirection = window.localStorage.getItem(selectedDirectionKey);
 
+    let cancelled = false;
     void Promise.resolve().then(() => {
+    if (cancelled) return;
     if (storedConversationKey?.trim()) {
       setConversationKey(storedConversationKey);
     } else {
@@ -114,6 +116,7 @@ export function useRecipeAssistant(recipeId: string, versionId: string) {
       }
     }
     }); // end Promise.resolve().then
+    return () => { cancelled = true; };
   }, [recipeId, versionId]);
 
   useEffect(() => {

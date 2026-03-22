@@ -114,10 +114,22 @@ export function buildLockedBrief(input: {
     },
   });
 
-  const canonicalDish = shouldKeepSelectedTitle(selected.title)
+  // When the direction title is specific, derive dish identity only from the title + summary.
+  // When the title is generic (e.g. "Chef Conversation Recipe"), fall back to the full
+  // conversation history so we can extract a real dish family and canonical name.
+  const titleIsSpecific = shouldKeepSelectedTitle(selected.title);
+  const directionContext = [
+    selected.title,
+    selected.summary,
+    refinementText,
+    ...(titleIsSpecific ? [] : (input.conversationHistory ?? []).map((m) => m.content)),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const canonicalDish = titleIsSpecific
     ? selected.title.trim()
-    : deriveIdeaTitleFromConversationContext(`${selected.title} ${selected.summary}`);
-  const canonicalFamily = detectRequestedDishFamily(`${selected.title} ${selected.summary}`);
+    : deriveIdeaTitleFromConversationContext(directionContext);
+  const canonicalFamily = detectRequestedDishFamily(directionContext);
   const requiredIngredients = unique([
     // Only use explicit user refinements — do not include brief.ingredients.required here,
     // as compileCookingBrief incorrectly parses the AI-generated direction summary text
@@ -134,11 +146,15 @@ export function buildLockedBrief(input: {
   ]);
 
   brief.request_mode = "locked";
-  brief.dish.normalized_name = canonicalDish === "Chef Conversation Recipe" ? selected.title : canonicalDish;
+  brief.dish.normalized_name = shouldKeepSelectedTitle(canonicalDish) ? canonicalDish : null;
   brief.dish.dish_family = canonicalFamily ?? brief.dish.dish_family;
   brief.ingredients.required = requiredIngredients;
   brief.ingredients.forbidden = forbiddenIngredients;
-  brief.ingredients.centerpiece = brief.dish.normalized_name || selected.title;
+  // Only set a centerpiece when the direction title is specific enough to be meaningful.
+  // A generic title like "Chef Conversation Recipe" would always fail centerpieceMatch.
+  brief.ingredients.centerpiece = shouldKeepSelectedTitle(selected.title)
+    ? (brief.dish.normalized_name || selected.title)
+    : null;
   brief.style.tags = styleTags;
   brief.style.format_tags = unique(brief.style.format_tags);
   brief.directives.must_have = unique([...brief.directives.must_have, ...requiredIngredients, ...styleTags]);

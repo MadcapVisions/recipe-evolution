@@ -38,6 +38,13 @@ import { useTargetServings } from "@/lib/recipes/targetServings";
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
 
+function normalizeDifficulty(raw: string | null | undefined): "Easy" | "Medium" | "Hard" {
+  const lower = (raw ?? "").toLowerCase().trim();
+  if (lower.includes("hard") || lower.includes("advanced") || lower.includes("expert") || lower.includes("difficult")) return "Hard";
+  if (lower.includes("medium") || lower.includes("moderate") || lower.includes("intermediate")) return "Medium";
+  return "Easy";
+}
+
 function mapInstructionToImproveGoal(instruction: string): "high protein" | "vegetarian" | "faster" | "spicier" | null {
   const lower = instruction.toLowerCase();
   if (lower.includes("vegetarian")) return "vegetarian";
@@ -138,9 +145,10 @@ export function VersionDetailClient({
     version?.id ?? versionId,
     version?.servings ?? null
   );
-  const difficulty = version?.difficulty?.trim() || "Easy";
+  const difficulty = normalizeDifficulty(version?.difficulty);
   const [nutritionFacts, setNutritionFacts] = useState<NutritionFacts | null>(null);
   const [nutritionLoading, setNutritionLoading] = useState(false);
+  const [nutritionError, setNutritionError] = useState(false);
 
   const fetchNutrition = (force = false) => {
     if (!version || !recipe) return;
@@ -148,6 +156,7 @@ export function VersionDetailClient({
     const ing = ingredients.filter((i) => i.name.trim().length > 0).map((i) => ({ name: i.name }));
     if (ing.length === 0) return;
     setNutritionLoading(true);
+    setNutritionError(false);
     void fetch("/api/ai/nutrition", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -161,9 +170,16 @@ export function VersionDetailClient({
       .then(async (res) => {
         if (res.ok) {
           const payload = (await res.json()) as { facts?: NutritionFacts };
-          if (payload.facts) setNutritionFacts(payload.facts);
+          if (payload.facts) {
+            setNutritionFacts(payload.facts);
+          } else {
+            setNutritionError(true);
+          }
+        } else {
+          setNutritionError(true);
         }
       })
+      .catch(() => setNutritionError(true))
       .finally(() => setNutritionLoading(false));
   };
 
@@ -188,13 +204,19 @@ export function VersionDetailClient({
     let cancelled = false;
 
     const loadPrepProgress = async () => {
-      const response = await fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const payload = (await response.json()) as { completedChecklistIds?: string[] };
-      if (!cancelled && response.ok) {
-        setCompletedPrepIds(payload.completedChecklistIds ?? []);
+      try {
+        const response = await fetch(`/api/recipes/${recipeId}/versions/${versionId}/prep-progress`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const payload = (await response.json()) as { completedChecklistIds?: string[] };
+          if (!cancelled) {
+            setCompletedPrepIds(payload.completedChecklistIds ?? []);
+          }
+        }
+      } catch {
+        // Non-critical: prep progress just won't be pre-loaded
       }
     };
 
@@ -675,7 +697,7 @@ export function VersionDetailClient({
         action: "quick_action",
         instruction,
       });
-      assistant.setAiError("Built with deterministic fallback while AI was unavailable.");
+      assistant.setAiError(null);
       assistant.setIsGeneratingVersion(false);
       return;
     }
@@ -746,13 +768,14 @@ export function VersionDetailClient({
         const fallbackSuggestion = buildDeterministicSuggestion(instruction);
         if (!fallbackSuggestion) {
           assistant.setSuggestedChange(null);
-          assistant.setAiError("Conversation updated. Could not create an apply-ready change from that message.");
+          assistant.setAiError(null);
         } else {
           assistant.setSuggestedChange(fallbackSuggestion);
-          assistant.setAiError("Conversation updated with deterministic fallback change.");
+          assistant.setAiError(null);
         }
       } else {
         assistant.setSuggestedChange(suggestion);
+        assistant.setAiError(null);
       }
       assistant.setCustomInstruction("");
     } catch (_error) {
@@ -1227,7 +1250,7 @@ export function VersionDetailClient({
           {rightSidebarMode === "overview" ? (
             <>
               <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
-              <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} onRecalculate={() => fetchNutrition(true)} />
+              <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} error={nutritionError} onRecalculate={() => fetchNutrition(true)} />
             </>
           ) : null}
 
@@ -1311,7 +1334,7 @@ export function VersionDetailClient({
 
         <aside className="hidden space-y-4 xl:block xl:sticky xl:top-28 xl:self-start">
           <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
-          <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} onRecalculate={() => fetchNutrition(true)} />
+          <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} error={nutritionError} onRecalculate={() => fetchNutrition(true)} />
           <PrepPlanPanel
             prepPlan={prepPlan}
             completedChecklistIds={completedPrepIds}

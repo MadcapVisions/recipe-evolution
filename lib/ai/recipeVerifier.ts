@@ -22,6 +22,8 @@ const GENERIC_TITLE_PATTERNS = [
 const CENTERPIECE_STOP_WORDS = new Set([
   "the", "a", "an", "with", "and", "of", "style", "recipe",
   "dish", "bowl", "dinner", "taco", "skillet",
+  // Generic direction-title words that would never appear in recipe content
+  "chef", "conversation", "direction", "base", "locked",
 ]);
 
 function normalizeMatchToken(value: string) {
