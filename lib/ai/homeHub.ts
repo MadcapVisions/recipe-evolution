@@ -874,7 +874,9 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     }
   }
 
-  // Quality repair pass: fix vague steps, taste violations, and missing quantities
+  // Quality repair pass: fix vague steps, taste violations, and missing quantities.
+  // The recipe already passed verification above — if the repair re-check fails we revert
+  // to the pre-repair state rather than throwing, so a quality repair never kills a valid build.
   const vagueSteps = recipe.steps.filter((s) => isVagueStep(s.text));
   const disliked = userTasteSummary ? extractDislikedFromSummary(userTasteSummary) : [];
   const violations = findTasteViolations(recipe, disliked);
@@ -919,25 +921,22 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       }
       const repairedRecipe = normalizeRecipe(repairResult.parsed, input.ideaTitle);
       if (repairedRecipe) {
-        recipe = repairedRecipe;
         onStage?.("recipe_verify", "Re-checking the corrected recipe...");
-        verification = verifyRecipeAgainstBrief({
-          recipe,
+        const repairedVerification = verifyRecipeAgainstBrief({
+          recipe: repairedRecipe,
           brief: input.cookingBrief,
           fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
         });
+        if (repairedVerification.passes) {
+          recipe = repairedRecipe;
+          verification = repairedVerification;
+        }
+        // If the repair drifted the recipe and broke verification, silently keep the
+        // pre-repair recipe — it already passed and is good enough to serve.
       }
     } catch {
       // fail soft — use original recipe
     }
-  }
-
-  if (!verification.passes) {
-    throw new RecipeBuildError({
-      message: verification.reasons[0] ?? "AI recipe failed verification.",
-      kind: "verification_failed",
-      verification,
-    });
   }
 
   const aiRecipeResult = createAiRecipeResult({
