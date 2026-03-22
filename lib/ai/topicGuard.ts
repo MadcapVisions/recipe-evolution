@@ -221,33 +221,6 @@ const COOKING_INTENT_PATTERNS = [
   /\bunder \$?\d+/,
 ];
 
-const RECIPE_CONTEXT_PATTERNS = [
-  /\bmake (?:it|this)\b/,
-  /\bhow do i fix\b/,
-  /\bwhat should i change\b/,
-  /\bwhat can i swap\b/,
-  /\bwhat can i use instead\b/,
-  /\bdoes this need\b/,
-  /\bhow long\b/,
-  /\bwhat side\b/,
-  /\bwhat goes with\b/,
-  /\bi (?:don't|do not) like\b/,
-  /\bi (?:don't|do not) want\b/,
-  /\bi prefer\b/,
-  /\bwithout\b/,
-  /\blet'?s add\b/,
-  /\badd\b/,
-  /\bleave out\b/,
-  /\bskip\b/,
-  /\bremove\b/,
-  /\bavoid\b/,
-  /\binstead of\b/,
-  /\btoo (?:salty|sweet|bland|thin|thick|spicy)\b/,
-  /\b(?:spicier|milder|faster|quicker|healthier|lighter|richer|crispier|creamier)\b/,
-  /\bdouble this\b/,
-  /\bhalve this\b/,
-  /\bfor \d+\b/,
-];
 
 export const COOKING_SCOPE_MESSAGE =
   "I can help with cooking-focused requests only. Ask about dishes, ingredients, sauces, substitutions, technique, timing, grocery planning, meal prep, or how to improve this recipe.";
@@ -287,31 +260,6 @@ function hasRecipeContext(recipeContext?: RecipeContext) {
     recipeContext.title?.trim() ||
       (recipeContext.ingredients && recipeContext.ingredients.some((item) => item.trim().length > 0)) ||
       (recipeContext.steps && recipeContext.steps.some((item) => item.trim().length > 0))
-  );
-}
-
-function looksLikeRecipeScopedFollowUp(text: string) {
-  return RECIPE_CONTEXT_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function looksLikeRecipeScopedIngredientAdjustment(text: string) {
-  return /\b(?:add|swap|replace|remove|skip|leave out|without)\b/.test(text) && countMatches(text, FOOD_TERMS) > 0;
-}
-
-function looksLikeShortRecipeScopedRefinement(text: string) {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0 || words.length > 8) {
-    return false;
-  }
-
-  if (hasStrongOffTopicIntent(text)) {
-    return false;
-  }
-
-  return (
-    /\b(?:add|use|swap|replace|skip|remove|leave out|without|more|less|extra|make|keep)\b/.test(text) ||
-    countMatches(text, FOOD_TERMS) > 0 ||
-    countMatches(text, COOKING_KEYWORDS) > 0
   );
 }
 

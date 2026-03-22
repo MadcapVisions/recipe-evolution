@@ -86,6 +86,7 @@ export function mapVersionToCanonicalVersion(version: {
 
 export async function createRecipeFromDraft(input: {
   draft: RecipeDraft;
+  forkedFromVersionId?: string | null;
 }) {
   let draft: RecipeDraft;
   try {
@@ -101,12 +102,16 @@ export async function createRecipeFromDraft(input: {
       ingredients: repairRecipeDraftIngredientLines(input.draft.ingredients),
     });
   }
+  const body: Record<string, unknown> = { draft };
+  if (input.forkedFromVersionId) {
+    body.forkedFromVersionId = input.forkedFromVersionId;
+  }
   const response = await fetch("/api/recipes", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ draft }),
+    body: JSON.stringify(body),
   });
 
   const data = (await response.json()) as {

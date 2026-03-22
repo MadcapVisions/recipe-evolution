@@ -43,6 +43,7 @@ export function ChefAiPanel({
   onSelectDirection,
   onClearDirection,
   onApplySuggestedChange,
+  onForkFromSuggestion,
   onComposerFocus,
   conversationEndRef,
 }: {
@@ -63,6 +64,7 @@ export function ChefAiPanel({
   onSelectDirection: (messageId: string, option: ChefDirectionOption) => void;
   onClearDirection: () => void;
   onApplySuggestedChange: () => void;
+  onForkFromSuggestion: () => void;
   onComposerFocus?: () => void;
   conversationEndRef: RefObject<HTMLDivElement | null>;
 }) {
@@ -283,6 +285,14 @@ export function ChefAiPanel({
                 className="mt-4 w-full rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
               >
                 Save as New Version
+              </button>
+              <button
+                type="button"
+                onClick={onForkFromSuggestion}
+                disabled={isGeneratingVersion || isAskingAi}
+                className="mt-2 w-full rounded-full border border-[rgba(74,106,96,0.2)] bg-transparent px-4 py-2.5 text-[14px] font-medium text-[color:var(--muted)] transition hover:border-[rgba(74,106,96,0.4)] hover:text-[color:var(--text)] disabled:opacity-60"
+              >
+                Save as New Recipe (Fork)
               </button>
             </div>
           ) : null}

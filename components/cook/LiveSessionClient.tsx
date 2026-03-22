@@ -57,8 +57,10 @@ function LiveTimerPanel({
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
-    setRemainingSeconds(durationSeconds);
-    setIsRunning(false);
+    void Promise.resolve().then(() => {
+      setRemainingSeconds(durationSeconds);
+      setIsRunning(false);
+    });
   }, [durationSeconds, stepKey]);
 
   useEffect(() => {

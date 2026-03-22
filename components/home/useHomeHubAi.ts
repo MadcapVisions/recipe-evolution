@@ -121,7 +121,7 @@ const buildRecipeSeedFromConversation = (
       .reverse()
       .find((message) => message.role === "user")
       ?.text.trim() ?? conversationText;
-  const selectedSummary = selectedDirection?.summary?.trim() ?? "";
+  const _selectedSummary = selectedDirection?.summary?.trim() ?? "";
   const ideaTitle =
     selectedDirection?.title?.trim() ||
     deriveIdeaTitleFromConversationContext(latestAssistantReply || conversationText) ||

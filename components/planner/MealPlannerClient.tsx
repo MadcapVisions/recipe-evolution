@@ -412,7 +412,9 @@ export function MealPlannerClient({
 
   useEffect(() => {
     if (openPanel !== "left" && mobileTargetDay !== null) {
-      setMobileTargetDay(null);
+      void Promise.resolve().then(() => {
+        setMobileTargetDay(null);
+      });
     }
   }, [openPanel, mobileTargetDay]);
 
@@ -533,7 +535,7 @@ export function MealPlannerClient({
                           setMobileTargetDay(null);
                           setOpenPanel(null);
                         } else {
-                          active ? removeRecipe(option.versionId) : addRecipe(option.versionId);
+                          if (active) { removeRecipe(option.versionId); } else { addRecipe(option.versionId); }
                         }
                       }}
                       className={`rounded-full px-3 py-1 text-xs font-semibold ${

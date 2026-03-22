@@ -64,7 +64,7 @@ function banner(title) {
   console.log(`${"═".repeat(72)}`);
 }
 
-function row(label, value, flag = "") {
+function _row(label, value, flag = "") {
   console.log(`  ${label.padEnd(20)} ${value}${flag ? "  " + flag : ""}`);
 }
 
@@ -90,7 +90,7 @@ Rules:
 - No markdown or text outside the JSON.` },
       { role: "user", content: "I have salmon fillets and some fresh dill. Give me 3 different directions I could take for dinner tonight." },
     ],
-    score(parsed, text) {
+    score(parsed, _text) {
       const issues = [];
       if (!parsed) { issues.push("JSON parse fail"); return { score: 0, issues }; }
       if (!parsed.reply?.trim()) issues.push("empty reply");

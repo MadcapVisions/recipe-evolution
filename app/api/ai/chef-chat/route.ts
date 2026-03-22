@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { chefChat } from "@/lib/ai/chefChat";
 import type { ChefChatEnvelope } from "@/lib/ai/chefOptions";
-import type { AIMessage, RecipeContext } from "@/lib/ai/chatPromptBuilder";
+import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
-    const userTasteSummary = await buildUserTasteSummary(access.supabase as any, access.userId);
+    const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;
     try {
@@ -177,7 +178,7 @@ export async function POST(request: Request) {
     }
 
     if (typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0) {
-      void storeConversationTurns(access.supabase as any, {
+      void storeConversationTurns(access.supabase as SupabaseClient, {
         ownerId: access.userId,
         conversationKey: body.conversationKey.trim(),
         scope: "recipe_detail",

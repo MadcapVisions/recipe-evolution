@@ -193,16 +193,22 @@ export function AppShellClient({
   );
 
   useEffect(() => {
-    setNavOpen(false);
-    setOpenPanel(null);
+    void Promise.resolve().then(() => {
+      setNavOpen(false);
+      setOpenPanel(null);
+    });
   }, [pathname]);
 
   useEffect(() => {
     if (openPanel === "left" && !leftPanel) {
-      setOpenPanel(null);
+      void Promise.resolve().then(() => {
+        setOpenPanel(null);
+      });
     }
     if (openPanel === "right" && !rightPanel) {
-      setOpenPanel(null);
+      void Promise.resolve().then(() => {
+        setOpenPanel(null);
+      });
     }
   }, [leftPanel, openPanel, rightPanel]);
 
@@ -256,7 +262,7 @@ export function AppShellClient({
       window.clearTimeout(timeoutB);
       setHintedSide(null);
     };
-  }, [leftPanel?.label, openPanel, pathname, rightPanel?.label]);
+  }, [leftPanel, leftPanel?.label, openPanel, pathname, rightPanel, rightPanel?.label]);
 
   return (
     <AppShellContext.Provider value={contextValue}>

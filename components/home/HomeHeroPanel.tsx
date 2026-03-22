@@ -132,7 +132,7 @@ export function HomeHeroPanel({
   loading,
   generatingRecipe,
   heroChatReadyToApply,
-  activeChatRecipeIndex,
+  activeChatRecipeIndex: _activeChatRecipeIndex,
   error,
   status,
   onPromptInputChange,
@@ -142,7 +142,7 @@ export function HomeHeroPanel({
   onCreateRecipeFromReply,
   onSelectChefDirection,
   onClearChefDirection,
-  onRemoveLastRefinement,
+  onRemoveLastRefinement: _onRemoveLastRefinement,
   onStartOver,
   heroChatFrameRef,
   heroChatViewportRef,
@@ -232,7 +232,7 @@ export function HomeHeroPanel({
             {heroChatMessages.length === 0 && !loading ? (
               <div className="space-y-3">
                 <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Start with a prompt like this</p>
-                <p className="text-[15px] font-semibold text-[color:var(--text)] sm:text-[18px]">"I want a bright, quick dinner with chicken, lemon, and some crunch."</p>
+                <p className="text-[15px] font-semibold text-[color:var(--text)] sm:text-[18px]">&ldquo;I want a bright, quick dinner with chicken, lemon, and some crunch.&rdquo;</p>
                 <p className="max-w-2xl text-[14px] leading-6 text-[color:var(--muted)] sm:text-[16px] sm:leading-7">
                   Ask for structure, technique, substitutions, timing, or flavor balance before you turn it into a saved recipe.
                 </p>
@@ -240,7 +240,7 @@ export function HomeHeroPanel({
             ) : (
               <>
                 {heroChatMessages.map((message, index) => {
-                  const isLastAiMessage =
+                  const _isLastAiMessage =
                     message.role === "ai" &&
                     heroChatMessages.slice(index + 1).every((m) => m.role !== "ai");
                   const options = message.role === "ai" ? message.options ?? [] : [];

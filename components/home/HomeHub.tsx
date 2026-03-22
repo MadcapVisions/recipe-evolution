@@ -163,7 +163,7 @@ function BuildDebugPanel({ log }: { log: BuildDebugEntry[] }) {
   );
 }
 
-export function HomeHub({ recentRecipes, userTasteProfile }: HomeHubProps) {
+export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile }: HomeHubProps) {
   const {
     promptInput,
     setPromptInput,

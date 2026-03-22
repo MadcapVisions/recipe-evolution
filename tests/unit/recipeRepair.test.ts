@@ -6,6 +6,7 @@ import {
   buildVerificationRepairInstructions,
 } from "../../lib/ai/recipeRepair";
 import type { VerificationResult } from "../../lib/ai/contracts/verificationResult";
+import type { CookingBrief } from "../../lib/ai/contracts/cookingBrief";
 
 function passingChecks(): VerificationResult["checks"] {
   return {
@@ -64,7 +65,7 @@ test("buildVerificationRepairInstructions includes centerpiece fix when centerpi
   };
   const brief = {
     ingredients: { centerpiece: "chicken", required: [], forbidden: [], preferred: [] },
-  } as any;
+  } as unknown as CookingBrief;
 
   const instructions = buildVerificationRepairInstructions(verification, brief);
   assert.equal(instructions.length, 1);
@@ -89,7 +90,7 @@ test("buildVerificationRepairInstructions includes required and forbidden fixes 
       preferred: [],
     },
     style: { tags: [], texture_tags: [], format_tags: [] },
-  } as any;
+  } as unknown as CookingBrief;
 
   const instructions = buildVerificationRepairInstructions(verification, brief);
   assert.equal(instructions.length, 2);

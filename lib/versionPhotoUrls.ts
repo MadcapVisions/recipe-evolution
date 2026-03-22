@@ -24,15 +24,12 @@ export async function signVersionPhotoUrls(
   }
 
   const objectPaths = photos.map((photo) => toVersionPhotoObjectPath(photo.storage_path));
-  const storage = supabase.storage.from("version-photos") as typeof supabase.storage extends {
-    from: (...args: any[]) => infer T;
-  }
-    ? T & {
-        createSignedUrls?: (paths: string[], expiresIn: number) => Promise<{
-          data?: Array<{ path?: string; signedUrl?: string } | null>;
-        }>;
-      }
-    : never;
+  type StorageBucket = ReturnType<typeof supabase.storage.from>;
+  const storage = supabase.storage.from("version-photos") as StorageBucket & {
+    createSignedUrls?: (paths: string[], expiresIn: number) => Promise<{
+      data?: Array<{ path?: string; signedUrl?: string } | null>;
+    }>;
+  };
 
   if (typeof storage.createSignedUrls === "function") {
     const { data } = await storage.createSignedUrls(objectPaths, expiresInSeconds);

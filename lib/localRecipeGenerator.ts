@@ -566,30 +566,6 @@ function applyProteinSubstitutions(protein: string, intent: ParsedIntent) {
   return protein;
 }
 
-function resolveStyle(intent: ParsedIntent, cuisine: CuisineProfile, pairing: PairingProfile | null) {
-  const candidates = cuisine.styles;
-
-  if (intent.dishFamily === "salad" && candidates.includes("salad")) return "salad";
-  if (intent.dishFamily === "pasta" && candidates.includes("pasta")) return "pasta";
-  if (intent.dishFamily === "bowl" && candidates.includes("bowl")) return "bowl";
-  if (intent.dishFamily === "roasted" && candidates.includes("roasted")) return "roasted";
-  if (intent.mealType === "breakfast") {
-    if (candidates.includes("skillet")) return "skillet";
-    if (candidates.includes("bowl")) return "bowl";
-  }
-  if (intent.carbs.includes("pasta")) return "pasta";
-  if (intent.mealType === "lunch") {
-    const lunchStyle = candidates.find((style) => style === "salad" || style === "bowl");
-    if (lunchStyle) return lunchStyle;
-  }
-  if (intent.carbs.includes("rice") && candidates.includes("bowl")) return "bowl";
-  if (pairing) {
-    const preferred = pairing.preferredStyles.find((style) => candidates.includes(style));
-    if (preferred) return preferred;
-  }
-  return candidates[0];
-}
-
 function resolveCarb(intent: ParsedIntent, cuisine: CuisineProfile, style: RecipeStyle) {
   const requested = intent.carbs[0];
 

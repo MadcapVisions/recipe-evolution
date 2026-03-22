@@ -4,7 +4,6 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
 import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/components/recipes/version-detail/AiPanels";
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
 import { RecipeActionMenu, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
@@ -13,7 +12,7 @@ import { useAppShell } from "@/components/shell/AppShellContext";
 import { useRecipeAssistant } from "@/components/recipes/version-detail/useRecipeAssistant";
 import { useRecipeSidebarState } from "@/components/recipes/version-detail/useRecipeSidebarState";
 import { generateLocalChefReply, generateLocalImprovedRecipe, generateLocalRemixRecipe } from "@/lib/localRecipeGenerator";
-import { createRecipeVersionViaApi, mapVersionToCanonicalVersion } from "@/lib/client/recipeMutations";
+import { createRecipeFromDraft, createRecipeVersionViaApi, mapVersionToCanonicalVersion } from "@/lib/client/recipeMutations";
 import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
@@ -25,7 +24,6 @@ import {
   normalizeSteps,
   versionLabel,
   type ConversationMessage,
-  type RecipeListItem,
   type RecipeRow,
   type SelectedAssistantDirection,
   type SuggestedChange,
@@ -104,6 +102,7 @@ export function VersionDetailClient({
 }) {
   const router = useRouter();
   const { setOpenPanel } = useAppShell();
+  const lineage = initialData.lineage ?? null;
   const [recipe, setRecipe] = useState<RecipeRow | null>(initialData.recipe);
   const [sidebarData, setSidebarData] = useState<RecipeSidebarData>({
     recentRecipes: initialData.sidebarRecentRecipes,
@@ -732,7 +731,7 @@ export function VersionDetailClient({
         assistant.setSuggestedChange(suggestion);
       }
       assistant.setCustomInstruction("");
-    } catch (error) {
+    } catch (_error) {
       const fallbackReply = buildDeterministicChefReply(instruction);
       const optionsRequest = wantsDirectionOptions(instruction);
       const assistantMessage: ConversationMessage = {
@@ -772,6 +771,45 @@ export function VersionDetailClient({
       }
     );
     assistant.setIsGeneratingVersion(false);
+  }
+
+  async function handleForkFromSuggestion() {
+    if (!assistant.suggestedChange || !recipe || !version || assistant.isGeneratingVersion || assistant.isAskingAi) return;
+    const newTitle = window.prompt("Name the new recipe:", recipe.title)?.trim();
+    if (!newTitle) return;
+    assistant.setIsGeneratingVersion(true);
+    assistant.setAiError(null);
+    try {
+      const { recipeId: newRecipeId, versionId: newVersionId } = await createRecipeFromDraft({
+        draft: {
+          title: newTitle,
+          description: null,
+          tags: null,
+          servings: assistant.suggestedChange.servings,
+          prep_time_min: assistant.suggestedChange.prep_time_min,
+          cook_time_min: assistant.suggestedChange.cook_time_min,
+          difficulty: assistant.suggestedChange.difficulty,
+          ingredients: assistant.suggestedChange.ingredients,
+          steps: assistant.suggestedChange.steps,
+          notes: null,
+          change_log: assistant.suggestedChange.explanation ?? null,
+          ai_metadata_json: null,
+        },
+        forkedFromVersionId: version.id,
+      });
+      assistant.setSuggestedChange(null);
+      assistant.setCustomInstruction("");
+      const href = `/recipes/${newRecipeId}/versions/${newVersionId}`;
+      if (typeof window !== "undefined") {
+        window.location.assign(href);
+      } else {
+        startTransition(() => router.push(href));
+      }
+    } catch (error) {
+      assistant.setAiError(error instanceof Error ? error.message : "Could not create forked recipe.");
+    } finally {
+      assistant.setIsGeneratingVersion(false);
+    }
   }
 
   function handleSelectAssistantDirection(messageId: string, option: ChefDirectionOption) {
@@ -1056,13 +1094,22 @@ export function VersionDetailClient({
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <Link
           href="/recipes"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
         >
           <span aria-hidden="true">←</span> My Recipes
         </Link>
+        {lineage && (
+          <Link
+            href={`/recipes/${lineage.sourceRecipeId}/versions/${lineage.sourceVersionId}`}
+            className="inline-flex items-center gap-1 text-sm text-[color:var(--muted)] transition hover:text-[color:var(--text)]"
+          >
+            <span aria-hidden="true" className="text-[color:var(--primary)]">⤷</span>
+            <span>Derived from: <span className="font-medium">{lineage.sourceTitle}</span> v{lineage.sourceVersionNumber}</span>
+          </Link>
+        )}
       </div>
       {isMounted
         ? createPortal(
@@ -1118,6 +1165,10 @@ export function VersionDetailClient({
           onApplySuggestedChange={() => {
             setOpenPanel("left");
             void handleApplySuggestedChange();
+          }}
+          onForkFromSuggestion={() => {
+            setOpenPanel("left");
+            void handleForkFromSuggestion();
           }}
           onComposerFocus={() => setOpenPanel("left")}
           conversationEndRef={assistant.conversationEndRef}

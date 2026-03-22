@@ -50,6 +50,7 @@ export async function POST(request: Request) {
     updated_by: user.id,
   }));
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (admin.from("ai_task_settings") as any).upsert(rows, { onConflict: "task_key" });
   if (error) {
     return NextResponse.json({ error: true, message: error.message }, { status: 500 });

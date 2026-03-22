@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: true, message: "Unsupported build payload." }, { status: 400 });
   }
 
-  const userTasteSummary = await buildUserTasteSummary(access.supabase as any, access.userId);
+  const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;
   const ingredients = Array.isArray(body.ingredients)
     ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
@@ -141,14 +142,14 @@ export async function POST(request: Request) {
       try {
         send({ type: "status", message: "Understanding your request..." });
         const persistedBrief = conversationKey
-          ? await getCookingBrief(access.supabase as any, {
+          ? await getCookingBrief(access.supabase as SupabaseClient, {
               ownerId: access.userId,
               conversationKey,
               scope: "home_hub",
             })
           : null;
         const persistedSession = conversationKey
-          ? await getLockedDirectionSession(access.supabase as any, {
+          ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
               ownerId: access.userId,
               conversationKey,
               scope: "home_hub",
@@ -230,7 +231,7 @@ export async function POST(request: Request) {
               },
               userTasteSummary,
               {
-                supabase: access.supabase as any,
+                supabase: access.supabase as SupabaseClient,
                 userId: access.userId,
               },
               (_, message) => {
@@ -345,14 +346,14 @@ export async function POST(request: Request) {
 
         if (conversationKey) {
           if (lockedSession?.selected_direction) {
-            void upsertLockedDirectionSession(access.supabase as any, {
+            void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
               ownerId: access.userId,
               conversationKey,
               scope: "home_hub",
               session: markLockedSessionBuilt(lockedSession, effectiveBrief),
             });
           }
-          void storeGenerationAttempt(access.supabase as any, {
+          void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
@@ -385,7 +386,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
         if (conversationKey) {
-          void storeGenerationAttempt(access.supabase as any, {
+          void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",

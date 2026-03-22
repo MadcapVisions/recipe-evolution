@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmptyCookingBrief } from "../../lib/ai/contracts/cookingBrief";
 import { createAiStageMetric } from "../../lib/ai/contracts/stageMetrics";
 import { upsertCookingBrief, getCookingBrief } from "../../lib/ai/briefStore";
@@ -26,7 +27,7 @@ test("upsertCookingBrief writes the normalized brief payload", async () => {
   brief.request_mode = "locked";
   brief.confidence = 0.91;
 
-  await upsertCookingBrief(supabase as any, {
+  await upsertCookingBrief(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",
@@ -78,7 +79,7 @@ test("getCookingBrief returns the fetched brief row", async () => {
     },
   };
 
-  const result = await getCookingBrief(supabase as any, {
+  const result = await getCookingBrief(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",
@@ -106,7 +107,7 @@ test("storeGenerationAttempt writes structured attempt artifacts", async () => {
   const brief = createEmptyCookingBrief();
   brief.request_mode = "generate";
 
-  await storeGenerationAttempt(supabase as any, {
+  await storeGenerationAttempt(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",
@@ -158,7 +159,7 @@ test("upsertLockedDirectionSession writes immutable selected-direction state", a
     },
   });
 
-  await upsertLockedDirectionSession(supabase as any, {
+  await upsertLockedDirectionSession(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",
@@ -212,7 +213,7 @@ test("getLockedDirectionSession returns the fetched locked session row", async (
     },
   };
 
-  const result = await getLockedDirectionSession(supabase as any, {
+  const result = await getLockedDirectionSession(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",
@@ -244,7 +245,7 @@ test("deleteLockedDirectionSession clears a persisted session", async () => {
     },
   };
 
-  await deleteLockedDirectionSession(supabase as any, {
+  await deleteLockedDirectionSession(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",
@@ -306,7 +307,7 @@ test("getConversationTurns returns ordered home-hub turns", async () => {
     },
   };
 
-  const result = await getConversationTurns(supabase as any, {
+  const result = await getConversationTurns(supabase as unknown as SupabaseClient, {
     ownerId: "user-1",
     conversationKey: "conv-1",
     scope: "home_hub",

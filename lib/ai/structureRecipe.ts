@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { callAIWithMeta } from "./aiClient";
 import { parseJsonResponse } from "./jsonResponse";
 import { createAiRecipeResult, type AiRecipeResult } from "./recipeResult";
-import { formatIngredientLine, ingredientLineHasAmount } from "../recipes/recipeDraft";
+import { formatIngredientLine } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 
 type PreferredUnits = "metric" | "imperial";

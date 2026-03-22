@@ -1,6 +1,6 @@
 import { callAIForJson } from "./jsonResponse";
 import { buildChefChatPrompt, type AIMessage, type RecipeContext } from "./chatPromptBuilder";
-import { buildChefChatEnvelope, normalizeChefChatEnvelope, optionsTooSimilar, type ChefChatEnvelope, type ChefDirectionOption } from "./chefOptions";
+import { buildChefChatEnvelope, normalizeChefChatEnvelope, optionsTooSimilar, type ChefChatEnvelope } from "./chefOptions";
 import { TOKEN_LIMITS } from "./config/tokenLimits";
 import type { AiTaskSettingRecord } from "./taskSettings";
 

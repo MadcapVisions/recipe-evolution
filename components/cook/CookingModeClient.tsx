@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import { trackEvent } from "@/lib/trackEvent";
 import { Button } from "@/components/Button";
 import { detectSubstitutions } from "@/lib/ai/substitutionEngine/substitutionDetector";
@@ -129,8 +128,10 @@ function StepTimerPanel({
   const [isRunning, setIsRunning] = useState(false);
 
   useEffect(() => {
-    setRemainingSeconds(durationSeconds);
-    setIsRunning(false);
+    void Promise.resolve().then(() => {
+      setRemainingSeconds(durationSeconds);
+      setIsRunning(false);
+    });
   }, [durationSeconds, stepKey]);
 
   useEffect(() => {
@@ -216,7 +217,7 @@ export function CookingModeClient({
   recipeId,
   recipeTitle,
   versionId,
-  ownerId,
+  ownerId: _ownerId,
   servings,
   prepTimeMin,
   cookTimeMin,
@@ -325,96 +326,73 @@ export function CookingModeClient({
     const instruction = (parsedStep.instruction || currentStep?.text || "").toLowerCase();
     return prepPlan.stepHighlights.find((highlight) => instruction.includes(highlight.step.toLowerCase()) || highlight.step.toLowerCase().includes(instruction)) ?? null;
   }, [currentStep?.text, parsedStep.instruction, prepPlan.stepHighlights]);
-  const secretSauceInsights = useMemo(() => {
-    const insights: InsightCard[] = [];
-
-    if (recommendedTechniques.length > 0) {
-      insights.push({
-        title: "Technique edge",
-        body: `Lean on ${recommendedTechniques.slice(0, 2).join(" and ")} to improve texture, browning, and finish.`,
-        tone: "border-indigo-200 bg-indigo-50 text-indigo-950",
-      });
-    }
-
-    if (parsedStep.technique) {
-      insights.push({
-        title: "For this step",
-        body: parsedStep.technique,
-        tone: "border-sky-200 bg-sky-50 text-sky-950",
-      });
-    }
-
-    if (parsedStep.tip) {
-      insights.push({
-        title: "Chef tip",
-        body: parsedStep.tip,
-        tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
-      });
-    }
-
-    if (currentStepHighlight?.ingredients.length) {
-      insights.push({
-        title: "Watch these ingredients",
-        body: `Give extra attention to ${currentStepHighlight.ingredients.join(", ")} during this step so the final dish tastes more deliberate and balanced.`,
-        tone: "border-amber-200 bg-amber-50 text-amber-950",
-      });
-    }
-
-    if (flavorPairings.length > 0) {
-      insights.push({
-        title: "Finish stronger",
-        body: `Flavor pairings worth leaning into here: ${flavorPairings.slice(0, 4).join(", ")}.`,
-        tone: "border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.9)] text-[color:var(--text)]",
-      });
-    }
-
-    if (substitutionSuggestions.length > 0) {
-      const primarySwap = substitutionSuggestions[0];
-      insights.push({
-        title: "Safety net",
-        body: `If you are missing ${primarySwap.ingredient}, the cleanest fallback is ${primarySwap.options[0]}.`,
-        tone: "border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.9)] text-[color:var(--text)]",
-      });
-    }
-
-    return insights.slice(0, 5);
-  }, [
-    currentStepHighlight?.ingredients,
-    flavorPairings,
-    parsedStep.technique,
-    parsedStep.tip,
-    recommendedTechniques,
-    substitutionSuggestions,
-  ]);
+  const secretSauceInsightsArr: InsightCard[] = [];
+  if (recommendedTechniques.length > 0) {
+    secretSauceInsightsArr.push({
+      title: "Technique edge",
+      body: `Lean on ${recommendedTechniques.slice(0, 2).join(" and ")} to improve texture, browning, and finish.`,
+      tone: "border-indigo-200 bg-indigo-50 text-indigo-950",
+    });
+  }
+  if (parsedStep.technique) {
+    secretSauceInsightsArr.push({
+      title: "For this step",
+      body: parsedStep.technique,
+      tone: "border-sky-200 bg-sky-50 text-sky-950",
+    });
+  }
+  if (parsedStep.tip) {
+    secretSauceInsightsArr.push({
+      title: "Chef tip",
+      body: parsedStep.tip,
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-950",
+    });
+  }
+  if (currentStepHighlight?.ingredients.length) {
+    secretSauceInsightsArr.push({
+      title: "Watch these ingredients",
+      body: `Give extra attention to ${currentStepHighlight.ingredients.join(", ")} during this step so the final dish tastes more deliberate and balanced.`,
+      tone: "border-amber-200 bg-amber-50 text-amber-950",
+    });
+  }
+  if (flavorPairings.length > 0) {
+    secretSauceInsightsArr.push({
+      title: "Finish stronger",
+      body: `Flavor pairings worth leaning into here: ${flavorPairings.slice(0, 4).join(", ")}.`,
+      tone: "border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.9)] text-[color:var(--text)]",
+    });
+  }
+  if (substitutionSuggestions.length > 0) {
+    const primarySwap = substitutionSuggestions[0];
+    secretSauceInsightsArr.push({
+      title: "Safety net",
+      body: `If you are missing ${primarySwap.ingredient}, the cleanest fallback is ${primarySwap.options[0]}.`,
+      tone: "border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.9)] text-[color:var(--text)]",
+    });
+  }
+  const secretSauceInsights = secretSauceInsightsArr.slice(0, 5);
   const nextStepPreview =
     safeIndex < totalSteps - 1 ? parseTechniqueStep(initialSteps[safeIndex + 1]?.text).instruction || initialSteps[safeIndex + 1]?.text : null;
-  const cookSupportNotes = useMemo(() => {
-    const notes: Array<{ title: string; body: string }> = [];
-
-    if (parsedStep.technique) {
-      notes.push({ title: "Technique", body: parsedStep.technique });
-    }
-
-    if (parsedStep.tip) {
-      notes.push({ title: "Chef tip", body: parsedStep.tip });
-    }
-
-    if (currentStepHighlight?.ingredients.length) {
-      notes.push({
-        title: "Watch closely",
-        body: `${currentStepHighlight.ingredients.join(", ")} matter most in this step.`,
-      });
-    }
-
-    if (substitutionSuggestions.length > 0) {
-      notes.push({
-        title: "Backup option",
-        body: `${substitutionSuggestions[0].ingredient} can be replaced with ${substitutionSuggestions[0].options[0]}.`,
-      });
-    }
-
-    return notes.slice(0, 3);
-  }, [currentStepHighlight?.ingredients, parsedStep.technique, parsedStep.tip, substitutionSuggestions]);
+  const cookSupportNotesArr: Array<{ title: string; body: string }> = [];
+  if (parsedStep.technique) {
+    cookSupportNotesArr.push({ title: "Technique", body: parsedStep.technique });
+  }
+  if (parsedStep.tip) {
+    cookSupportNotesArr.push({ title: "Chef tip", body: parsedStep.tip });
+  }
+  if (currentStepHighlight?.ingredients.length) {
+    cookSupportNotesArr.push({
+      title: "Watch closely",
+      body: `${currentStepHighlight.ingredients.join(", ")} matter most in this step.`,
+    });
+  }
+  if (substitutionSuggestions.length > 0) {
+    cookSupportNotesArr.push({
+      title: "Backup option",
+      body: `${substitutionSuggestions[0].ingredient} can be replaced with ${substitutionSuggestions[0].options[0]}.`,
+    });
+  }
+  const cookSupportNotes = cookSupportNotesArr.slice(0, 3);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,11 +413,15 @@ export function CookingModeClient({
   }, [recipeId, versionId]);
 
   useEffect(() => {
-    setCheckedIngredients([]);
+    void Promise.resolve().then(() => {
+      setCheckedIngredients([]);
+    });
   }, [targetServings, versionId]);
 
   useEffect(() => {
-    setRightSidebarMode("focus");
+    void Promise.resolve().then(() => {
+      setRightSidebarMode("focus");
+    });
   }, [phase]);
 
   const toggleChecklistItem = (itemId: string) => {

@@ -57,6 +57,13 @@ export async function loadRecipeTimelineSlice(
   return { versions: deduped, hasMore: true };
 }
 
+export type RecipeLineage = {
+  sourceRecipeId: string;
+  sourceTitle: string;
+  sourceVersionId: string;
+  sourceVersionNumber: number;
+};
+
 export type VersionDetailData = {
   userId: string;
   recipe: {
@@ -64,7 +71,9 @@ export type VersionDetailData = {
     title: string;
     description?: string | null;
     best_version_id?: string | null;
+    forked_from_version_id?: string | null;
   };
+  lineage: RecipeLineage | null;
   timelineVersions: Array<{
     id: string;
     version_number: number;
@@ -129,7 +138,7 @@ export async function loadVersionDetailData(
   ] = await Promise.all([
     supabase
       .from("recipes")
-      .select("id, title, description, tags, best_version_id")
+      .select("id, title, description, tags, best_version_id, forked_from_version_id")
       .eq("id", recipeId)
       .eq("owner_id", userId)
       .maybeSingle(),
@@ -169,9 +178,31 @@ export async function loadVersionDetailData(
     ingredientNames: readCanonicalIngredients(version.ingredients_json).map((item) => item.name),
   });
 
+  let lineage: RecipeLineage | null = null;
+  const forkedFromVersionId = "forked_from_version_id" in recipe ? (recipe.forked_from_version_id as string | null) : null;
+  if (forkedFromVersionId) {
+    const { data: sourceVersion } = await supabase
+      .from("recipe_versions")
+      .select("id, recipe_id, version_number, recipes!inner(id, title, owner_id)")
+      .eq("id", forkedFromVersionId)
+      .maybeSingle();
+    if (sourceVersion) {
+      const sourceRecipe = Array.isArray(sourceVersion.recipes) ? sourceVersion.recipes[0] : sourceVersion.recipes;
+      if (sourceRecipe && (sourceRecipe as { owner_id: string }).owner_id === userId) {
+        lineage = {
+          sourceRecipeId: sourceVersion.recipe_id,
+          sourceTitle: (sourceRecipe as { title: string }).title,
+          sourceVersionId: forkedFromVersionId,
+          sourceVersionNumber: sourceVersion.version_number,
+        };
+      }
+    }
+  }
+
   return {
     userId,
     recipe,
+    lineage,
     timelineVersions: timelineSlice.versions,
     timelineHasMore: timelineSlice.hasMore,
     version: mappedVersion,

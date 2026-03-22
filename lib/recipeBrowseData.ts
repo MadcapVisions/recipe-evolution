@@ -50,7 +50,17 @@ export async function loadRecipeBrowsePage(
     .eq("owner_id", ownerId);
 
   if (input.search?.trim()) {
-    query = query.ilike("title", `%${input.search.trim()}%`);
+    const searchTerm = input.search.trim();
+    const { data: ingredientMatches } = await supabase.rpc("search_recipe_ids_by_ingredient", {
+      p_owner_id: ownerId,
+      p_search: searchTerm,
+    });
+    const ingredientMatchIds = (ingredientMatches ?? []).map((row: { recipe_id: string }) => row.recipe_id);
+    if (ingredientMatchIds.length > 0) {
+      query = query.or(`title.ilike.%${searchTerm}%,id.in.(${ingredientMatchIds.join(",")})`);
+    } else {
+      query = query.ilike("title", `%${searchTerm}%`);
+    }
   }
 
   if (input.tab === "hidden") {

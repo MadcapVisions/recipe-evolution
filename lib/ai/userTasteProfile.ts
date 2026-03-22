@@ -1,6 +1,6 @@
-type SupabaseLike = {
-  from: (table: string) => any;
-};
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type SupabaseLike = SupabaseClient;
 
 type ExplicitPreferencesRow = {
   preferred_units?: string | null;
@@ -29,6 +29,18 @@ type ConversationTurnRow = {
   message?: string | null;
   scope?: string | null;
   role?: string | null;
+};
+
+type RecipeRow = {
+  id?: string | number | null;
+  title?: string | null;
+  tags?: string[] | null;
+  is_favorite?: boolean | null;
+};
+
+type RecipeVersionRow = {
+  recipe_id?: string | null;
+  ingredients_json?: Array<{ name?: string }> | null;
 };
 
 function normalizeList(values: string[] | null | undefined) {
@@ -213,14 +225,15 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
     conversationQuery ?? Promise.resolve({ data: [], error: null }),
   ]);
 
-  const preferences = (preferencesResult as any)?.data as ExplicitPreferencesRow | null;
-  const recipes = Array.isArray((recipesResult as any)?.data) ? (recipesResult as any).data : [];
-  const events = Array.isArray((eventsResult as any)?.data) ? ((eventsResult as any).data as ProductEventRow[]) : [];
-  const conversationTurns = Array.isArray((conversationResult as any)?.data)
-    ? ((conversationResult as any).data as ConversationTurnRow[])
-    : [];
+  const preferences = (preferencesResult as { data?: ExplicitPreferencesRow | null })?.data ?? null;
+  const recipesData = (recipesResult as { data?: unknown[] | null })?.data;
+  const recipes: RecipeRow[] = Array.isArray(recipesData) ? (recipesData as RecipeRow[]) : [];
+  const eventsData = (eventsResult as { data?: unknown[] | null })?.data;
+  const events: ProductEventRow[] = Array.isArray(eventsData) ? (eventsData as ProductEventRow[]) : [];
+  const conversationData = (conversationResult as { data?: unknown[] | null })?.data;
+  const conversationTurns: ConversationTurnRow[] = Array.isArray(conversationData) ? (conversationData as ConversationTurnRow[]) : [];
 
-  const recipeIds = recipes.map((recipe: any) => String(recipe?.id ?? "")).filter(Boolean);
+  const recipeIds = recipes.map((recipe) => String(recipe?.id ?? "")).filter(Boolean);
   const versionsResult =
     recipeIds.length > 0
       ? await supabase
@@ -230,18 +243,19 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
           .order("created_at", { ascending: false })
           .limit(24)
       : { data: [], error: null };
-  const versions = Array.isArray((versionsResult as any)?.data) ? (versionsResult as any).data : [];
+  const versionsData = (versionsResult as { data?: unknown[] | null })?.data;
+  const versions: RecipeVersionRow[] = Array.isArray(versionsData) ? (versionsData as RecipeVersionRow[]) : [];
 
-  const favoriteRecipes = recipes.filter((recipe: any) => recipe?.is_favorite);
-  const titlePool = [...repeatValues(favoriteRecipes.map((recipe: any) => String(recipe?.title ?? "").trim()).filter(Boolean), 2)]
-    .concat(recipes.map((recipe: any) => String(recipe?.title ?? "").trim()).filter(Boolean));
+  const favoriteRecipes = recipes.filter((recipe) => recipe?.is_favorite);
+  const titlePool = [...repeatValues(favoriteRecipes.map((recipe) => String(recipe?.title ?? "").trim()).filter(Boolean), 2)]
+    .concat(recipes.map((recipe) => String(recipe?.title ?? "").trim()).filter(Boolean));
   const tagPool = [...favoriteRecipes, ...recipes]
-    .flatMap((recipe: any) => (Array.isArray(recipe?.tags) ? recipe.tags : []))
-    .map((tag: any) => String(tag).trim())
+    .flatMap((recipe) => (Array.isArray(recipe?.tags) ? recipe.tags : []))
+    .map((tag: string) => String(tag).trim())
     .filter(Boolean);
   const ingredientPool = versions
-    .flatMap((version: any) => (Array.isArray(version?.ingredients_json) ? version.ingredients_json : []))
-    .map((item: any) => String(item?.name ?? "").trim())
+    .flatMap((version) => (Array.isArray(version?.ingredients_json) ? version.ingredients_json : []))
+    .map((item) => String(item?.name ?? "").trim())
     .filter(Boolean);
   const behaviorTextPool = events.flatMap((event) => {
     const baseTexts = extractTextFromMetadata(event.metadata_json);

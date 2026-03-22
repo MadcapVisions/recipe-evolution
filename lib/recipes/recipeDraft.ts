@@ -81,6 +81,7 @@ export const recipeDraftSchema = z.object({
 
 export const createRecipePayloadSchema = z.object({
   draft: recipeDraftSchema,
+  forkedFromVersionId: z.string().uuid().nullable().optional().transform((value) => value ?? null),
 });
 
 export const recipeVersionPayloadSchema = z.object({

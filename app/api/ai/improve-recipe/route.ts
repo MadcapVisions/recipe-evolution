@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
     const result = await improveRecipe({
       instruction,
-      userTasteSummary: await buildUserTasteSummary(access.supabase as any, access.userId),
+      userTasteSummary: await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId),
       recipe: {
         title: recipe.title,
         servings: typeof recipe.servings === "number" ? recipe.servings : null,
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
           .filter((item) => item.text.length > 0),
       },
     }, {
-      supabase: access.supabase as any,
+      supabase: access.supabase as SupabaseClient,
       userId: access.userId,
     });
 

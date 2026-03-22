@@ -12,7 +12,20 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated/build artifacts — never lint these:
+    ".next_backup*/**",
+    ".tmp-unit/**",
+    ".tmp-eval/**",
   ]),
+  {
+    rules: {
+      // Allow _-prefixed variables to be unused (intentional no-op pattern)
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

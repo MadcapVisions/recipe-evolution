@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: true, message: "Invalid recipe payload." }, { status: 400 });
   }
 
-  const { draft } = payload;
+  const { draft, forkedFromVersionId } = payload;
   const { data, error } = await supabase.rpc("create_recipe_with_initial_version", {
     p_owner_id: user.id,
     p_title: draft.title,
@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     p_notes: draft.notes,
     p_change_log: draft.change_log,
     p_ai_metadata_json: draft.ai_metadata_json,
+    ...(forkedFromVersionId ? { p_forked_from_version_id: forkedFromVersionId } : {}),
   });
 
   const created = Array.isArray(data) ? data[0] : null;

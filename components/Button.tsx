@@ -66,7 +66,7 @@ export function Button(props: ButtonProps) {
     );
   }
 
-  const { children, type = "button", className: _ignoredClassName, variant: _ignoredVariant, ...buttonProps } = props;
+  const { children, type = "button", className: _omitCn, variant: _omitVariant, ...buttonProps } = props as NativeButtonProps;
   return (
     <button type={type} className={className} {...buttonProps}>
       {children}

@@ -17,9 +17,10 @@ export function useRecipeAssistant(recipeId: string, versionId: string) {
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    const ref = cooldownTimeoutRef;
     return () => {
-      if (cooldownTimeoutRef.current) {
-        clearTimeout(cooldownTimeoutRef.current);
+      if (ref.current) {
+        clearTimeout(ref.current);
       }
     };
   }, []);
@@ -35,6 +36,7 @@ export function useRecipeAssistant(recipeId: string, versionId: string) {
     const storedConversationKey = window.localStorage.getItem(conversationKeyStorage);
     const rawSelectedDirection = window.localStorage.getItem(selectedDirectionKey);
 
+    void Promise.resolve().then(() => {
     if (storedConversationKey?.trim()) {
       setConversationKey(storedConversationKey);
     } else {
@@ -111,6 +113,7 @@ export function useRecipeAssistant(recipeId: string, versionId: string) {
         setSelectedDirection(null);
       }
     }
+    }); // end Promise.resolve().then
   }, [recipeId, versionId]);
 
   useEffect(() => {
@@ -157,7 +160,9 @@ export function useRecipeAssistant(recipeId: string, versionId: string) {
     const optionStillExists = sourceMessage?.options?.some((option) => option.id === selectedDirection.optionId) ?? false;
 
     if (!optionStillExists) {
-      setSelectedDirection(null);
+      void Promise.resolve().then(() => {
+        setSelectedDirection(null);
+      });
     }
   }, [aiConversation, selectedDirection]);
 

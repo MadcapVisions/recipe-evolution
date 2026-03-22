@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { chefChat } from "@/lib/ai/chefChat";
 import { generateHomeIdeasWithCache, generateHomeRecipe } from "@/lib/ai/homeHub";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
@@ -17,7 +18,7 @@ import { createAiStageMetric } from "@/lib/ai/contracts/stageMetrics";
 import { createFailedVerificationResult } from "@/lib/ai/contracts/verificationResult";
 import { verifyRecipeAgainstBrief } from "@/lib/ai/recipeVerifier";
 import { buildRecipePlanFromBrief } from "@/lib/ai/recipePlanner";
-import { getRecipeBuildFailureDetails, RecipeBuildError } from "@/lib/ai/recipeBuildError";
+import { getRecipeBuildFailureDetails } from "@/lib/ai/recipeBuildError";
 import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeRecipeRetry";
 import { appendLockedSessionRefinementDelta, buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
-    const userTasteSummary = await buildUserTasteSummary(access.supabase as any, access.userId);
+    const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;
     try {
@@ -205,14 +206,14 @@ export async function POST(request: Request) {
         : null;
       const isSessionReset = body.reset_session === true;
       if (isSessionReset && conversationKey) {
-        void deleteLockedDirectionSession(access.supabase as any, {
+        void deleteLockedDirectionSession(access.supabase as SupabaseClient, {
           ownerId: access.userId,
           conversationKey,
           scope: "home_hub",
         });
       }
       const persistedSession = conversationKey && !isSessionReset
-        ? await getLockedDirectionSession(access.supabase as any, {
+        ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
@@ -254,7 +255,7 @@ export async function POST(request: Request) {
             });
 
       if (conversationKey) {
-        void storeConversationTurns(access.supabase as any, {
+        void storeConversationTurns(access.supabase as SupabaseClient, {
           ownerId: access.userId,
           conversationKey,
           scope: "home_hub",
@@ -271,20 +272,20 @@ export async function POST(request: Request) {
           ],
         });
         if (refinedSession) {
-          void upsertLockedDirectionSession(access.supabase as any, {
+          void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
             session: refinedSession,
           });
         } else if (pivotedAwayFromLockedSession) {
-          void deleteLockedDirectionSession(access.supabase as any, {
+          void deleteLockedDirectionSession(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
           });
         }
-        void upsertCookingBrief(access.supabase as any, {
+        void upsertCookingBrief(access.supabase as SupabaseClient, {
           ownerId: access.userId,
           conversationKey,
           scope: "home_hub",
@@ -343,7 +344,7 @@ export async function POST(request: Request) {
         conversationHistory,
         requestedCount: typeof body.requested_count === "number" ? body.requested_count : undefined,
       }, userTasteSummary, {
-        supabase: access.supabase as any,
+        supabase: access.supabase as SupabaseClient,
         userId: access.userId,
       });
 
@@ -356,7 +357,7 @@ export async function POST(request: Request) {
         filters: body.filters,
         requestedCount: typeof body.requested_count === "number" ? body.requested_count : undefined,
       }, userTasteSummary, {
-        supabase: access.supabase as any,
+        supabase: access.supabase as SupabaseClient,
         userId: access.userId,
       });
       return NextResponse.json({ ideas });
@@ -372,14 +373,14 @@ export async function POST(request: Request) {
         ? body.conversationKey.trim()
         : null;
       const persistedBrief = conversationKey
-        ? await getCookingBrief(access.supabase as any, {
+        ? await getCookingBrief(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
           })
         : null;
       const persistedSession = conversationKey
-        ? await getLockedDirectionSession(access.supabase as any, {
+        ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
@@ -460,7 +461,7 @@ export async function POST(request: Request) {
                     }
                   : null,
             }, userTasteSummary, {
-              supabase: access.supabase as any,
+              supabase: access.supabase as SupabaseClient,
               userId: access.userId,
             });
             const verifyStartedAt = new Date().toISOString();
@@ -535,14 +536,14 @@ export async function POST(request: Request) {
 
         if (conversationKey) {
           if (lockedSession?.selected_direction) {
-            void upsertLockedDirectionSession(access.supabase as any, {
+            void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
               ownerId: access.userId,
               conversationKey,
               scope: "home_hub",
               session: markLockedSessionBuilt(lockedSession, effectiveBrief),
             });
           }
-          void storeGenerationAttempt(access.supabase as any, {
+          void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
@@ -574,7 +575,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
         if (conversationKey) {
-          void storeGenerationAttempt(access.supabase as any, {
+          void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
@@ -643,17 +644,17 @@ export async function GET(request: Request) {
   }
 
   const [turns, lockedSession, brief] = await Promise.all([
-    getConversationTurns(access.supabase as any, {
+    getConversationTurns(access.supabase as SupabaseClient, {
       ownerId: access.userId,
       conversationKey,
       scope: "home_hub",
     }),
-    getLockedDirectionSession(access.supabase as any, {
+    getLockedDirectionSession(access.supabase as SupabaseClient, {
       ownerId: access.userId,
       conversationKey,
       scope: "home_hub",
     }),
-    getCookingBrief(access.supabase as any, {
+    getCookingBrief(access.supabase as SupabaseClient, {
       ownerId: access.userId,
       conversationKey,
       scope: "home_hub",

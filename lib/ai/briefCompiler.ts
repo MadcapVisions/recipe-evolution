@@ -27,8 +27,20 @@ function deriveCanonicalCenterpiece(input: {
   }
 
   const canonical = deriveIdeaTitleFromConversationContext(candidate);
-  if (canonical && canonical !== "Chef Conversation Recipe" && canonical !== "Tacos" && canonical !== "Pizza") {
+  // Accept canonical only when it is specific — skip generic "* Dish" fallbacks which lose
+  // the actual dish name (e.g. "Mushroom Dish" from "make mushroom risotto").
+  if (canonical && canonical !== "Chef Conversation Recipe" && canonical !== "Tacos" && canonical !== "Pizza" && !/\sDish$/.test(canonical)) {
     return canonical;
+  }
+
+  // Canonical was generic — prefer specific sources in order: normalizedName (if non-generic),
+  // then recipeTitle, then strip "with ..." from the raw candidate.
+  const specifics = [input.normalizedName?.trim(), input.recipeTitle?.trim()].filter(
+    (s): s is string => typeof s === "string" && s.length > 0 && !/\sDish$/.test(s)
+  );
+  for (const specific of specifics) {
+    const stripped = specific.replace(/\s+with\s+.+$/i, "").trim();
+    if (stripped) return stripped;
   }
 
   const stripped = candidate.replace(/\s+with\s+.+$/i, "").trim();
@@ -238,7 +250,10 @@ export function compileCookingBrief(input: {
   brief.ambiguity_reason = confidence < 0.65 ? "Low-confidence dish interpretation." : null;
   brief.dish = {
     raw_user_phrase: input.userMessage.trim() || null,
-    normalized_name: normalizedName === "Chef Conversation Recipe" ? recipeContext?.title?.trim() || null : normalizedName,
+    normalized_name:
+      normalizedName === "Chef Conversation Recipe" || (normalizedName !== null && /\sDish$/.test(normalizedName))
+        ? recipeContext?.title?.trim() || (normalizedName !== "Chef Conversation Recipe" ? normalizedName : null)
+        : normalizedName,
     dish_family: dishFamily,
     cuisine: null,
     course: null,

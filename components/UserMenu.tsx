@@ -1,6 +1,5 @@
 export function UserMenu({
   label = "U",
-  email: _email,
 }: {
   label?: string;
   email?: string | null;
