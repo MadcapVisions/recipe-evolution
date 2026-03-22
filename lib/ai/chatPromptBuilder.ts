@@ -1,5 +1,5 @@
 import { CHEF_SYSTEM_PROMPT } from "./chefSystemPrompt";
-import { CHEF_CHAT_REGRESSION_EXAMPLES } from "./chefChatExamples";
+import { CHEF_CHAT_REGRESSION_EXAMPLES, RECIPE_CHAT_EXAMPLES } from "./chefChatExamples";
 import { analyzeFlavor } from "./chefEngine/flavorAnalyzer";
 import { generateFlavorContext } from "./flavorGraph/flavorGraphEngine";
 import { generateSubstitutionContext } from "./substitutionEngine/substitutionEngine";
@@ -82,9 +82,9 @@ ${substitutionContext}
 ${cookingContext}
 `,
     },
-    // Regression examples only apply to the home hub (no recipe context).
-    // In the recipe-bound chat they introduce unrelated recipes that confuse the AI.
-    ...(recipeContext ? [] : CHEF_CHAT_REGRESSION_EXAMPLES),
+    // Home hub gets general meal-discovery examples; recipe-bound chat gets
+    // recipe-modification examples that stay anchored to the current dish.
+    ...(recipeContext ? RECIPE_CHAT_EXAMPLES : CHEF_CHAT_REGRESSION_EXAMPLES),
     ...conversationHistory,
     {
       role: "user",

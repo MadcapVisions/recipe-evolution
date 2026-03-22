@@ -73,6 +73,38 @@ function normalizeSteps(value: unknown): Array<{ text: string }> {
     .filter((item): item is { text: string } => item !== null);
 }
 
+// Stopwords excluded from keyword extraction when verifying instruction was applied.
+const VERIFY_STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
+  "with", "this", "that", "it", "can", "you", "i", "we", "my", "me", "please",
+  "some", "add", "make", "use", "swap", "want", "would", "like", "could",
+  "recipe", "dish", "version", "into", "from", "more", "less", "also", "just",
+]);
+
+/**
+ * Checks that key content words from the instruction appear somewhere in the
+ * improved recipe's ingredients or steps. Returns false only when clear evidence
+ * shows the instruction was ignored — used to trigger a single retry.
+ */
+function verifyInstructionApplied(instruction: string, result: AiRecipeResult): boolean {
+  const resultText = [
+    ...result.recipe.ingredients.map((i) => i.name.toLowerCase()),
+    ...result.recipe.steps.map((s) => s.text.toLowerCase()),
+  ].join(" ");
+
+  const keyWords = instruction
+    .toLowerCase()
+    .replace(/[^a-z\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 4 && !VERIFY_STOPWORDS.has(w));
+
+  if (keyWords.length === 0) return true;
+
+  const matches = keyWords.filter((w) => resultText.includes(w));
+  // Require at least 40% of key words to appear in the result.
+  return matches.length >= Math.ceil(keyWords.length * 0.4);
+}
+
 export async function improveRecipe(
   input: ImproveRecipeInput,
   cacheContext?: ImproveRecipeCacheContext
@@ -146,66 +178,91 @@ ${JSON.stringify(input.recipe, null, 2)}`,
   if (!taskSetting.enabled) {
     throw new Error("Recipe improvement AI task is disabled.");
   }
-  const result = await callAIForJson(messages, {
+  const aiOptions = {
     max_tokens: taskSetting.maxTokens,
     temperature: taskSetting.temperature,
     model: taskSetting.primaryModel,
     fallback_models: taskSetting.fallbackModel ? [taskSetting.fallbackModel] : [],
-  });
-  const { parsed } = result;
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("AI returned invalid recipe payload.");
-  }
-
-  const obj = parsed as Record<string, unknown>;
-  const ingredients = normalizeIngredients(obj.ingredients);
-  const steps = normalizeSteps(obj.steps);
-  const title = typeof obj.title === "string" && obj.title.trim() ? obj.title.trim() : input.recipe.title;
-  const normalizedRecipeForValidation = {
-    title,
-    ingredients: ingredients.map((item) => item.name),
-    steps: steps.map((item) => item.text),
-    chefTips: Array.isArray(obj.chefTips)
-      ? obj.chefTips
-          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-          .map((item) => item.trim())
-      : [],
   };
 
-  if (!validateRecipe(normalizedRecipeForValidation)) {
-    throw new Error("Invalid recipe format returned by AI");
+  // Attempt the generation up to 2 times: once normally, once if validation
+  // fails or the instruction keywords don't appear in the result.
+  let improved: AiRecipeResult | null = null;
+  let lastError = "";
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await callAIForJson(messages, aiOptions);
+    const { parsed } = result;
+    if (!parsed || typeof parsed !== "object") {
+      lastError = "AI returned invalid recipe payload.";
+      continue;
+    }
+
+    const obj = parsed as Record<string, unknown>;
+    const ingredients = normalizeIngredients(obj.ingredients);
+    const steps = normalizeSteps(obj.steps);
+    const title = typeof obj.title === "string" && obj.title.trim() ? obj.title.trim() : input.recipe.title;
+    const normalizedForValidation = {
+      title,
+      ingredients: ingredients.map((item) => item.name),
+      steps: steps.map((item) => item.text),
+      chefTips: Array.isArray(obj.chefTips)
+        ? obj.chefTips
+            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            .map((item) => item.trim())
+        : [],
+    };
+
+    if (!validateRecipe(normalizedForValidation)) {
+      lastError = "Invalid recipe format returned by AI";
+      continue;
+    }
+
+    const explanation =
+      typeof obj.explanation === "string" && obj.explanation.trim().length > 0 ? obj.explanation.trim() : null;
+    const version_label =
+      typeof obj.version_label === "string" && obj.version_label.trim().length > 0 ? obj.version_label.trim() : null;
+
+    const candidate = createAiRecipeResult({
+      purpose: "refine",
+      source: "ai",
+      provider: result.provider,
+      model: result.model ?? result.provider,
+      cached: false,
+      inputHash,
+      createdAt: new Date().toISOString(),
+      explanation,
+      version_label,
+      recipe: {
+        title,
+        description: null,
+        tags: null,
+        servings: typeof obj.servings === "number" ? obj.servings : input.recipe.servings,
+        prep_time_min: typeof obj.prep_time_min === "number" ? obj.prep_time_min : input.recipe.prep_time_min,
+        cook_time_min: typeof obj.cook_time_min === "number" ? obj.cook_time_min : input.recipe.cook_time_min,
+        difficulty:
+          typeof obj.difficulty === "string" && obj.difficulty.trim().length > 0
+            ? obj.difficulty.trim()
+            : input.recipe.difficulty,
+        ingredients,
+        steps,
+      },
+    });
+
+    // Verify the instruction's key changes actually appear in the result.
+    // If not on the first attempt, retry once; accept the second attempt regardless.
+    if (attempt === 0 && !verifyInstructionApplied(input.instruction, candidate)) {
+      lastError = "Instruction not reflected in result";
+      continue;
+    }
+
+    improved = candidate;
+    break;
   }
 
-  const explanation =
-    typeof obj.explanation === "string" && obj.explanation.trim().length > 0 ? obj.explanation.trim() : null;
-  const version_label =
-    typeof obj.version_label === "string" && obj.version_label.trim().length > 0 ? obj.version_label.trim() : null;
-
-  const improved = createAiRecipeResult({
-    purpose: "refine",
-    source: "ai",
-    provider: result.provider,
-    model: result.model ?? result.provider,
-    cached: false,
-    inputHash,
-    createdAt: new Date().toISOString(),
-    explanation,
-    version_label,
-    recipe: {
-      title,
-      description: null,
-      tags: null,
-      servings: typeof obj.servings === "number" ? obj.servings : input.recipe.servings,
-      prep_time_min: typeof obj.prep_time_min === "number" ? obj.prep_time_min : input.recipe.prep_time_min,
-      cook_time_min: typeof obj.cook_time_min === "number" ? obj.cook_time_min : input.recipe.cook_time_min,
-      difficulty:
-        typeof obj.difficulty === "string" && obj.difficulty.trim().length > 0
-          ? obj.difficulty.trim()
-          : input.recipe.difficulty,
-      ingredients,
-      steps,
-    },
-  });
+  if (!improved) {
+    throw new Error(lastError || "Recipe improvement failed after retry.");
+  }
 
   if (cacheContext && inputHash) {
     await writeAiCache(
@@ -213,7 +270,7 @@ ${JSON.stringify(input.recipe, null, 2)}`,
       cacheContext.userId,
       "refine",
       inputHash,
-      result.model ?? result.provider,
+      improved.meta.model ?? improved.meta.provider ?? "unknown",
       improved
     );
   }

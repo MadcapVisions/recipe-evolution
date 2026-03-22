@@ -39,6 +39,7 @@ test("createAiRecipeResult normalizes recipe payload and metadata", () => {
       ai_metadata_json: null,
     },
     explanation: null,
+    version_label: null,
     meta: {
       purpose: "home_recipe",
       source: "ai",
@@ -95,6 +96,7 @@ test("parseAiRecipeResult reads a stored envelope payload", () => {
       ai_metadata_json: null,
     },
     explanation: "smoother texture",
+    version_label: null,
     meta: {
       purpose: "refine",
       source: "cache",
