@@ -12,6 +12,30 @@ export default async function AdminUsagePage() {
         <UsageCard label="Versions / recipe" value={data.usage.versionsPerRecipe} detail="average refinement depth" />
       </section>
 
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-[24px] bg-[rgba(255,252,246,0.92)] p-5 shadow-[0_8px_18px_rgba(76,50,24,0.05)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Total AI cost</p>
+          <p className="mt-4 font-display text-4xl font-semibold leading-none text-[color:var(--text)]">
+            ${data.overview.totalAiCostUsd.toFixed(4)}
+          </p>
+          <p className="mt-3 text-sm text-[color:var(--muted)]">all-time across all users</p>
+        </div>
+        <div className="rounded-[24px] bg-[rgba(255,252,246,0.92)] p-5 shadow-[0_8px_18px_rgba(76,50,24,0.05)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Cost / user</p>
+          <p className="mt-4 font-display text-4xl font-semibold leading-none text-[color:var(--text)]">
+            ${data.overview.totalUsers > 0 ? (data.overview.totalAiCostUsd / data.overview.totalUsers).toFixed(4) : "0.0000"}
+          </p>
+          <p className="mt-3 text-sm text-[color:var(--muted)]">average across all accounts</p>
+        </div>
+        <div className="rounded-[24px] bg-[rgba(255,252,246,0.92)] p-5 shadow-[0_8px_18px_rgba(76,50,24,0.05)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Cost / prompt</p>
+          <p className="mt-4 font-display text-4xl font-semibold leading-none text-[color:var(--text)]">
+            ${data.overview.totalAiPrompts > 0 ? (data.overview.totalAiCostUsd / data.overview.totalAiPrompts).toFixed(4) : "0.0000"}
+          </p>
+          <p className="mt-3 text-sm text-[color:var(--muted)]">average per AI prompt</p>
+        </div>
+      </section>
+
       <section className="saas-card space-y-5 p-5">
         <div>
           <p className="app-kicker">Usage breakdown</p>

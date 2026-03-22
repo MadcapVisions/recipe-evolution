@@ -5,6 +5,7 @@ import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { trackServerEvent } from "@/lib/trackServerEvent";
+import { initAiUsageContext } from "@/lib/ai/usageLogger";
 
 const improveRecipeRequestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       return access.errorResponse;
     }
     trackedAccess = access;
+    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "improve-recipe" });
 
     let body;
     try {
@@ -44,7 +46,11 @@ export async function POST(request: Request) {
 
     const { recipeId, versionId, instruction, recipe } = body;
 
-    const [{ data: ownedRecipe, error: recipeError }, { data: ownedVersion, error: versionError }] = await Promise.all([
+    const [
+      { data: ownedRecipe, error: recipeError },
+      { data: ownedVersion, error: versionError },
+      userTasteSummary,
+    ] = await Promise.all([
       access.supabase
         .from("recipes")
         .select("id")
@@ -57,6 +63,7 @@ export async function POST(request: Request) {
         .eq("id", versionId)
         .eq("recipe_id", recipeId)
         .maybeSingle(),
+      buildUserTasteSummary(access.supabase as SupabaseClient, access.userId),
     ]);
 
     if (recipeError || versionError || !ownedRecipe || !ownedVersion) {
@@ -65,7 +72,7 @@ export async function POST(request: Request) {
 
     const result = await improveRecipe({
       instruction,
-      userTasteSummary: await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId),
+      userTasteSummary,
       recipe: {
         title: recipe.title,
         servings: typeof recipe.servings === "number" ? recipe.servings : null,

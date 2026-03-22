@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { estimateNutritionFacts } from "@/lib/ai/nutritionFacts";
+import { initAiUsageContext } from "@/lib/ai/usageLogger";
 
 const requestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -25,6 +27,7 @@ export async function POST(request: Request) {
     if (access.errorResponse) {
       return access.errorResponse;
     }
+    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "nutrition" });
 
     let body;
     try {
@@ -35,12 +38,12 @@ export async function POST(request: Request) {
 
     const { recipeId, versionId, recipe, force } = body;
 
-    const [{ data: ownedRecipe }, { data: ownedVersion }] = await Promise.all([
+    const [{ data: ownedRecipe, error: recipeError }, { data: ownedVersion, error: versionError }] = await Promise.all([
       access.supabase.from("recipes").select("id").eq("id", recipeId).eq("owner_id", access.userId).maybeSingle(),
       access.supabase.from("recipe_versions").select("id").eq("id", versionId).eq("recipe_id", recipeId).maybeSingle(),
     ]);
 
-    if (!ownedRecipe || !ownedVersion) {
+    if (recipeError || versionError || !ownedRecipe || !ownedVersion) {
       return NextResponse.json({ error: true, message: "Recipe not found or access denied." }, { status: 403 });
     }
 

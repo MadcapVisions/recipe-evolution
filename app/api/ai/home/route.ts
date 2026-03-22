@@ -26,6 +26,7 @@ import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionS
 import { normalizeChefChatEnvelope } from "@/lib/ai/chefOptions";
 import { looksLikePivotRequest } from "@/lib/ai/briefStateMachine";
 import { extractRefinementDeltaWithFallback } from "@/lib/ai/refinementExtraction.server";
+import { initAiUsageContext } from "@/lib/ai/usageLogger";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -148,6 +149,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
+    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "home-hub" });
     const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;
@@ -372,20 +374,22 @@ export async function POST(request: Request) {
       const conversationKey = typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0
         ? body.conversationKey.trim()
         : null;
-      const persistedBrief = conversationKey
-        ? await getCookingBrief(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-          })
-        : null;
-      const persistedSession = conversationKey
-        ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-          })
-        : null;
+      const [persistedBrief, persistedSession] = await Promise.all([
+        conversationKey
+          ? getCookingBrief(access.supabase as SupabaseClient, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+            })
+          : Promise.resolve(null),
+        conversationKey
+          ? getLockedDirectionSession(access.supabase as SupabaseClient, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+            })
+          : Promise.resolve(null),
+      ]);
       const requestStartedAt = new Date().toISOString();
       const resolvedIdeaTitle = ideaTitle;
       const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;

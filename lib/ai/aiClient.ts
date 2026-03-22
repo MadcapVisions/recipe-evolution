@@ -1,5 +1,6 @@
 import type { AIMessage } from "./chatPromptBuilder";
 import { estimateUsageCostUsd, type AiUsageMetrics } from "./usageMetrics";
+import { logCallUsage } from "./usageLogger";
 
 export type AICallOptions = {
   max_tokens?: number;
@@ -157,9 +158,9 @@ async function callOpenRouter(messages: AIMessage[], options: AICallOptions, mod
         : typeof (response as { usage?: { cost?: number | string | null } }).usage?.cost === "string"
           ? Number((response as { usage?: { cost?: string } }).usage?.cost)
           : null;
-    return {
+    const callResult = {
       text: response.choices[0]?.message?.content ?? "",
-      provider: "openrouter",
+      provider: "openrouter" as const,
       model,
       finishReason: response.choices[0]?.finish_reason ?? null,
       usage: {
@@ -172,6 +173,8 @@ async function callOpenRouter(messages: AIMessage[], options: AICallOptions, mod
             : estimateUsageCostUsd(model, promptTokens, completionTokens),
       },
     };
+    logCallUsage(model, callResult.usage);
+    return callResult;
   } catch (error) {
     const statusCode = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : undefined;
     const providerMessage =

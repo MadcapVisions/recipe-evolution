@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { structureRecipeFromRawText, StructureRecipeLimitError } from "@/lib/ai/structureRecipe";
 import { trackServerEvent } from "@/lib/trackServerEvent";
+import { initAiUsageContext } from "@/lib/ai/usageLogger";
 
 const structureRecipeRequestSchema = z.object({
   rawText: z.string().trim().min(1).max(20_000),
@@ -22,6 +24,7 @@ export async function POST(request: Request) {
       return access.errorResponse;
     }
     trackedAccess = access;
+    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "structure-recipe" });
 
     let body;
     try {
