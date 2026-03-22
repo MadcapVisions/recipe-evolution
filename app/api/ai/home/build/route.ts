@@ -72,6 +72,7 @@ const buildRequestSchema = z.object({
 type StreamEvent =
   | { type: "status"; message: string }
   | { type: "result"; result: unknown }
+  | { type: "debug"; label: string; data: Record<string, unknown> }
   | {
       type: "error";
       message: string;
@@ -170,6 +171,19 @@ export async function POST(request: Request) {
             })
           : compiledBrief;
         briefCompiledAt = new Date().toISOString();
+        send({
+          type: "debug",
+          label: "brief",
+          data: {
+            normalized_name: effectiveBrief.dish.normalized_name ?? null,
+            dish_family: effectiveBrief.dish.dish_family ?? null,
+            centerpiece: effectiveBrief.ingredients.centerpiece ?? null,
+            required: effectiveBrief.ingredients.required,
+            forbidden: effectiveBrief.ingredients.forbidden,
+            style_tags: [...effectiveBrief.style.tags, ...effectiveBrief.style.texture_tags, ...effectiveBrief.style.format_tags].filter(Boolean),
+            confidence: effectiveBrief.confidence,
+          },
+        });
         const resolvedIdeaTitle = effectiveBrief.dish.normalized_name?.trim() || body.ideaTitle.trim();
         planStartedAt = new Date().toISOString();
         send({ type: "status", message: "Planning the recipe..." });
@@ -283,6 +297,17 @@ export async function POST(request: Request) {
                 : failure.retryStrategy;
 
             if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
+              send({
+                type: "debug",
+                label: "attempt_failed",
+                data: {
+                  attempt: attemptNumber,
+                  kind: failure.kind,
+                  strategy: effectiveStrategy,
+                  reasons: failure.reasons,
+                  checks: failure.verification?.checks ?? null,
+                },
+              });
               attemptNumber += 1;
               retryStrategy = effectiveStrategy as "regenerate_same_model" | "regenerate_stricter" | "try_fallback_model";
               retryReasons = failure.reasons;
@@ -396,6 +421,17 @@ export async function POST(request: Request) {
             },
           });
         }
+        send({
+          type: "debug",
+          label: "terminal_failure",
+          data: {
+            attempt: attemptNumber,
+            kind: failure.kind,
+            strategy: failure.retryStrategy,
+            reasons: failure.reasons,
+            checks: failure.verification?.checks ?? null,
+          },
+        });
         send({
           type: "error",
           message: failure.message,

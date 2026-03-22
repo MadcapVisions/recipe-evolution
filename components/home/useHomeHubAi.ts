@@ -172,6 +172,7 @@ type RecipeBuildStreamError = Error & {
 export type BuildDebugEntry =
   | { type: "status"; message: string; ts: number }
   | { type: "result"; title: string; ts: number }
+  | { type: "debug"; label: string; data: Record<string, unknown>; ts: number }
   | { type: "error"; message: string; failure_kind?: string; retry_strategy?: string; reasons?: string[]; ts: number };
 
 const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
@@ -563,6 +564,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         const event = JSON.parse(trimmed) as
           | { type: "status"; message: string }
           | { type: "result"; result: Record<string, unknown> }
+          | { type: "debug"; label: string; data: Record<string, unknown> }
           | {
               type: "error";
               message: string;
@@ -574,6 +576,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         if (event.type === "status") {
           handlers.onStatus(event.message);
           handlers.onDebugEvent?.({ type: "status", message: event.message, ts: Date.now() });
+        } else if (event.type === "debug") {
+          handlers.onDebugEvent?.({ type: "debug", label: event.label, data: event.data, ts: Date.now() });
         } else if (event.type === "result") {
           finalResult = event.result;
           const resultRecipe = event.result?.recipe as { title?: string } | undefined;
