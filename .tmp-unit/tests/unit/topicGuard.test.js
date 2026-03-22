@@ -51,7 +51,7 @@ const topicGuard_1 = require("../../lib/ai/topicGuard");
         },
     });
     strict_1.default.equal(result.allowed, true);
-    strict_1.default.equal(result.reason, "recipe_context");
+    strict_1.default.equal(result.reason, "cooking");
 });
 (0, node_test_1.default)("allows ingredient exclusion follow-up with active recipe context", () => {
     const result = (0, topicGuard_1.guardCookingTopic)({
@@ -63,7 +63,7 @@ const topicGuard_1 = require("../../lib/ai/topicGuard");
         },
     });
     strict_1.default.equal(result.allowed, true);
-    strict_1.default.equal(result.reason, "recipe_context");
+    strict_1.default.equal(result.reason, "cooking");
 });
 (0, node_test_1.default)("allows scaling follow-up with active recipe context", () => {
     const result = (0, topicGuard_1.guardCookingTopic)({
@@ -75,7 +75,7 @@ const topicGuard_1 = require("../../lib/ai/topicGuard");
         },
     });
     strict_1.default.equal(result.allowed, true);
-    strict_1.default.equal(result.reason, "recipe_context");
+    strict_1.default.equal(result.reason, "cooking");
 });
 (0, node_test_1.default)("allows short ingredient-addition follow-up with active recipe context", () => {
     const result = (0, topicGuard_1.guardCookingTopic)({
@@ -87,7 +87,7 @@ const topicGuard_1 = require("../../lib/ai/topicGuard");
         },
     });
     strict_1.default.equal(result.allowed, true);
-    strict_1.default.equal(result.reason, "recipe_context");
+    strict_1.default.equal(result.reason, "cooking");
 });
 (0, node_test_1.default)("allows short natural refinements with active recipe context even without explicit cooking keywords", () => {
     const recipeContext = {
@@ -95,10 +95,10 @@ const topicGuard_1 = require("../../lib/ai/topicGuard");
         ingredients: ["chicken", "tostada shells", "avocado", "lime"],
         steps: ["Pile the chicken onto tostada shells and finish with avocado crema."],
     };
-    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "more lime", recipeContext }), { allowed: true, reason: "recipe_context" });
-    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "skip the crema", recipeContext }), { allowed: true, reason: "recipe_context" });
-    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "use thighs instead", recipeContext }), { allowed: true, reason: "recipe_context" });
-    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "make it crunchier", recipeContext }), { allowed: true, reason: "recipe_context" });
+    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "more lime", recipeContext }), { allowed: true, reason: "cooking" });
+    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "skip the crema", recipeContext }), { allowed: true, reason: "cooking" });
+    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "use thighs instead", recipeContext }), { allowed: true, reason: "cooking" });
+    strict_1.default.deepEqual((0, topicGuard_1.guardCookingTopic)({ message: "make it crunchier", recipeContext }), { allowed: true, reason: "cooking" });
 });
 (0, node_test_1.default)("blocks obvious programming requests", () => {
     const result = (0, topicGuard_1.guardCookingTopic)({

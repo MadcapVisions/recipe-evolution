@@ -7,6 +7,7 @@ function createAiRecipeResult(input) {
     return {
         recipe: (0, recipeDraft_1.normalizeRecipeDraft)(input.recipe),
         explanation: input.explanation?.trim() || null,
+        version_label: input.version_label?.trim() || null,
         meta: {
             purpose: input.purpose,
             source: input.source,
@@ -35,6 +36,7 @@ function parseAiRecipeResult(value) {
         return {
             recipe,
             explanation: typeof raw.explanation === "string" && raw.explanation.trim().length > 0 ? raw.explanation.trim() : null,
+            version_label: typeof raw.version_label === "string" && raw.version_label.trim().length > 0 ? raw.version_label.trim() : null,
             meta: {
                 purpose: metaRaw.purpose === "structure" || metaRaw.purpose === "home_recipe" || metaRaw.purpose === "refine"
                     ? metaRaw.purpose

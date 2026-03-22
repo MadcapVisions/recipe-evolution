@@ -65,7 +65,9 @@ ${substitutionContext}
 ${cookingContext}
 `,
         },
-        ...chefChatExamples_1.CHEF_CHAT_REGRESSION_EXAMPLES,
+        // Home hub gets general meal-discovery examples; recipe-bound chat gets
+        // recipe-modification examples that stay anchored to the current dish.
+        ...(recipeContext ? chefChatExamples_1.RECIPE_CHAT_EXAMPLES : chefChatExamples_1.CHEF_CHAT_REGRESSION_EXAMPLES),
         ...conversationHistory,
         {
             role: "user",

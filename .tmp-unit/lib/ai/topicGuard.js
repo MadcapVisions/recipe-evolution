@@ -218,33 +218,6 @@ const COOKING_INTENT_PATTERNS = [
     /\b(?:for|with)\b.+\b(?:chips|crackers|vegetables|veggies|bread|pasta|rice|shrimp|chicken|salmon|tacos?)\b/,
     /\bunder \$?\d+/,
 ];
-const RECIPE_CONTEXT_PATTERNS = [
-    /\bmake (?:it|this)\b/,
-    /\bhow do i fix\b/,
-    /\bwhat should i change\b/,
-    /\bwhat can i swap\b/,
-    /\bwhat can i use instead\b/,
-    /\bdoes this need\b/,
-    /\bhow long\b/,
-    /\bwhat side\b/,
-    /\bwhat goes with\b/,
-    /\bi (?:don't|do not) like\b/,
-    /\bi (?:don't|do not) want\b/,
-    /\bi prefer\b/,
-    /\bwithout\b/,
-    /\blet'?s add\b/,
-    /\badd\b/,
-    /\bleave out\b/,
-    /\bskip\b/,
-    /\bremove\b/,
-    /\bavoid\b/,
-    /\binstead of\b/,
-    /\btoo (?:salty|sweet|bland|thin|thick|spicy)\b/,
-    /\b(?:spicier|milder|faster|quicker|healthier|lighter|richer|crispier|creamier)\b/,
-    /\bdouble this\b/,
-    /\bhalve this\b/,
-    /\bfor \d+\b/,
-];
 exports.COOKING_SCOPE_MESSAGE = "I can help with cooking-focused requests only. Ask about dishes, ingredients, sauces, substitutions, technique, timing, grocery planning, meal prep, or how to improve this recipe.";
 function normalize(value) {
     return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -266,24 +239,6 @@ function hasRecipeContext(recipeContext) {
         (recipeContext.ingredients && recipeContext.ingredients.some((item) => item.trim().length > 0)) ||
         (recipeContext.steps && recipeContext.steps.some((item) => item.trim().length > 0)));
 }
-function looksLikeRecipeScopedFollowUp(text) {
-    return RECIPE_CONTEXT_PATTERNS.some((pattern) => pattern.test(text));
-}
-function looksLikeRecipeScopedIngredientAdjustment(text) {
-    return /\b(?:add|swap|replace|remove|skip|leave out|without)\b/.test(text) && countMatches(text, FOOD_TERMS) > 0;
-}
-function looksLikeShortRecipeScopedRefinement(text) {
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length === 0 || words.length > 8) {
-        return false;
-    }
-    if (hasStrongOffTopicIntent(text)) {
-        return false;
-    }
-    return (/\b(?:add|use|swap|replace|skip|remove|leave out|without|more|less|extra|make|keep)\b/.test(text) ||
-        countMatches(text, FOOD_TERMS) > 0 ||
-        countMatches(text, COOKING_KEYWORDS) > 0);
-}
 function looksLikeCookingIntent(text) {
     return COOKING_INTENT_PATTERNS.some((pattern) => pattern.test(text));
 }
@@ -300,31 +255,31 @@ function looksLikeIngredientList(text) {
 function hasStrongOffTopicIntent(text) {
     return STRONG_OFF_TOPIC_PATTERNS.some((pattern) => pattern.test(text));
 }
+const FOOD_ADJACENT_PATTERN = /\b(?:cream|sauce|spice|herb|dairy|ingredient|food|eat|drink|flavor|flavour|taste|yummy|delicious|bland|salty|sweet|bitter|sour|savory|savoury|creamy|crunchy|tender|juicy|fresh|raw|cooked|fried|baked|grilled|roasted|steamed|boiled|crisp|crema|topping|garnish|condiment|dressing|marinade|glaze|rub|broth|stock|braise|simmer|sauté|sear|drizzle|sprinkle|season)\b/i;
 function guardCookingTopic({ message, recipeContext }) {
     const normalized = normalize(message);
+    const strongOffTopic = hasStrongOffTopicIntent(normalized);
     const cookingSignals = countMatches(normalized, COOKING_KEYWORDS) + countMatches(normalized, FOOD_TERMS);
     const offTopicSignals = countMatches(normalized, OFF_TOPIC_KEYWORDS);
-    const hasScopedRecipeContext = hasRecipeContext(recipeContext);
     const cookingIntent = looksLikeCookingIntent(normalized);
     const ingredientList = looksLikeIngredientList(normalized);
-    const recipeScopedFollowUp = hasScopedRecipeContext && looksLikeRecipeScopedFollowUp(normalized);
-    const recipeScopedIngredientAdjustment = hasScopedRecipeContext && looksLikeRecipeScopedIngredientAdjustment(normalized);
-    const shortRecipeScopedRefinement = hasScopedRecipeContext && looksLikeShortRecipeScopedRefinement(normalized);
-    const strongOffTopic = hasStrongOffTopicIntent(normalized);
-    if ((recipeScopedFollowUp || recipeScopedIngredientAdjustment || shortRecipeScopedRefinement) && offTopicSignals === 0) {
-        return { allowed: true, reason: "recipe_context" };
-    }
-    if (strongOffTopic && cookingSignals === 0 && !cookingIntent && !ingredientList && !hasScopedRecipeContext) {
+    const hasScopedRecipeContext = hasRecipeContext(recipeContext);
+    const foodAdjacent = FOOD_ADJACENT_PATTERN.test(normalized);
+    // Block definitively off-topic requests that match a strong pattern
+    // (airline, mortgage, crypto, politics, code, etc.) with no food context.
+    if (strongOffTopic && !cookingIntent && !ingredientList && !hasScopedRecipeContext && !foodAdjacent) {
         return { allowed: false, reason: "off_topic" };
     }
-    if (cookingSignals > 0 && offTopicSignals === 0) {
-        return { allowed: true, reason: "cooking" };
+    // Block messages with off-topic keyword signals and zero food/cooking content.
+    if (offTopicSignals > 0 &&
+        cookingSignals === 0 &&
+        !cookingIntent &&
+        !hasScopedRecipeContext &&
+        !foodAdjacent &&
+        !ingredientList) {
+        return { allowed: false, reason: "off_topic" };
     }
-    if ((cookingIntent || ingredientList) && !strongOffTopic) {
-        return { allowed: true, reason: "cooking" };
-    }
-    if (cookingSignals >= 2 && cookingSignals >= offTopicSignals) {
-        return { allowed: true, reason: "cooking" };
-    }
-    return { allowed: false, reason: "off_topic" };
+    // Everything else is allowed — users are here to cook, and the AI handles
+    // anything that slips through. Never block food-adjacent language.
+    return { allowed: true, reason: "cooking" };
 }

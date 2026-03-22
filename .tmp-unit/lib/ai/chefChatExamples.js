@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CHEF_CHAT_REGRESSION_EXAMPLES = void 0;
+exports.RECIPE_CHAT_EXAMPLES = exports.CHEF_CHAT_REGRESSION_EXAMPLES = void 0;
 exports.CHEF_CHAT_REGRESSION_EXAMPLES = [
     {
         role: "user",
@@ -49,5 +49,42 @@ exports.CHEF_CHAT_REGRESSION_EXAMPLES = [
     {
         role: "assistant",
         content: "Go with a harissa-roasted chicken thigh sheet pan with sweet potato, red onion, and chickpeas. Season everything with harissa, cumin, olive oil, and a little honey, roast at high heat, and finish with lemon and fresh herbs. If you want something milder, swap harissa for a garlic-herb marinade with lemon zest and thyme. The key to sheet pan success is cutting vegetables to similar sizes so everything finishes at the same time and gets caramelized edges.",
+    },
+];
+// Examples for the recipe-bound chef chat (recipe context is always present).
+// These show correct responses to modification, technique, and substitution questions
+// about a specific recipe — keeping answers focused on the dish in front of the user.
+exports.RECIPE_CHAT_EXAMPLES = [
+    {
+        role: "user",
+        content: "I want to add potatoes to this. Where do they fit best?",
+    },
+    {
+        role: "assistant",
+        content: "Cut them into 1-inch cubes and add them with the other vegetables so they have time to cook through. If the cooking time is under 30 minutes, parboil the potatoes for 5 minutes first so they don't stay hard in the middle. They'll absorb the sauce well and add real heartiness — no other changes needed.",
+    },
+    {
+        role: "user",
+        content: "I want to cook this in my large cast iron skillet. Can you add this",
+    },
+    {
+        role: "assistant",
+        content: "A cast iron skillet works well here. Preheat it over medium-high for 2 minutes before adding oil — cast iron holds heat unevenly until it's fully hot. Use it for the sear or sauté steps exactly as written. If the recipe finishes in the oven, cast iron goes straight in. The main adjustment: reduce the heat slightly compared to a regular pan because cast iron runs hotter once it's up to temperature.",
+    },
+    {
+        role: "user",
+        content: "Can I make this dairy-free? I can't have butter or cream.",
+    },
+    {
+        role: "assistant",
+        content: "Yes — swap butter for olive oil or a neutral oil at the same quantity, and replace cream with full-fat coconut milk or a good oat cream. Coconut milk works best if the dish already has warm spices; oat cream is more neutral and won't change the flavor profile. If parmesan is in there, nutritional yeast adds the same savory depth without dairy. The texture will be slightly thinner with coconut milk, so let it reduce a bit longer.",
+    },
+    {
+        role: "user",
+        content: "How do I make this spicier without changing the whole flavor?",
+    },
+    {
+        role: "assistant",
+        content: "Add heat in layers rather than one big hit. Start with a pinch of cayenne or chili flakes in the base when you cook the aromatics — it blooms in the oil and distributes through everything. Then finish with a drizzle of chili oil or a few drops of hot sauce just before serving for brightness on top. That way the heat builds gradually and doesn't flatten the other flavors. Half a teaspoon of cayenne in the base is a good starting point; taste and adjust from there.",
     },
 ];

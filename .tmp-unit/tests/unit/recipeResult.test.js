@@ -42,6 +42,7 @@ const recipeResult_1 = require("../../lib/ai/recipeResult");
             ai_metadata_json: null,
         },
         explanation: null,
+        version_label: null,
         meta: {
             purpose: "home_recipe",
             source: "ai",
@@ -96,6 +97,7 @@ const recipeResult_1 = require("../../lib/ai/recipeResult");
             ai_metadata_json: null,
         },
         explanation: "smoother texture",
+        version_label: null,
         meta: {
             purpose: "refine",
             source: "cache",

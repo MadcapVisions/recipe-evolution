@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
+import { trackServerEvent } from "@/lib/trackServerEvent";
 
 const improveRecipeRequestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -21,6 +22,7 @@ const improveRecipeRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  let trackedAccess: Awaited<ReturnType<typeof requireAuthenticatedAiAccess>> | null = null;
   try {
     const access = await requireAuthenticatedAiAccess({
       route: "improve-recipe",
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
     if (access.errorResponse) {
       return access.errorResponse;
     }
+    trackedAccess = access;
 
     let body;
     try {
@@ -84,6 +87,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ result });
   } catch (error) {
     console.error("Improve recipe route failed", error);
+    if (trackedAccess) {
+      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+        route: "improve-recipe",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
     return NextResponse.json(
       {
         error: true,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { structureRecipeFromRawText, StructureRecipeLimitError } from "@/lib/ai/structureRecipe";
+import { trackServerEvent } from "@/lib/trackServerEvent";
 
 const structureRecipeRequestSchema = z.object({
   rawText: z.string().trim().min(1).max(20_000),
@@ -9,6 +10,7 @@ const structureRecipeRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  let trackedAccess: Awaited<ReturnType<typeof requireAuthenticatedAiAccess>> | null = null;
   try {
     const access = await requireAuthenticatedAiAccess({
       route: "structure-recipe",
@@ -19,6 +21,7 @@ export async function POST(request: Request) {
     if (access.errorResponse) {
       return access.errorResponse;
     }
+    trackedAccess = access;
 
     let body;
     try {
@@ -53,6 +56,12 @@ export async function POST(request: Request) {
     }
 
     console.error("Structure recipe route failed", error);
+    if (trackedAccess) {
+      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+        route: "structure-recipe",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
     return NextResponse.json(
       {
         error: true,

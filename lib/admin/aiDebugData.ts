@@ -39,7 +39,7 @@ export async function getAdminAiDebugEvents() {
     admin
       .from("product_events")
       .select("id, owner_id, event_name, metadata_json, created_at")
-      .in("event_name", ["chef_chat_repaired", "ai_route_failed"])
+      .in("event_name", ["chef_chat_repaired", "ai_route_failed", "ai_topic_guard_blocked"])
       .order("created_at", { ascending: false })
       .limit(50),
     admin
@@ -60,6 +60,7 @@ export async function getAdminAiDebugEvents() {
   const generationAttempts = (attemptsResult.data ?? []) as GenerationAttemptRow[];
   const repairedEvents = events.filter((event) => event.event_name === "chef_chat_repaired");
   const failedEvents = events.filter((event) => event.event_name === "ai_route_failed");
+  const blockedEvents = events.filter((event) => event.event_name === "ai_topic_guard_blocked");
   const totalGenerationCost = generationAttempts.reduce((sum, attempt) => {
     const stageCost = (attempt.stage_metrics_json ?? []).reduce(
       (stageSum, stage) => stageSum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
@@ -79,9 +80,11 @@ export async function getAdminAiDebugEvents() {
     generationAttempts,
     repairedEvents,
     failedEvents,
+    blockedEvents,
     stats: {
       repairsLogged: repairedEvents.length,
       failuresLogged: failedEvents.length,
+      blockedLogged: blockedEvents.length,
       homeHubRepairs: repairedEvents.filter((event) => event.metadata_json?.route === "home-hub").length,
       averageFinalReplyLength:
         repairedEvents.length > 0

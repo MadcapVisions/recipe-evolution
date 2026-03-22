@@ -72,6 +72,7 @@ exports.recipeDraftSchema = zod_1.z.object({
 });
 exports.createRecipePayloadSchema = zod_1.z.object({
     draft: exports.recipeDraftSchema,
+    forkedFromVersionId: zod_1.z.string().uuid().nullable().optional().transform((value) => value ?? null),
 });
 exports.recipeVersionPayloadSchema = zod_1.z.object({
     version_label: nullableTrimmedString.optional().transform((value) => value ?? null),
