@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     p_notes: draft.notes,
     p_change_log: draft.change_log,
     p_ai_metadata_json: draft.ai_metadata_json,
-    ...(forkedFromVersionId ? { p_forked_from_version_id: forkedFromVersionId } : {}),
+    p_forked_from_version_id: forkedFromVersionId ?? null,
   });
 
   const created = Array.isArray(data) ? data[0] : null;
