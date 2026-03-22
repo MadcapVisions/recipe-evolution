@@ -36,6 +36,7 @@ import { buildPrepPlan } from "@/lib/recipes/prepPlan";
 import { scaleCanonicalIngredientLine } from "@/lib/recipes/servings";
 import { useTargetServings } from "@/lib/recipes/targetServings";
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
+import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
 
 function mapInstructionToImproveGoal(instruction: string): "high protein" | "vegetarian" | "faster" | "spicier" | null {
   const lower = instruction.toLowerCase();
@@ -131,22 +132,41 @@ export function VersionDetailClient({
   const steps = useMemo(() => normalizeSteps(version?.canonical_steps), [version]);
   const prepMinutes = typeof version?.prep_time_min === "number" && version.prep_time_min > 0 ? version.prep_time_min : 15;
   const cookMinutes = typeof version?.cook_time_min === "number" && version.cook_time_min > 0 ? version.cook_time_min : 25;
-  const totalMinutes = prepMinutes + cookMinutes;
+  const _totalMinutes = prepMinutes + cookMinutes;
   const servings = typeof version?.servings === "number" ? version.servings : 4;
   const { targetServings: displayServings, setTargetServings, baseServings, canScale: canAdjustServings } = useTargetServings(
     version?.id ?? versionId,
     version?.servings ?? null
   );
   const difficulty = version?.difficulty?.trim() || "Easy";
-  const nutrition = useMemo(() => {
-    const ingredientCount = Math.max(ingredients.length, 1);
-    return {
-      calories: ingredientCount * 55,
-      fat: ingredientCount * 2,
-      carbs: ingredientCount * 6,
-      protein: ingredientCount * 3,
-    };
-  }, [ingredients.length]);
+  const [nutritionFacts, setNutritionFacts] = useState<NutritionFacts | null>(null);
+  const [nutritionLoading, setNutritionLoading] = useState(false);
+
+  const fetchNutrition = (force = false) => {
+    if (!version || !recipe) return;
+    const title = recipe.title ?? "Recipe";
+    const ing = ingredients.filter((i) => i.name.trim().length > 0).map((i) => ({ name: i.name }));
+    if (ing.length === 0) return;
+    setNutritionLoading(true);
+    void fetch("/api/ai/nutrition", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipeId,
+        versionId,
+        recipe: { title, servings, ingredients: ing },
+        force,
+      }),
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          const payload = (await res.json()) as { facts?: NutritionFacts };
+          if (payload.facts) setNutritionFacts(payload.facts);
+        }
+      })
+      .finally(() => setNutritionLoading(false));
+  };
+
   const prepPlan = useMemo(
     () =>
       buildPrepPlan({
@@ -1207,7 +1227,7 @@ export function VersionDetailClient({
           {rightSidebarMode === "overview" ? (
             <>
               <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
-              <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
+              <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} onRecalculate={() => fetchNutrition(true)} />
             </>
           ) : null}
 
@@ -1291,7 +1311,7 @@ export function VersionDetailClient({
 
         <aside className="hidden space-y-4 xl:block xl:sticky xl:top-28 xl:self-start">
           <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
-          <NutritionPanel nutrition={nutrition} totalMinutes={totalMinutes} />
+          <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} onRecalculate={() => fetchNutrition(true)} />
           <PrepPlanPanel
             prepPlan={prepPlan}
             completedChecklistIds={completedPrepIds}

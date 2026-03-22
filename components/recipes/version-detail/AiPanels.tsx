@@ -4,6 +4,7 @@ import { useState, type FocusEvent, type RefObject } from "react";
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import type { ConversationMessage, SelectedAssistantDirection, SuggestedChange } from "@/components/recipes/version-detail/types";
 import type { PrepPlan } from "@/lib/recipes/prepPlan";
+import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
 
 function compactOptionSummary(summary: string) {
   const firstSentence = summary.split(/[.!?]/)[0]?.trim() ?? summary.trim();
@@ -356,26 +357,118 @@ export function MetricsPanel({
   );
 }
 
-export function NutritionPanel({
-  nutrition,
-  totalMinutes,
+const DV = {
+  totalFat: 78,
+  saturatedFat: 20,
+  cholesterol: 300,
+  sodium: 2300,
+  totalCarbs: 275,
+  dietaryFiber: 28,
+  protein: 50,
+};
+
+function pct(value: number, daily: number) {
+  return Math.round((value / daily) * 100);
+}
+
+function NutritionRow({
+  label,
+  value,
+  unit,
+  daily,
+  indent = false,
+  bold = false,
 }: {
-  nutrition: { calories: number; protein: number; fat: number; carbs: number };
-  totalMinutes: number;
+  label: string;
+  value: number;
+  unit: string;
+  daily?: number;
+  indent?: boolean;
+  bold?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-baseline justify-between border-t border-[color:var(--border)] py-[3px] text-[13px] ${indent ? "pl-4" : ""}`}
+    >
+      <span className={bold ? "font-semibold text-[color:var(--text)]" : "text-[color:var(--text)]"}>
+        {label}{" "}
+        <span className={bold ? "font-normal" : ""}>
+          {value}
+          {unit}
+        </span>
+      </span>
+      {daily != null ? (
+        <span className="ml-2 shrink-0 text-[color:var(--muted)]">{pct(value, daily)}%</span>
+      ) : null}
+    </div>
+  );
+}
+
+export function NutritionPanel({
+  facts,
+  loading,
+  onRecalculate,
+}: {
+  facts: NutritionFacts | null;
+  loading: boolean;
+  onRecalculate: () => void;
 }) {
   return (
     <section className="app-panel p-4 sm:p-5">
-      <p className="app-kicker">Nutrition</p>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <MetricCard label="Calories" value={`${nutrition.calories}`} tone="bg-[rgba(255,255,255,0.7)]" />
-        <MetricCard label="Protein" value={`${nutrition.protein}g`} tone="bg-[rgba(141,169,187,0.1)]" />
-        <MetricCard label="Fat" value={`${nutrition.fat}g`} tone="bg-[rgba(255,255,255,0.7)]" />
-        <MetricCard label="Carbs" value={`${nutrition.carbs}g`} tone="bg-[rgba(141,169,187,0.1)]" />
-      </div>
-      <div className="mt-3 rounded-[20px] bg-[rgba(82,124,116,0.08)] p-4 text-center">
-        <p className="app-kicker">Total time</p>
-        <p className="mt-2 text-[24px] font-semibold text-[color:var(--text)] sm:text-[28px]">{totalMinutes} min</p>
-      </div>
+      <p className="app-kicker">Nutrition Facts</p>
+
+      {loading ? (
+        <div className="mt-4 space-y-2">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="h-4 animate-pulse rounded bg-[rgba(141,169,187,0.15)]" />
+          ))}
+        </div>
+      ) : facts ? (
+        <>
+          <div className="mt-3 border-t-4 border-[color:var(--text)] pb-1 pt-1">
+            <div className="flex items-baseline justify-between text-[12px] text-[color:var(--muted)]">
+              <span>Amount Per Serving</span>
+              <span>% Daily Value</span>
+            </div>
+          </div>
+
+          <div className="border-t-2 border-[color:var(--text)]">
+            <div className="flex items-baseline justify-between border-b border-[color:var(--border)] py-[3px]">
+              <span className="text-[14px] font-bold text-[color:var(--text)]">
+                Calories <span className="text-[20px]">{facts.calories}</span>
+              </span>
+            </div>
+
+            <div className="pb-1 pt-1 text-right text-[11px] font-semibold text-[color:var(--text)]">% Daily Value*</div>
+
+            <NutritionRow label="Total Fat" value={facts.totalFat} unit="g" daily={DV.totalFat} bold />
+            <NutritionRow label="Saturated Fat" value={facts.saturatedFat} unit="g" daily={DV.saturatedFat} indent />
+            <NutritionRow label="Cholesterol" value={facts.cholesterol} unit="mg" daily={DV.cholesterol} bold />
+            <NutritionRow label="Sodium" value={facts.sodium} unit="mg" daily={DV.sodium} bold />
+            <NutritionRow label="Total Carbohydrate" value={facts.totalCarbs} unit="g" daily={DV.totalCarbs} bold />
+            <NutritionRow label="Dietary Fiber" value={facts.dietaryFiber} unit="g" daily={DV.dietaryFiber} indent />
+            <NutritionRow label="Sugars" value={facts.sugars} unit="g" indent />
+            <NutritionRow label="Protein" value={facts.protein} unit="g" daily={DV.protein} bold />
+          </div>
+
+          <p className="mt-2 text-[11px] text-[color:var(--muted)]">
+            * Estimates based on a 2,000 calorie diet.
+          </p>
+        </>
+      ) : (
+        <div className="mt-4 text-center">
+          <p className="text-[13px] text-[color:var(--muted)]">No nutrition data yet.</p>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onRecalculate}
+        disabled={loading}
+        className="mt-3 text-[13px] font-medium text-[color:var(--accent)] underline underline-offset-2 hover:opacity-75 disabled:opacity-40"
+      >
+        {facts ? "Recalculate Nutrition Facts" : "Calculate Nutrition Facts"}
+      </button>
     </section>
   );
 }

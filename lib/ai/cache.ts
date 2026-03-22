@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type AiCachePurpose = "structure" | "refine" | "home_ideas" | "home_recipe";
+export type AiCachePurpose = "structure" | "refine" | "home_ideas" | "home_recipe" | "nutrition";
 
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") {
