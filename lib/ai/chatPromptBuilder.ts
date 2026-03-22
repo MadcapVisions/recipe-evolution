@@ -82,7 +82,9 @@ ${substitutionContext}
 ${cookingContext}
 `,
     },
-    ...CHEF_CHAT_REGRESSION_EXAMPLES,
+    // Regression examples only apply to the home hub (no recipe context).
+    // In the recipe-bound chat they introduce unrelated recipes that confuse the AI.
+    ...(recipeContext ? [] : CHEF_CHAT_REGRESSION_EXAMPLES),
     ...conversationHistory,
     {
       role: "user",
