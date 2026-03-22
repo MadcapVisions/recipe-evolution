@@ -19,6 +19,7 @@ export type AiRecipeMeta = {
 export type AiRecipeResult = {
   recipe: RecipeDraft;
   explanation: string | null;
+  version_label: string | null;
   meta: AiRecipeMeta;
 };
 
@@ -31,6 +32,7 @@ export function createAiRecipeResult(input: {
   inputHash?: string | null;
   createdAt?: string | null;
   explanation?: string | null;
+  version_label?: string | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
   estimatedCostUsd?: number | null;
@@ -39,6 +41,7 @@ export function createAiRecipeResult(input: {
   return {
     recipe: normalizeRecipeDraft(input.recipe),
     explanation: input.explanation?.trim() || null,
+    version_label: input.version_label?.trim() || null,
     meta: {
       purpose: input.purpose,
       source: input.source,
@@ -71,6 +74,7 @@ export function parseAiRecipeResult(value: unknown): AiRecipeResult | null {
     return {
       recipe,
       explanation: typeof raw.explanation === "string" && raw.explanation.trim().length > 0 ? raw.explanation.trim() : null,
+      version_label: typeof raw.version_label === "string" && raw.version_label.trim().length > 0 ? raw.version_label.trim() : null,
       meta: {
         purpose:
           metaRaw.purpose === "structure" || metaRaw.purpose === "home_recipe" || metaRaw.purpose === "refine"

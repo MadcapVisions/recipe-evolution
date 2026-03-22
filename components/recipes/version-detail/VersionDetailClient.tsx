@@ -315,6 +315,7 @@ export function VersionDetailClient({
         difficulty?: string | null;
       };
       explanation?: string;
+      version_label?: string | null;
       ingredients?: Array<{ name: string }>;
       steps?: Array<{ text: string }>;
       servings?: number | null;
@@ -336,6 +337,7 @@ export function VersionDetailClient({
     return {
       instruction,
       explanation: improved.explanation ?? null,
+      version_label: improved.version_label ?? null,
       servings: typeof recipePayload.servings === "number" ? recipePayload.servings : version.servings,
       prep_time_min: typeof recipePayload.prep_time_min === "number" ? recipePayload.prep_time_min : version.prep_time_min,
       cook_time_min: typeof recipePayload.cook_time_min === "number" ? recipePayload.cook_time_min : version.cook_time_min,
@@ -430,6 +432,7 @@ export function VersionDetailClient({
     return {
       instruction,
       explanation: `Built with the deterministic fallback engine for a ${improveGoal} variation.`,
+      version_label: null,
       servings: typeof improved.servings === "number" ? improved.servings : version.servings,
       prep_time_min: typeof improved.prep_time_min === "number" ? improved.prep_time_min : version.prep_time_min,
       cook_time_min: typeof improved.cook_time_min === "number" ? improved.cook_time_min : version.cook_time_min,
@@ -458,6 +461,7 @@ export function VersionDetailClient({
     return {
       instruction: "Remix leftovers into a new version",
       explanation: remixed.remix_description,
+      version_label: null,
       servings: typeof remixed.servings === "number" ? remixed.servings : version.servings,
       prep_time_min: typeof remixed.prep_time_min === "number" ? remixed.prep_time_min : version.prep_time_min,
       cook_time_min: typeof remixed.cook_time_min === "number" ? remixed.cook_time_min : version.cook_time_min,
@@ -655,7 +659,7 @@ export function VersionDetailClient({
       assistant.setIsGeneratingVersion(false);
       return;
     }
-    await createVersionFromSuggestion(suggestion, buildVersionLabelFromInstruction(instruction), {
+    await createVersionFromSuggestion(suggestion, suggestion.version_label ?? buildVersionLabelFromInstruction(instruction), {
       source: "ai",
       action: "quick_action",
       instruction,
@@ -763,7 +767,7 @@ export function VersionDetailClient({
     assistant.setAiError(null);
     await createVersionFromSuggestion(
       assistant.suggestedChange,
-      buildVersionLabelFromInstruction(assistant.suggestedChange.instruction),
+      assistant.suggestedChange.version_label ?? buildVersionLabelFromInstruction(assistant.suggestedChange.instruction),
       {
         source: assistant.aiError?.toLowerCase().includes("fallback") ? "fallback" : "ai",
         action: "apply_suggestion",

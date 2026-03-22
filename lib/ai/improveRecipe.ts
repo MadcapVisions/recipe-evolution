@@ -105,6 +105,7 @@ User taste summary: ${input.userTasteSummary?.trim() || "No user taste summary a
 When asked to improve a recipe, you must return ONLY valid JSON with no markdown:
 {
   "title": string,
+  "version_label": string,
   "explanation": string,
   "servings": number|null,
   "prep_time_min": number|null,
@@ -115,6 +116,7 @@ When asked to improve a recipe, you must return ONLY valid JSON with no markdown
 }
 
 Rules:
+- version_label: 2-4 words describing what changed, suitable for a version badge. Examples: "With Potatoes", "Dairy-Free", "Spicier Version", "Faster Cook", "Added Lemon". Use title case. Do not include the word "recipe".
 - Always make changes that directly and visibly address the instruction. Vague rewrites are not acceptable.
 - For "spicier" or "more heat": increase or add chili, cayenne, jalapeño, gochujang, or hot sauce — make at least 2 ingredient-level changes.
 - For "simpler" or "fewer ingredients": reduce the ingredient count by at least 2-3 items and combine or cut steps.
@@ -176,6 +178,8 @@ ${JSON.stringify(input.recipe, null, 2)}`,
 
   const explanation =
     typeof obj.explanation === "string" && obj.explanation.trim().length > 0 ? obj.explanation.trim() : null;
+  const version_label =
+    typeof obj.version_label === "string" && obj.version_label.trim().length > 0 ? obj.version_label.trim() : null;
 
   const improved = createAiRecipeResult({
     purpose: "refine",
@@ -186,6 +190,7 @@ ${JSON.stringify(input.recipe, null, 2)}`,
     inputHash,
     createdAt: new Date().toISOString(),
     explanation,
+    version_label,
     recipe: {
       title,
       description: null,
