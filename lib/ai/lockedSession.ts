@@ -119,7 +119,9 @@ export function buildLockedBrief(input: {
     : deriveIdeaTitleFromConversationContext(`${selected.title} ${selected.summary}`);
   const canonicalFamily = detectRequestedDishFamily(`${selected.title} ${selected.summary}`);
   const requiredIngredients = unique([
-    ...brief.ingredients.required,
+    // Only use explicit user refinements — do not include brief.ingredients.required here,
+    // as compileCookingBrief incorrectly parses the AI-generated direction summary text
+    // and extracts ingredient mentions from it as if they were user-mandated requirements.
     ...refinements.flatMap((item) => item.extracted_changes.required_ingredients),
   ]);
   const forbiddenIngredients = unique([
