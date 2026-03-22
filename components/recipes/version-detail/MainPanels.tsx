@@ -377,7 +377,7 @@ function VersionHistoryDropdown({
   onOpenVersionMenu: (versionId: string, rect: DOMRect) => void;
 }) {
   return (
-    <div className="absolute right-0 top-[calc(100%+10px)] z-30 w-[min(420px,calc(100vw-2rem))] rounded-[28px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-4 shadow-[0_18px_40px_rgba(52,70,63,0.12)]">
+    <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(420px,calc(100vw-2rem))] rounded-[28px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-4 shadow-[0_18px_40px_rgba(52,70,63,0.12)] lg:left-auto lg:right-0">
       <p className="app-kicker">Version history</p>
       <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">Browse the saved lineage for this recipe. Picking a version updates the recipe canvas and the Chef workshop together.</p>
       <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
