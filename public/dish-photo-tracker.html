@@ -37,7 +37,11 @@
 
 <div id="content"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+const SUPABASE_URL = "https://drbpavxcaxlkztodangi.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_S5mgZ2ck6xY36pmzNDAhtg_euXr41z1";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const STORAGE_KEY = "dish-photo-tracker-v1";
 
 const sections = [
@@ -180,18 +184,25 @@ const sections = [
 const TOTAL = sections.reduce((s, sec) => s + sec.families.reduce((a, f) => a + f.triggers.split(",").filter(t => t.trim()).length, 0), 0);
 let state = {};
 
-function load() {
-  try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { state = {}; }
-}
-
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
 function updateProgress() {
   const done = Object.values(state).filter(Boolean).length;
   document.getElementById("progressLabel").textContent = `${done} / ${TOTAL} done`;
   document.getElementById("progressBar").style.width = `${(done / TOTAL) * 100}%`;
+}
+
+function applyKey(key, checked) {
+  state[key] = checked;
+  const row = document.querySelector(`[data-key="${CSS.escape(key)}"]`);
+  if (row) {
+    row.className = "item-row" + (checked ? " done" : "");
+    row.querySelector("input").checked = checked;
+  }
+  updateProgress();
+}
+
+async function toggle(key, checked) {
+  applyKey(key, checked);
+  await sb.from("dish_tracker_items").upsert({ key, checked, updated_at: new Date().toISOString() });
 }
 
 function render() {
@@ -209,13 +220,9 @@ function render() {
         const key = `${f.id}::${trigger}`;
         const row = document.createElement("label");
         row.className = "item-row" + (state[key] ? " done" : "");
+        row.dataset.key = key;
         row.innerHTML = `<input type="checkbox" ${state[key] ? "checked" : ""}><span class="item-text">${trigger}</span>`;
-        row.querySelector("input").addEventListener("change", e => {
-          state[key] = e.target.checked;
-          row.className = "item-row" + (state[key] ? " done" : "");
-          save();
-          updateProgress();
-        });
+        row.querySelector("input").addEventListener("change", e => toggle(key, e.target.checked));
         group.appendChild(row);
       });
       secEl.appendChild(group);
@@ -224,10 +231,10 @@ function render() {
   });
 }
 
-document.getElementById("resetBtn").addEventListener("click", () => {
+document.getElementById("resetBtn").addEventListener("click", async () => {
   if (confirm("Reset all checkboxes?")) {
+    await sb.from("dish_tracker_items").delete().neq("key", "");
     state = {};
-    save();
     document.querySelectorAll(".item-row").forEach(r => {
       r.classList.remove("done");
       r.querySelector("input").checked = false;
@@ -236,9 +243,27 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   }
 });
 
-load();
-render();
-updateProgress();
+// subscribe to realtime changes from other clients
+sb.channel("dish_tracker")
+  .on("postgres_changes", { event: "*", schema: "public", table: "dish_tracker_items" }, payload => {
+    const { key, checked } = payload.new ?? {};
+    if (key !== undefined) applyKey(key, checked);
+  })
+  .subscribe();
+
+// load initial state from DB, fall back to localStorage
+async function init() {
+  const { data } = await sb.from("dish_tracker_items").select("key, checked");
+  if (data && data.length > 0) {
+    data.forEach(row => { state[row.key] = row.checked; });
+  } else {
+    try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { state = {}; }
+  }
+  render();
+  updateProgress();
+}
+
+init();
 </script>
 </body>
 </html>
