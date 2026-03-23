@@ -12,11 +12,11 @@ function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
 }
 
-function isGenericCenterpieceTitle(s: string): boolean {
+export function isGenericCenterpieceTitle(s: string): boolean {
   return s === "Chef Conversation Recipe" || /^chef\s/i.test(s) || /\sDish$/.test(s);
 }
 
-function deriveCanonicalCenterpiece(input: {
+export function deriveCanonicalCenterpiece(input: {
   normalizedName: string | null;
   recipeTitle?: string | null;
   userMessage: string;
@@ -219,10 +219,21 @@ export function compileCookingBrief(input: {
     .filter(Boolean)
     .join("\n");
 
+  // Hard constraints (required/forbidden ingredients) are derived only from
+  // user-authored turns. Including assistant replies and recipe-context text
+  // causes model-suggested ingredients to be promoted into must-have
+  // requirements as if the user explicitly asked for them.
+  const userOnlyText = [
+    ...conversationHistory.filter((m) => m.role === "user").map((m) => m.content),
+    input.userMessage,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   const dishFamily = detectRequestedDishFamily(conversationText);
   const normalizedName = deriveIdeaTitleFromConversationContext(conversationText);
-  const forbiddenIngredients = extractForbiddenIngredients(conversationText);
-  const requiredIngredients = extractExplicitRequiredIngredients(conversationText);
+  const forbiddenIngredients = extractForbiddenIngredients(userOnlyText);
+  const requiredIngredients = extractExplicitRequiredIngredients(userOnlyText);
   const brief = createEmptyCookingBrief();
   const hasDishSignal = Boolean(
     dishFamily ||
@@ -232,8 +243,8 @@ export function compileCookingBrief(input: {
   const hasConstraintSignal =
     forbiddenIngredients.length > 0 ||
     requiredIngredients.length > 0 ||
-    extractTimeMaxMinutes(conversationText) != null ||
-    extractDietaryTags(conversationText).length > 0;
+    extractTimeMaxMinutes(userOnlyText) != null ||
+    extractDietaryTags(userOnlyText).length > 0;
   const requestMode = deriveBriefRequestMode({
     latestUserMessage: input.userMessage,
     conversationHistory,
@@ -280,9 +291,9 @@ export function compileCookingBrief(input: {
   };
   brief.constraints = {
     servings: null,
-    time_max_minutes: extractTimeMaxMinutes(conversationText),
+    time_max_minutes: extractTimeMaxMinutes(userOnlyText),
     difficulty_target: null,
-    dietary_tags: extractDietaryTags(conversationText),
+    dietary_tags: extractDietaryTags(userOnlyText),
     equipment_limits: [],
   };
   brief.directives = {

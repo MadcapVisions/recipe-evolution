@@ -3,7 +3,7 @@ import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "
 import type { AIMessage } from "./chatPromptBuilder";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatIngredientLine, repairRecipeDraftIngredientLines } from "../recipes/recipeDraft";
+import { repairRecipeDraftIngredientLines } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 import type { CookingBrief } from "./contracts/cookingBrief";
 import type { RecipePlan } from "./contracts/recipePlan";
@@ -12,23 +12,13 @@ import { RecipeBuildError } from "./recipeBuildError";
 import { createFailedVerificationResult } from "./contracts/verificationResult";
 import { buildRetryInstructions } from "./homeRecipeRetry";
 import { shouldEscalateVerification, findMissingQuantities, buildVerificationRepairInstructions } from "./recipeRepair";
+import { detectRequestedAnchorIngredient, detectRequestedProtein } from "./homeRecipeAlignment";
+import { normalizeGeneratedRecipePayload, type HomeGeneratedRecipe, type RecipeNormalizationResult } from "./recipeNormalization";
 
 type HomeIdea = {
   title: string;
   description: string;
   cook_time_min: number | null;
-};
-
-type HomeGeneratedRecipe = {
-  title: string;
-  description: string | null;
-  servings: number | null;
-  prep_time_min: number | null;
-  cook_time_min: number | null;
-  difficulty: string | null;
-  ingredients: Array<{ name: string }>;
-  steps: Array<{ text: string }>;
-  chefTips: string[];
 };
 
 type IdeaMode = "mood_ideas" | "ingredients_ideas" | "filtered_ideas";
@@ -318,77 +308,52 @@ function normalizeIdeas(value: unknown, input: IdeaInput): HomeIdea[] {
 }
 
 function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRecipe | null {
-  if (!value || typeof value !== "object") {
+  return normalizeGeneratedRecipePayload(value, fallbackTitle).recipe;
+}
+
+function getSuspiciousBriefReason(input: {
+  ideaTitle: string;
+  prompt?: string;
+  conversationHistory?: AIMessage[];
+  cookingBrief?: CookingBrief | null;
+}) {
+  const brief = input.cookingBrief;
+  if (!brief || brief.request_mode !== "locked") {
     return null;
   }
 
-  const raw = value as Record<string, unknown>;
-  const ingredients = Array.isArray(raw.ingredients)
-    ? raw.ingredients
-        .map((item) => {
-          if (typeof item === "string") {
-            return { name: item.trim() };
-          }
-          if (item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string") {
-            const ingredient = item as { name: string; quantity?: number; unit?: string | null; prep?: string | null };
-            const rawUnit = typeof ingredient.unit === "string" ? ingredient.unit.trim().toLowerCase() : null;
-            const unit = rawUnit && rawUnit !== "count" && rawUnit !== "piece" && rawUnit !== "pieces" ? ingredient.unit!.trim() : null;
-            const rawPrep = typeof ingredient.prep === "string" ? ingredient.prep.trim() : null;
-            const JUNK_PREP = new Set(["none", "n/a", "-", "null", "na"]);
-            const prep = rawPrep && !JUNK_PREP.has(rawPrep.toLowerCase()) ? rawPrep : null;
-            return {
-              name: formatIngredientLine({
-                name: ingredient.name,
-                quantity: typeof ingredient.quantity === "number" ? ingredient.quantity : null,
-                unit,
-                prep,
-              }) || ingredient.name.trim(),
-            };
-          }
-          return null;
-        })
-        .filter((item): item is { name: string } => item !== null && item.name.length > 0)
-    : [];
-  const steps = Array.isArray(raw.steps)
-    ? raw.steps
-        .map((item) => {
-          if (typeof item === "string") {
-            return { text: item.trim() };
-          }
-          if (item && typeof item === "object" && typeof (item as { text?: unknown }).text === "string") {
-            return { text: (item as { text: string }).text.trim() };
-          }
-          return null;
-        })
-        .filter((item): item is { text: string } => item !== null && item.text.length > 0)
-    : [];
+  const normalizedName = brief.dish.normalized_name?.trim() ?? "";
+  const centerpiece = brief.ingredients.centerpiece?.trim() ?? "";
+  const context = `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`.toLowerCase();
+  const requestedProtein = detectRequestedProtein(context);
+  const requestedAnchor = detectRequestedAnchorIngredient(context);
 
-  if (ingredients.length === 0 || steps.length === 0) {
-    return null;
+  if (!normalizedName || normalizedName === "Chef Conversation Recipe") {
+    return "Locked direction is too generic to build reliably. Pick a more specific direction first.";
   }
 
-  const title = typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : fallbackTitle;
+  if (
+    centerpiece &&
+    requestedProtein &&
+    !centerpiece.toLowerCase().includes(requestedProtein) &&
+    !normalizedName.toLowerCase().includes(requestedProtein)
+  ) {
+    return `Locked direction lost the requested centerpiece ingredient (${requestedProtein}). Refine the direction before building.`;
+  }
 
-  const chefTips = Array.isArray(raw.chefTips)
-    ? raw.chefTips
-        .filter((tip): tip is string => typeof tip === "string" && tip.trim().length > 0)
-        .map((tip) => tip.trim())
-        .slice(0, 3)
-    : [];
+  if (
+    !centerpiece &&
+    (requestedProtein || requestedAnchor) &&
+    !normalizedName.toLowerCase().includes((requestedProtein ?? requestedAnchor ?? "").toLowerCase())
+  ) {
+    return "Locked direction is missing a concrete anchor ingredient. Refine the direction before building.";
+  }
 
-  return {
-    title,
-    description: typeof raw.description === "string" ? raw.description.trim() || null : null,
-    servings: typeof raw.servings === "number" ? Math.round(raw.servings) : 4,
-    prep_time_min: typeof raw.prep_time_min === "number" ? Math.round(raw.prep_time_min) : 15,
-    cook_time_min: typeof raw.cook_time_min === "number" ? Math.round(raw.cook_time_min) : 30,
-    difficulty: typeof raw.difficulty === "string" && raw.difficulty.trim()
-      ? raw.difficulty.trim().charAt(0).toUpperCase() + raw.difficulty.trim().slice(1).toLowerCase()
-      : "Easy",
-    ingredients,
-    steps,
-    chefTips,
-  };
+  return null;
+}
+
+export function normalizeGeneratedRecipeForTest(value: unknown, fallbackTitle: string) {
+  return normalizeGeneratedRecipePayload(value, fallbackTitle);
 }
 
 
@@ -597,8 +562,10 @@ ${input.rawText}`,
   ];
 
   const repairResult = await callAIForJson(repairMessages, input.aiCallOptions);
+  const normalized = normalizeGeneratedRecipePayload(repairResult.parsed, input.ideaTitle);
   return {
-    recipe: normalizeRecipe(repairResult.parsed, input.ideaTitle),
+    recipe: normalized.recipe,
+    reason: normalized.reason,
     usage: repairResult.usage,
   };
 }
@@ -617,6 +584,17 @@ export async function generateHomeRecipe(input: {
     modelOverride?: string;
   } | null;
 }, userTasteSummary?: string, cacheContext?: AiCacheContext, onStage?: HomeRecipeStageReporter): Promise<AiRecipeResult> {
+  const suspiciousBriefReason = getSuspiciousBriefReason(input);
+  if (suspiciousBriefReason) {
+    throw new RecipeBuildError({
+      message: suspiciousBriefReason,
+      kind: "generation_failed",
+      verification: createFailedVerificationResult(suspiciousBriefReason, "ask_user"),
+      retryStrategy: "ask_user",
+      reasons: [suspiciousBriefReason],
+    });
+  }
+
   const inputHash = cacheContext
     ? hashAiCacheInput({
         input,
@@ -776,7 +754,8 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     hasUsageMetrics = true;
   }
   const { parsed } = result;
-  let recipe = normalizeRecipe(parsed, input.ideaTitle);
+  let normalizedResult: RecipeNormalizationResult = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
+  let recipe = normalizedResult.recipe;
 
   if (!recipe) {
     onStage?.("recipe_generate", "Repairing malformed recipe output...");
@@ -801,16 +780,22 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
         hasUsageMetrics = true;
       }
       recipe = repaired.recipe;
+      normalizedResult = {
+        recipe,
+        reason: recipe ? null : repaired.reason ?? normalizedResult.reason,
+      };
     } catch {
       recipe = null;
     }
   }
 
   if (!recipe) {
+    const invalidPayloadReason = normalizedResult.reason ?? "AI returned invalid recipe payload.";
     throw new RecipeBuildError({
-      message: "AI returned invalid recipe payload.",
+      message: invalidPayloadReason,
       kind: "invalid_payload",
-      verification: createFailedVerificationResult("AI returned invalid recipe payload.", "regenerate_same_model"),
+      verification: createFailedVerificationResult(invalidPayloadReason, "regenerate_same_model"),
+      reasons: [invalidPayloadReason],
     });
   }
 
@@ -877,7 +862,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
   // Quality repair pass: fix vague steps, taste violations, and missing quantities.
   // The recipe already passed verification above — if the repair re-check fails we revert
   // to the pre-repair state rather than throwing, so a quality repair never kills a valid build.
-  const vagueSteps = recipe.steps.filter((s) => isVagueStep(s.text));
+  const vagueSteps = recipe.steps.filter((s: { text: string }) => isVagueStep(s.text));
   const disliked = userTasteSummary ? extractDislikedFromSummary(userTasteSummary) : [];
   const violations = findTasteViolations(recipe, disliked);
   const missingQty = findMissingQuantities(recipe.ingredients);
@@ -886,7 +871,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     const repairs: string[] = [];
     if (vagueSteps.length > 0) {
       repairs.push(
-        `Expand these vague steps — each must include an actionable verb, technique, and timing or doneness cues (minimum 10 words): ${vagueSteps.map((s) => `"${s.text}"`).join("; ")}.`
+        `Expand these vague steps — each must include an actionable verb, technique, and timing or doneness cues (minimum 10 words): ${vagueSteps.map((s: { text: string }) => `"${s.text}"`).join("; ")}.`
       );
     }
     if (violations.length > 0) {
@@ -954,7 +939,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
         ...recipe,
       ingredients: repairRecipeDraftIngredientLines(recipe.ingredients),
       tags: null,
-      notes: recipe.chefTips.length > 0 ? recipe.chefTips.map((tip) => `• ${tip}`).join("\n") : null,
+      notes: recipe.chefTips.length > 0 ? recipe.chefTips.map((tip: string) => `• ${tip}`).join("\n") : null,
       change_log: null,
       ai_metadata_json: null,
     },

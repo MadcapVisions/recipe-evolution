@@ -1,3 +1,46 @@
+// Canonical set of dish family identifiers returned by detectRequestedDishFamily.
+// Any code that persists or validates a dish_family value should reference this list
+// to keep the taxonomy consistent across the classifier, verifier, API, and UI.
+export const DISH_FAMILIES = [
+  // Baked goods
+  "brownies_bars", "muffins_scones", "cookies", "cake", "pastry", "fried_pastry",
+  "dessert_bread", "bread", "pie", "tart", "frozen_dessert", "custard_pudding",
+  "candy_confection", "dessert",
+  // Pizza & flatbread
+  "pizza", "flatbread",
+  // Pasta & noodles
+  "noodle_soup", "pasta", "stir_fry",
+  // Mexican / wraps / handhelds
+  "tamales", "tacos", "burger", "sandwich", "wraps", "spring_rolls",
+  "dumplings", "savory_pastry",
+  // Soups & stews
+  "chili", "soup", "curry",
+  // Grains & rice
+  "rice", "grains",
+  // Salads, dips & sauces
+  "salad", "dips_spreads", "sauce_condiment",
+  // Egg & breakfast
+  "egg_dish", "pancakes_crepes", "savory_pancake", "porridge_cereal", "breakfast",
+  // Baked / braised mains
+  "pot_pie", "casserole", "braised", "stuffed",
+  // Grilled, fried & roasted
+  "grilled_bbq", "fried", "roasted", "steamed", "fritters_patties",
+  // Meatballs / ground meat
+  "meatballs_ground_meat",
+  // Raw / cured
+  "sushi_raw", "raw_cured",
+  // Protein-centred
+  "seafood_fish", "chicken_poultry", "sausage", "tofu_tempeh", "beans_legumes",
+  // Sides & vegetables
+  "potato", "vegetable_side", "skillet", "bowl",
+  // Beverages & preserves
+  "beverage", "preserve", "pickled_fermented",
+  // Snacks & sharing
+  "appetizer_snack", "board_platter", "souffle", "fondue",
+] as const;
+
+export type DishFamily = (typeof DISH_FAMILIES)[number];
+
 type HomeRecipeLike = {
   title: string;
   description: string | null;
@@ -16,159 +59,385 @@ function includesAny(text: string, terms: string[]) {
 export function detectRequestedDishFamily(context: string) {
   const normalized = normalizeText(context);
 
-  // --- Baked goods (check before bread to avoid false positives) ---
-  if (includesAny(normalized, ["cookie", "cookies", "biscotti", "brownie", "brownies", "blondie", "blondies", "muffin", "muffins", "scone", "scones", "macaroon", "macarons"])) {
+  // ── Baked goods ──────────────────────────────────────────────────────────────
+  // Order: more-specific before generic catch-alls
+
+  // brownies / bars (NOT cookies)
+  if (includesAny(normalized, ["brownie", "brownies", "blondie", "blondies", "lemon bar", "lemon bars", "nanaimo bar", "rice krispie treat", "rice krispie", "traybake", "flapjack", "granola bar", "cereal bar", "energy bar"])) {
+    return "brownies_bars";
+  }
+
+  // muffins / scones (NOT cookies)
+  if (includesAny(normalized, ["muffin", "muffins", "scone", "scones", "quick bread"])) {
+    return "muffins_scones";
+  }
+
+  // cookies (clean — no brownies / muffins / scones)
+  if (includesAny(normalized, ["cookie", "cookies", "biscotti", "snickerdoodle", "shortbread", "macaroon", "macarons", "macaron", "linzer cookie", "thumbprint cookie", "springerle", "pizzelle", "tuile", "florentine", "rugelach", "hamantaschen", "sandwich cookie"])) {
     return "cookies";
   }
-  if (includesAny(normalized, ["cupcake", "cupcakes", "cheesecake", "pound cake", "bundt cake", "layer cake", "coffee cake", "upside-down cake", "sponge cake", "carrot cake", "red velvet", "angel food"])) {
+
+  // cakes (specific terms first, generic "cake" last)
+  if (includesAny(normalized, ["cupcake", "cupcakes", "cheesecake", "pound cake", "bundt cake", "layer cake", "coffee cake", "upside-down cake", "sponge cake", "carrot cake", "red velvet", "angel food", "swiss roll", "roulade", "chiffon cake", "genoise", "opera cake", "dobos torte", "black forest"])) {
     return "cake";
   }
-  // Generic "cake" after more specific cake terms
   if (includesAny(normalized, [" cake "])) {
     return "cake";
   }
-  if (includesAny(normalized, ["banana bread", "zucchini bread", "pumpkin bread", "cornbread", "corn bread", "sandwich bread", "sourdough bread", "whole wheat bread", "bread loaf", "bread roll", "dinner roll", "quick bread", "brioche", "challah", "baguette", "ciabatta", "focaccia bread", "naan bread", "pita bread"])) {
+
+  // pastry / viennoiserie (croissants, danishes, choux, phyllo)
+  if (includesAny(normalized, ["croissant", "danish", "puff pastry", "pain au chocolat", "strudel", "palmier", "eclair", "profiterole", "choux", "mille-feuille", "napoleon pastry", "vol-au-vent", "paris-brest", "phyllo", "filo pastry", "baklava", "baklawa"])) {
+    return "pastry";
+  }
+
+  // fried pastry — donuts, churros (NOT fried savory food)
+  if (includesAny(normalized, ["donut", "donuts", "doughnut", "doughnuts", "beignet", "beignets", "churro", "churros", "funnel cake", "zeppole", "sopapilla", "loukoumades", "struffoli"])) {
+    return "fried_pastry";
+  }
+
+  // dessert breads — cinnamon rolls, babka, etc.
+  if (includesAny(normalized, ["cinnamon roll", "cinnamon rolls", "cinnamon bun", "cinnamon buns", "monkey bread", "babka", "kolache", "stollen", "panettone", "cardamom bun", "morning bun", "sticky bun"])) {
+    return "dessert_bread";
+  }
+
+  // bread — yeasted and quick loaves (NOT sweet rolls, NOT pizza/flatbread)
+  if (includesAny(normalized, ["banana bread", "zucchini bread", "pumpkin bread", "cornbread", "corn bread", "sandwich bread", "sourdough bread", "whole wheat bread", "bread loaf", "bread roll", "dinner roll", "brioche", "challah", "baguette", "ciabatta", "naan bread", "pita bread", "pretzel", "soft pretzel", "bagel", "english muffin", "pull-apart bread"])) {
     return "bread";
   }
 
-  // --- Pizza / flatbreads ---
-  if (includesAny(normalized, ["pizza", "focaccia", "flatbread", "calzone", "stromboli"])) {
+  // sweet pies (NOT pot pie / shepherd's pie — those go to pot_pie)
+  if (includesAny(normalized, ["apple pie", "cherry pie", "pumpkin pie", "pecan pie", "key lime pie", "lemon meringue", "tarte tatin", "galette", "cream pie", "chess pie", "sweet potato pie", "banoffee pie", "mississippi mud pie"])) {
+    return "pie";
+  }
+
+  // tarts (sweet and savoury, including quiche)
+  if (includesAny(normalized, ["tart", "tartlet", "fruit tart", "custard tart", "lemon tart", "chocolate tart", "quiche", "savory tart"])) {
+    return "tart";
+  }
+
+  // frozen desserts
+  if (includesAny(normalized, ["ice cream", "gelato", "sorbet", "sherbet", "popsicle", "semifreddo", "frozen yogurt", "granita", "ice lolly", "frozen custard", "kulfi", "mochi ice cream"])) {
+    return "frozen_dessert";
+  }
+
+  // custards / puddings
+  if (includesAny(normalized, ["pudding", "mousse", "custard", "panna cotta", "crème brûlée", "creme brulee", "flan", "crème caramel", "creme caramel", "pot de creme", "blancmange", "posset", "syllabub", "bread pudding", "rice pudding", "sticky toffee pudding", "chia pudding"])) {
+    return "custard_pudding";
+  }
+
+  // candy / confections
+  if (includesAny(normalized, ["fudge", "brittle", "toffee candy", "chocolate truffle", "caramel candy", "marshmallow", "praline", "chocolate bark", "nougat", "peanut brittle", "butterscotch candy", "candy making", "confection", "marzipan", "fondant candy", "candy bar", "caramel apple"])) {
+    return "candy_confection";
+  }
+
+  // ── Savoury mains & sides ─────────────────────────────────────────────────────
+  // These run BEFORE the dessert catch-all so that terms like "crisp" or
+  // "crumble" in a savoury context (e.g. "focaccia pizza with crisp edges")
+  // do not get pulled into the dessert family.
+
+  // pizza (NOT flatbread — separate family)
+  if (includesAny(normalized, ["pizza", "calzone", "stromboli"])) {
     return "pizza";
   }
 
-  // --- Pasta / noodles ---
-  if (includesAny(normalized, ["pasta", "linguine", "fettuccine", "spaghetti", "penne", "rigatoni", "fusilli", "farfalle", "tortellini", "pappardelle", "tagliatelle", "orzo", "gnocchi", "macaroni", "mac and cheese", "lasagna", "lasagne", "cannelloni", "bucatini", "udon", "soba", "lo mein", "chow mein", "pad thai", "noodle", "noodles"])) {
+  // flatbreads (distinct from pizza — no tomato-sauce assumption)
+  if (includesAny(normalized, ["flatbread", "focaccia", "naan", "pita", "lavash", "manakish", "khachapuri", "lahmacun", "tarte flambée", "flammkuchen"])) {
+    return "flatbread";
+  }
+
+  // general desserts (catch-all — uses specific compound terms so bare words
+  // like "crisp" or "crumble" don't misclassify savoury dishes)
+  if (includesAny(normalized, [
+    "tiramisu", "trifle", "parfait",
+    "apple crumble", "berry crumble", "fruit crumble", "rhubarb crumble", "peach crumble",
+    "apple crisp", "berry crisp", "fruit crisp", "peach crisp", "rhubarb crisp",
+    "cobbler", "eton mess", "affogato", "pavlova", "banoffee",
+    "churros dessert", "crepe suzette", "baked alaska", "profiteroles", "dessert",
+  ])) {
+    return "dessert";
+  }
+
+  // noodle soups — check BEFORE pasta so ramen/pho/laksa don't become "pasta"
+  if (includesAny(normalized, ["ramen", "pho", "laksa", "wonton noodle soup", "chicken noodle soup", "udon soup", "soba soup", "tantanmen"])) {
+    return "noodle_soup";
+  }
+
+  // pasta / Italian noodles (NOT ramen/pho/pad thai)
+  if (includesAny(normalized, ["pasta", "linguine", "fettuccine", "spaghetti", "penne", "rigatoni", "fusilli", "farfalle", "tortellini", "pappardelle", "tagliatelle", "orzo", "gnocchi", "macaroni", "mac and cheese", "lasagna", "lasagne", "cannelloni", "bucatini", "cacio e pepe", "amatriciana", "carbonara", "ravioli", "orecchiette", "paccheri"])) {
     return "pasta";
   }
 
-  // --- Mexican / Tex-Mex ---
-  if (includesAny(normalized, ["taco", "tacos", "tostada", "tostadas", "burrito", "burritos", "quesadilla", "quesadillas", "enchilada", "enchiladas", "fajita", "fajitas", "tamale", "tamales", "nachos", "nacho", "empanada", "empanadas", "chimichanga", "chimichangas", "chalupa", "chalupas", "huevos rancheros"])) {
-    return "tacos";
-  }
-
-  // --- Soup / stew / chili ---
-  if (includesAny(normalized, ["soup", "stew", "chowder", "bisque", "gazpacho", "minestrone", "pozole", "bouillabaisse", "gumbo", "laksa", "pho", "ramen", "udon soup", "congee", "moqueca", "chili", "chilli", "dal soup", "broth-based", "hot pot", "hotpot", "shabu shabu", "sukiyaki"])) {
-    return "soup";
-  }
-
-  // --- Curry / dal ---
-  if (includesAny(normalized, ["curry", "curries", "tikka masala", "butter chicken", "korma", "vindaloo", "saag", "palak paneer", "paneer curry", "coconut curry", "thai curry", "green curry", "red curry", "yellow curry", "massaman", "japanese curry", " dal", " dhal", "lentil curry", "chana masala", "aloo gobi", "bhindi masala"])) {
-    return "curry";
-  }
-
-  // --- Rice dishes (not bowls or soup) ---
-  if (includesAny(normalized, ["risotto", "paella", "biryani", "pilaf", "fried rice", "jollof rice", "arroz con", "nasi goreng", "congee"])) {
-    return "rice";
-  }
-
-  // --- Salad ---
-  if (includesAny(normalized, ["salad", "slaw", "coleslaw", "tabbouleh", "fattoush", "caprese", "niçoise", "nicoise", "caesar salad", "greek salad", "cobb salad", "waldorf"])) {
-    return "salad";
-  }
-
-  // --- Dips / spreads ---
-  if (includesAny(normalized, ["dip", "spread", "hummus", "guacamole", "tzatziki", "baba ghanoush", "baba ganoush", "salsa", "pesto", "aioli", "tapenade", "muhammara", "romesco", "whipped feta", "salata de vinete", "salată de vinete"])) {
-    return "dip";
-  }
-
-  // --- Breakfast ---
-  if (includesAny(normalized, ["pancake", "pancakes", "waffle", "waffles", "french toast", "omelette", "omelet", "frittata", "eggs benedict", "breakfast burrito", "breakfast sandwich", "breakfast hash", "hash browns", "granola", "overnight oats", "porridge", "crepe", "crepes", "dutch baby"])) {
-    return "breakfast";
-  }
-
-  // --- Burgers / sliders ---
-  if (includesAny(normalized, ["burger", "burgers", "slider", "sliders", "veggie burger", "turkey burger", "lamb burger", "smash burger"])) {
-    return "burger";
-  }
-
-  // --- Sandwiches / wraps ---
-  if (includesAny(normalized, ["sandwich", "sandwiches", "grilled cheese", "panini", "hoagie", "sub sandwich", "club sandwich", "banh mi", "bánh mì", "torta", "pita sandwich", "gyro", "shawarma", "falafel wrap", "wrap sandwich"])) {
-    return "sandwich";
-  }
-
-  // --- Stir-fry ---
-  if (includesAny(normalized, ["stir-fry", "stir fry", "stir-fried", "stir fried"])) {
+  // stir-fry (pad thai / Asian noodle stir-fry moved here from pasta)
+  if (includesAny(normalized, ["stir-fry", "stir fry", "stir-fried", "stir fried", "pad thai", "pad see ew", "chow mein", "lo mein", "yakisoba", "japchae", "hokkien noodles"])) {
     return "stir_fry";
   }
 
-  // --- Dumplings / filled dough ---
-  if (includesAny(normalized, ["dumpling", "dumplings", "gyoza", "pierogi", "pierogies", "potsticker", "potstickers", "wonton", "wontons", "dim sum", "bao", "baozi", "manti", "momos", "xiao long bao", "har gow", "shumai"])) {
+  // tamales (distinct from tacos)
+  if (includesAny(normalized, ["tamale", "tamales"])) {
+    return "tamales";
+  }
+
+  // tacos / Mexican handhelds (empanada removed → savory_pastry)
+  if (includesAny(normalized, ["taco", "tacos", "tostada", "tostadas", "burrito", "burritos", "quesadilla", "quesadillas", "enchilada", "enchiladas", "fajita", "fajitas", "nachos", "nacho", "chimichanga", "chimichangas", "chalupa", "chalupas", "huevos rancheros", "birria"])) {
+    return "tacos";
+  }
+
+  // chili (its own family — common recipe search term)
+  if (includesAny(normalized, ["chili", "chilli", "chili con carne", "white bean chili", "turkey chili"])) {
+    return "chili";
+  }
+
+  // soup / stew (NOT noodle soups, NOT chili)
+  if (includesAny(normalized, ["soup", "stew", "chowder", "bisque", "gazpacho", "minestrone", "pozole", "bouillabaisse", "gumbo", "congee", "moqueca", "broth-based", "hot pot", "hotpot", "shabu shabu", "sukiyaki", "dal soup", "lentil soup", "feijoada", "scotch broth", "mulligatawny"])) {
+    return "soup";
+  }
+
+  // curry / dal
+  if (includesAny(normalized, ["curry", "curries", "tikka masala", "butter chicken", "korma", "vindaloo", "saag", "palak paneer", "paneer curry", "coconut curry", "thai curry", "green curry", "red curry", "yellow curry", "massaman", "japanese curry", " dal", " dhal", "lentil curry", "chana masala", "aloo gobi", "bhindi masala", "rendang", "dopiaza", "roghan josh", "karahi"])) {
+    return "curry";
+  }
+
+  // rice dishes
+  if (includesAny(normalized, ["risotto", "paella", "biryani", "pilaf", "fried rice", "jollof rice", "arroz con", "nasi goreng", "arancini", "rice pilaf", "dirty rice", "rice casserole"])) {
+    return "rice";
+  }
+
+  // grains (beyond rice)
+  if (includesAny(normalized, ["quinoa bowl", "quinoa salad", "quinoa dish", "couscous", "farro", "barley dish", "bulgur", "polenta", "millet dish", "freekeh", "wheat berry", "spelt dish"])) {
+    return "grains";
+  }
+
+  // salad
+  if (includesAny(normalized, ["salad", "slaw", "coleslaw", "tabbouleh", "fattoush", "caprese", "niçoise", "nicoise", "caesar salad", "greek salad", "cobb salad", "waldorf", "grain salad", "pasta salad", "potato salad"])) {
+    return "salad";
+  }
+
+  // dips / spreads
+  if (includesAny(normalized, ["dip", "spread", "hummus", "guacamole", "tzatziki", "baba ghanoush", "baba ganoush", "salsa", "pesto", "aioli", "tapenade", "muhammara", "romesco", "whipped feta", "salata de vinete", "salată de vinete", "skordalia", "brandade", "bean dip", "spinach dip", "artichoke dip"])) {
+    return "dips_spreads";
+  }
+
+  // sauces / condiments / gravies (bolognese / ragu moved here)
+  if (includesAny(normalized, ["sauce", "gravy", "dressing", "marinade", "vinaigrette", "chimichurri", "béchamel", "bechamel", "hollandaise", "caramel sauce", "hot sauce", "ketchup", "relish", "bolognese", "ragu", "ragù", "meat sauce", "tomato sauce", "béarnaise", "velouté", "mornay", "romesco sauce", "mole sauce", "teriyaki sauce"])) {
+    return "sauce_condiment";
+  }
+
+  // egg dishes — check BEFORE breakfast so shakshuka / frittata land here
+  if (includesAny(normalized, ["omelet", "omelette", "scrambled eggs", "fried eggs", "baked eggs", "shakshuka", "frittata", "eggs benedict", "deviled eggs", "cloud eggs", "egg bake", "egg casserole", "huevos"])) {
+    return "egg_dish";
+  }
+
+  // pancakes / crepes / waffles — check BEFORE breakfast
+  if (includesAny(normalized, ["pancake", "pancakes", "waffle", "waffles", "crepe", "crepes", "dutch baby", "blini", "blintze", "pfannkuchen"])) {
+    return "pancakes_crepes";
+  }
+
+  // savory pancakes (distinct from sweet pancakes)
+  if (includesAny(normalized, ["okonomiyaki", "scallion pancake", "socca", "injera", "dosa", "uttapam", "appam", "pajeon", "bindaetteok"])) {
+    return "savory_pancake";
+  }
+
+  // porridge / cereal / oats
+  if (includesAny(normalized, ["oatmeal", "porridge", "overnight oats", "muesli", "cream of wheat", "congee porridge"])) {
+    return "porridge_cereal";
+  }
+
+  // breakfast (catch-all for morning dishes not covered above)
+  if (includesAny(normalized, ["french toast", "granola", "hash browns", "home fries", "breakfast hash", "breakfast sandwich", "breakfast burrito", "morning glory", "full breakfast", "english breakfast", "brunch"])) {
+    return "breakfast";
+  }
+
+  // burgers / sliders
+  if (includesAny(normalized, ["burger", "burgers", "slider", "sliders", "veggie burger", "turkey burger", "lamb burger", "smash burger", "patty melt"])) {
+    return "burger";
+  }
+
+  // sandwiches (NOT wraps/gyro/shawarma — those → wraps)
+  if (includesAny(normalized, ["sandwich", "sandwiches", "grilled cheese", "panini", "hoagie", "sub sandwich", "club sandwich", "banh mi", "bánh mì", "torta", "cubano", "cuban sandwich", "muffuletta", "po' boy", "croque monsieur", "croque madame", "sloppy joe"])) {
+    return "sandwich";
+  }
+
+  // wraps / roll-ups (gyro and shawarma are wraps, not sandwiches)
+  if (includesAny(normalized, ["wrap", "wraps", "shawarma", "gyro", "gyros", "falafel wrap", "lettuce wrap", "roll-up", "pinwheel", "lavash wrap", "chapati wrap"])) {
+    return "wraps";
+  }
+
+  // spring rolls / rice paper rolls
+  if (includesAny(normalized, ["spring roll", "spring rolls", "egg roll", "egg rolls", "summer roll", "summer rolls", "lumpia", "rice paper roll", "nem cuon", "chả giò"])) {
+    return "spring_rolls";
+  }
+
+  // dumplings / filled dough (ravioli added here alongside Asian dumplings)
+  if (includesAny(normalized, ["dumpling", "dumplings", "gyoza", "pierogi", "pierogies", "potsticker", "potstickers", "wonton", "wontons", "dim sum", "bao", "baozi", "manti", "momos", "xiao long bao", "har gow", "shumai", "ravioli", "agnolotti"])) {
     return "dumplings";
   }
 
-  // --- Skillet ---
-  if (includesAny(normalized, ["skillet"])) {
-    return "skillet";
+  // savory pastries / hand pies (empanada moved here from tacos)
+  if (includesAny(normalized, ["samosa", "samosas", "spanakopita", "börek", "borek", "sausage roll", "hand pie", "pasty", "cornish pasty", "empanada", "empanadas", "knish", "piroshki", "pirozhki", "tiropita", "gozleme"])) {
+    return "savory_pastry";
   }
 
-  // --- Casserole / bake / gratin / tagine ---
-  if (includesAny(normalized, ["casserole", "gratin", "dauphinoise", "moussaka", "pot pie", "shepherd's pie", "cottage pie", "baked ziti", "tuna bake", "chicken bake", "pasta bake", "tagine", "tajine"])) {
+  // pot pies / shepherd's pies (pulled from casserole)
+  if (includesAny(normalized, ["pot pie", "shepherd's pie", "shepherds pie", "cottage pie", "chicken pie", "fish pie", "steak pie"])) {
+    return "pot_pie";
+  }
+
+  // casserole / baked dishes / gratin (tagine removed → braised)
+  if (includesAny(normalized, ["casserole", "gratin", "dauphinoise", "moussaka", "baked ziti", "pasta bake", "tuna bake", "chicken bake", "green bean casserole", "au gratin", "scalloped potatoes"])) {
     return "casserole";
   }
 
-  // --- Grilled / BBQ / smoked / wings ---
-  if (includesAny(normalized, ["steak", "steaks", "pork chop", "pork chops", "lamb chop", "lamb chops", "kebab", "kebabs", "skewer", "skewers", "bbq ribs", "spare ribs", "baby back ribs", "rack of lamb", "brisket", "pulled pork", "smoked chicken", "chicken wing", "chicken wings", "buffalo wing", "buffalo wings", "satay", "yakitori", "lamb shank", "smoked brisket", "smoked salmon"])) {
-    return "grilled";
+  // grilled / BBQ / smoked
+  if (includesAny(normalized, ["steak", "steaks", "pork chop", "pork chops", "lamb chop", "lamb chops", "kebab", "kebabs", "skewer", "skewers", "bbq ribs", "spare ribs", "baby back ribs", "rack of lamb", "brisket", "pulled pork", "smoked chicken", "chicken wing", "chicken wings", "buffalo wing", "buffalo wings", "satay", "yakitori", "lamb shank", "smoked brisket", "smoked salmon", "souvlaki", "kofta skewer", "carne asada", "grilled salmon", "grilled fish"])) {
+    return "grilled_bbq";
   }
 
-  // --- Fried / breaded / battered ---
-  if (includesAny(normalized, ["fried chicken", "chicken tenders", "chicken tenders", "chicken nugget", "chicken nuggets", "fish and chips", "fish fry", "fried fish", "fried shrimp", "tempura", "katsu", "schnitzel", "tonkatsu", "wiener schnitzel", "calamari", "fried calamari", "onion ring", "onion rings", "corn dog", "hush puppy", "hush puppies", "battered fish", "deep fried", "deep-fried", "beer battered", "panko chicken", "breaded chicken", "donut", "donuts", "doughnut", "doughnuts", "beignet", "beignets", "churro", "churros", "falafel"])) {
+  // fried / breaded / battered (donuts / churros removed → fried_pastry)
+  if (includesAny(normalized, ["fried chicken", "chicken tenders", "chicken nugget", "chicken nuggets", "fish and chips", "fish fry", "fried fish", "fried shrimp", "tempura", "katsu", "schnitzel", "tonkatsu", "wiener schnitzel", "calamari", "fried calamari", "onion ring", "onion rings", "corn dog", "hush puppy", "hush puppies", "battered fish", "deep fried", "deep-fried", "beer battered", "panko chicken", "breaded chicken"])) {
     return "fried";
   }
 
-  // --- Meatballs / meatloaf / ground meat patties ---
-  if (includesAny(normalized, ["meatball", "meatballs", "meatloaf", "meat loaf", "kofta", "köfte", "kofte", "swedish meatball", "italian meatball", "turkey meatball", "lamb meatball", "meatball sub", "bolognese", "ragu", "ragù", "meat sauce", "sloppy joe"])) {
-    return "meatballs";
+  // meatballs / ground meat (bolognese / ragu / sloppy joe removed)
+  if (includesAny(normalized, ["meatball", "meatballs", "meatloaf", "meat loaf", "kofta", "köfte", "kofte", "swedish meatball", "italian meatball", "turkey meatball", "lamb meatball"])) {
+    return "meatballs_ground_meat";
   }
 
-  // --- Stuffed / filled vegetables and proteins ---
+  // stuffed dishes
   if (includesAny(normalized, ["stuffed pepper", "stuffed peppers", "stuffed mushroom", "stuffed mushrooms", "stuffed squash", "stuffed zucchini", "stuffed chicken", "stuffed eggplant", "stuffed tomato", "stuffed tomatoes", "dolma", "dolmas", "dolmades", "grape leaf", "grape leaves", "cabbage roll", "cabbage rolls", "golabki", "stuffed cabbage", "chile relleno", "chiles rellenos", "twice baked potato", "twice-baked potato", "stuffed potato", "hasselback"])) {
     return "stuffed";
   }
 
-  // --- Braised / slow-cooked ---
-  if (includesAny(normalized, ["pot roast", "braised", "braise", "osso buco", "ossobuco", "coq au vin", "beef bourguignon", "boeuf bourguignon", "short rib", "short ribs", "braised short ribs", "carnitas", "birria", "adobo", "chicken adobo", "pork adobo", "slow cooker", "slow-cooker", "crockpot", "crock pot", "confit", "duck confit"])) {
+  // braised / slow-cooked (tagine added here)
+  if (includesAny(normalized, ["pot roast", "braised", "braise", "osso buco", "ossobuco", "coq au vin", "beef bourguignon", "boeuf bourguignon", "short rib", "short ribs", "carnitas", "adobo chicken", "adobo pork", "slow cooker", "slow-cooker", "crockpot", "crock pot", "confit", "duck confit", "tagine", "tajine", "kleftiko", "daube"])) {
     return "braised";
   }
 
-  // --- Sushi / raw fish ---
+  // sushi / raw fish
   if (includesAny(normalized, ["sushi", "sashimi", "maki roll", "maki rolls", "hand roll", "temaki", "onigiri", "nigiri", "sushi roll", "sushi rice"])) {
-    return "sushi";
+    return "sushi_raw";
   }
 
-  // --- Fritters / latkes / savory pancakes ---
-  if (includesAny(normalized, ["fritter", "fritters", "latke", "latkes", "potato pancake", "zucchini fritter", "corn fritter", "vegetable fritter", "pakora", "pakoras", "bhaji", "bhajis", "okonomiyaki fritter"])) {
-    return "fritters";
+  // raw / cured (ceviche, tartare, gravlax)
+  if (includesAny(normalized, ["ceviche", "tartare", "carpaccio", "crudo", "poke bowl", "gravlax", "lox"])) {
+    return "raw_cured";
   }
+
+  // fritters / latkes / savory cakes
+  if (includesAny(normalized, ["fritter", "fritters", "latke", "latkes", "potato pancake", "zucchini fritter", "corn fritter", "vegetable fritter", "pakora", "pakoras", "bhaji", "bhajis", "akara", "hush puppy"])) {
+    return "fritters_patties";
+  }
+
+  // steamed dishes
+  if (includesAny(normalized, ["steamed buns", "steamed fish", "steamed chicken", "idli", "dhokla", "momo steamed", "har gow steamed", "tamago mushi", "chawanmushi"])) {
+    return "steamed";
+  }
+
+  // roasted / sheet pan (catch-all)
   if (includesAny(normalized, ["roasted", "sheet pan"])) {
     return "roasted";
   }
 
-  // --- Pie / tart / quiche ---
-  if (includesAny(normalized, ["pot pie", "shepherd's pie", "cottage pie", "chicken pie", "quiche", "galette", "savory tart", "fruit tart", "tarte tatin", "apple pie", "cherry pie", "pumpkin pie", "pecan pie", "key lime pie", "lemon meringue", "cream pie"])) {
-    return "pie";
+  // ── Proteins ──────────────────────────────────────────────────────────────────
+
+  // seafood / fish mains (not sushi, not fried fish — those captured above)
+  if (includesAny(normalized, ["salmon fillet", "cod fillet", "halibut", "trout fillet", "tilapia", "snapper", "shrimp scampi", "shrimp cocktail", "prawns", "scallops", "mussels", "clams", "lobster", "crab", "seafood", "fishcakes", "fish cake", "fish stew", "shrimp dish", "prawn dish"])) {
+    return "seafood_fish";
   }
 
-  // --- Desserts (non-cookie / non-cake / non-pie) ---
-  if (includesAny(normalized, ["pudding", "mousse", "custard", "panna cotta", "crème brûlée", "creme brulee", "tiramisu", "baklava", "ice cream", "gelato", "sorbet", "sherbet", "frozen yogurt", "parfait", "trifle", "flan", "crumble", "crisp", "cobbler", "eton mess", "affogato", "churros"])) {
-    return "dessert";
+  // chicken / poultry mains
+  if (includesAny(normalized, ["roast chicken", "chicken breast", "chicken thigh", "chicken drumstick", "turkey breast", "roast turkey", "duck breast", "duck legs", "cornish hen", "game hen", "quail", "goose", "chicken piccata", "chicken marsala", "chicken parmesan", "chicken parmigiana", "chicken milanese", "chicken francese", "chicken saltimbocca"])) {
+    return "chicken_poultry";
   }
 
-  // --- Bowl ---
-  if (includesAny(normalized, ["rice bowl", "grain bowl", "poke bowl", "burrito bowl", "acai bowl", "smoothie bowl", "bowl"])) {
+  // sausage dishes
+  if (includesAny(normalized, ["sausage dish", "bratwurst", "italian sausage", "chorizo sausage", "kielbasa", "andouille", "merguez", "weisswurst", "currywurst", "sausage and pepper", "toad in the hole", "bangers and mash", "sausage casserole"])) {
+    return "sausage";
+  }
+
+  // tofu / tempeh
+  if (includesAny(normalized, ["tofu", "tempeh", "agedashi tofu", "mapo tofu", "hiyayakko", "silken tofu", "crispy tofu"])) {
+    return "tofu_tempeh";
+  }
+
+  // beans / legumes (standalone dishes)
+  if (includesAny(normalized, ["baked beans", "black beans", "white beans", "cannellini beans", "pinto beans", "kidney beans", "refried beans", "edamame", "falafel", "bean stew", "legume", "chickpea dish", "lentil dish", "split peas"])) {
+    return "beans_legumes";
+  }
+
+  // ── Sides & vegetables ───────────────────────────────────────────────────────
+
+  // potato dishes
+  if (includesAny(normalized, ["mashed potatoes", "mashed potato", "baked potato", "potato wedges", "home fries", "dauphinoise potatoes", "duchess potatoes", "potato gratin", "patatas bravas", "aloo", "potato dish"])) {
+    return "potato";
+  }
+
+  // vegetable sides / veg mains
+  if (includesAny(normalized, ["roasted carrots", "glazed carrots", "green beans", "roasted asparagus", "sautéed spinach", "creamed spinach", "creamed corn", "succotash", "ratatouille", "caponata", "braised greens", "collard greens", "wilted greens", "vegetable side", "veg side", "sauteed vegetables", "roasted vegetables", "roasted veg"])) {
+    return "vegetable_side";
+  }
+
+  // grains side (quinoa without explicit dish type etc.)
+  if (includesAny(normalized, ["quinoa", "couscous", "farro", "barley", "bulgur", "polenta", "millet", "freekeh", "wheat berry", "spelt", "grain dish"])) {
+    return "grains";
+  }
+
+  // skillet / one-pan
+  if (includesAny(normalized, ["skillet", "one-pan", "one pan"])) {
+    return "skillet";
+  }
+
+  // bowls
+  if (includesAny(normalized, ["rice bowl", "grain bowl", "poke bowl", "burrito bowl", "acai bowl", "smoothie bowl", "buddha bowl", "noodle bowl", "bowl"])) {
     return "bowl";
+  }
+
+  // ── Global / niche ────────────────────────────────────────────────────────────
+
+  // beverages
+  if (includesAny(normalized, ["smoothie", "milkshake", "lemonade", "cocktail", "mocktail", "punch bowl", "iced tea", "latte", "hot chocolate", "juice", "shake", "slushie", "frappuccino", "sangria", "mulled wine", "cider drink", "eggnog", "horchata", "agua fresca", "lassi", "chai"])) {
+    return "beverage";
+  }
+
+  // preserves / jams / compotes
+  if (includesAny(normalized, ["jam", "jelly", "marmalade", "chutney", "compote", "fruit butter", "preserves", "conserve", "mostarda", "fruit curd", "lemon curd"])) {
+    return "preserve";
+  }
+
+  // pickled / fermented
+  if (includesAny(normalized, ["pickles", "pickled", "kimchi", "sauerkraut", "quick pickles", "escabeche", "fermented", "lacto-fermented", "kvass"])) {
+    return "pickled_fermented";
+  }
+
+  // appetizers / snacks
+  if (includesAny(normalized, ["appetizer", "snack", "bruschetta", "crostini", "finger food", "party food", "canape", "amuse-bouche", "nibbles", "canapé", "antipasto", "tapas", "mezze"])) {
+    return "appetizer_snack";
+  }
+
+  // boards / platters / charcuterie
+  if (includesAny(normalized, ["charcuterie board", "cheese board", "mezze platter", "antipasto platter", "grazing board", "charcuterie", "crudités", "platter"])) {
+    return "board_platter";
+  }
+
+  // soufflés
+  if (includesAny(normalized, ["soufflé", "souffle"])) {
+    return "souffle";
+  }
+
+  // fondue
+  if (includesAny(normalized, ["fondue"])) {
+    return "fondue";
   }
 
   return null;
 }
 
-function detectRequestedProtein(context: string) {
+export function detectRequestedProtein(context: string) {
   const normalized = normalizeText(context);
   const proteins = ["chicken", "turkey", "shrimp", "salmon", "fish", "beef", "pork", "lamb", "duck", "tofu", "tempeh", "beans", "lentils", "chickpeas", "eggs", "tuna", "cod", "halibut", "tilapia", "crab", "lobster", "scallop", "scallops", "clams", "mussels", "bison", "venison"];
   return proteins.find((protein) => normalized.includes(protein)) ?? null;
 }
 
-function detectRequestedAnchorIngredient(context: string) {
+export function detectRequestedAnchorIngredient(context: string) {
   const normalized = normalizeText(context);
   const anchors = [
     "eggplant", "aubergine", "vinete",
@@ -563,7 +832,7 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     return "Salad";
   }
 
-  if (family === "dip") {
+  if (family === "dips_spreads") {
     if (anchor === "eggplant" || anchor === "aubergine" || anchor === "vinete") return "Eggplant Dip";
     return "Dip";
   }
@@ -613,7 +882,7 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     return "Casserole";
   }
 
-  if (family === "grilled") {
+  if (family === "grilled_bbq") {
     if (normalized.includes("wing")) return "Chicken Wings";
     if (normalized.includes("steak")) return protein ? `${protein.charAt(0).toUpperCase() + protein.slice(1)} Steak` : "Steak";
     if (normalized.includes("chop")) return protein ? `${protein.charAt(0).toUpperCase() + protein.slice(1)} Chops` : "Chops";
@@ -636,7 +905,7 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     return protein ? `Fried ${protein.charAt(0).toUpperCase() + protein.slice(1)}` : "Fried Dish";
   }
 
-  if (family === "meatballs") {
+  if (family === "meatballs_ground_meat") {
     if (normalized.includes("meatloaf") || normalized.includes("meat loaf")) return "Meatloaf";
     if (normalized.includes("kofta") || normalized.includes("köfte") || normalized.includes("kofte")) return "Kofta";
     if (normalized.includes("bolognese") || normalized.includes("ragù") || normalized.includes("ragu")) {
@@ -668,12 +937,12 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     return "Braised Dish";
   }
 
-  if (family === "sushi") {
+  if (family === "sushi_raw") {
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Sushi`;
     return "Sushi";
   }
 
-  if (family === "fritters") {
+  if (family === "fritters_patties") {
     if (normalized.includes("latke") || normalized.includes("potato pancake")) return "Latkes";
     if (normalized.includes("zucchini")) return "Zucchini Fritters";
     if (normalized.includes("corn")) return "Corn Fritters";
@@ -799,7 +1068,7 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
     return false;
   }
 
-  if (requestedFamily === "dip" && !includesAny(recipeText, ["dip", "spread", "serve", "blend", "puree", "purée"])) {
+  if (requestedFamily === "dips_spreads" && !includesAny(recipeText, ["dip", "spread", "serve", "blend", "puree", "purée"])) {
     return false;
   }
 
@@ -827,7 +1096,7 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
     return false;
   }
 
-  if (requestedFamily === "grilled" && !includesAny(recipeText, ["grill", "sear", "broil", "pan", "steak", "chop", "rib", "kebab", "bbq", "barbeque", "smoke", "char"])) {
+  if (requestedFamily === "grilled_bbq" && !includesAny(recipeText, ["grill", "sear", "broil", "pan", "steak", "chop", "rib", "kebab", "bbq", "barbeque", "smoke", "char"])) {
     return false;
   }
 
@@ -865,7 +1134,7 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
   if (requestedFamily === "fried" && !includesAny(recipeText, ["fry", "frying", "oil", "batter", "breaded", "bread crumb", "panko", "crispy", "golden", "deep", "flour", "coat"])) {
     return false;
   }
-  if (requestedFamily === "meatballs" && !includesAny(recipeText, ["meatball", "ground", "meat", "roll", "form", "mix", "breadcrumb", "sauce", "bolognese", "ragu", "meatloaf", "kofta"])) {
+  if (requestedFamily === "meatballs_ground_meat" && !includesAny(recipeText, ["meatball", "ground", "meat", "roll", "form", "mix", "breadcrumb", "sauce", "bolognese", "ragu", "meatloaf", "kofta"])) {
     return false;
   }
   if (requestedFamily === "stuffed" && !includesAny(recipeText, ["stuff", "fill", "hollow", "spoon", "scoop", "filling", "inside", "cavity"])) {
@@ -874,10 +1143,10 @@ export function recipeMatchesRequestedDirection(recipe: HomeRecipeLike, context:
   if (requestedFamily === "braised" && !includesAny(recipeText, ["braise", "simmer", "low", "slow", "tender", "oven", "broth", "wine", "liquid", "cover", "lid"])) {
     return false;
   }
-  if (requestedFamily === "sushi" && !includesAny(recipeText, ["rice", "sushi", "nori", "seaweed", "roll", "raw", "sashimi", "vinegar"])) {
+  if (requestedFamily === "sushi_raw" && !includesAny(recipeText, ["rice", "sushi", "nori", "seaweed", "roll", "raw", "sashimi", "vinegar"])) {
     return false;
   }
-  if (requestedFamily === "fritters" && !includesAny(recipeText, ["fry", "batter", "grate", "shred", "oil", "crispy", "golden", "fritter", "latke", "pancake"])) {
+  if (requestedFamily === "fritters_patties" && !includesAny(recipeText, ["fry", "batter", "grate", "shred", "oil", "crispy", "golden", "fritter", "latke", "pancake"])) {
     return false;
   }
 

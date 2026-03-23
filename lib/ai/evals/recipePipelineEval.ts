@@ -82,13 +82,20 @@ function buildExpectedRecipe(testCase: SeedRecipeEvalCase, brief: CookingBrief):
       { text: "Warm the tortillas and assemble the tacos just before serving." }
     );
     description = `Tacos that stay in taco format, not a bowl.`;
-  } else if (testCase.expected.dishFamily === "dip") {
+  } else if (testCase.expected.dishFamily === "dips_spreads") {
     ingredients.push({ name: "2 eggplants" }, { name: "3 tbsp olive oil" });
     steps.push(
       { text: "Roast the eggplant until fully tender and lightly charred." },
       { text: "Mash the flesh gently with olive oil for a delicate dip texture." }
     );
     description = `A delicate ${normalizedName} dip.`;
+  } else if (testCase.expected.dishFamily === "sauce_condiment") {
+    ingredients.push({ name: "2 cups crushed tomatoes" }, { name: "2 tbsp olive oil" }, { name: "3 garlic cloves, minced" });
+    steps.push(
+      { text: "Sauté the garlic in olive oil until fragrant." },
+      { text: "Add the tomatoes and simmer until the sauce thickens to a coating consistency." }
+    );
+    description = `A sauce to accompany ${normalizedName}.`;
   } else {
     ingredients.push({ name: `1 batch ${normalizedName}` });
     steps.push(

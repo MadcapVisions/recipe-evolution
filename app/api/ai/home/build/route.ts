@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
-import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
+import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { getCookingBrief } from "@/lib/ai/briefStore";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
@@ -79,6 +79,7 @@ type StreamEvent =
       message: string;
       failure_kind?: RecipeBuildFailureKind;
       retry_strategy?: VerificationRetryStrategy;
+      model?: string;
       reasons?: string[];
     };
 
@@ -97,6 +98,9 @@ export async function POST(request: Request) {
     return access.errorResponse;
   }
 
+  // Start taste profile lookup in parallel with request body parsing.
+  const tasteSummaryPromise = getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId);
+
   let body;
   try {
     body = buildRequestSchema.parse(await request.json());
@@ -104,7 +108,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: true, message: "Unsupported build payload." }, { status: 400 });
   }
 
-  const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
+  const userTasteSummary = await tasteSummaryPromise;
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;
   const ingredients = Array.isArray(body.ingredients)
     ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
@@ -138,33 +142,45 @@ export async function POST(request: Request) {
       const stageMetrics = [];
       let retryStrategy: VerificationRetryStrategy = "regenerate_stricter";
       let retryReasons: string[] = [];
+      let lastAttemptModel: string | undefined;
+      let resolvedTaskPrimaryModel: string | undefined;
 
       try {
         send({ type: "status", message: "Understanding your request..." });
-        const persistedBrief = conversationKey
-          ? await getCookingBrief(access.supabase as SupabaseClient, {
-              ownerId: access.userId,
-              conversationKey,
-              scope: "home_hub",
-            })
-          : null;
-        const persistedSession = conversationKey
-          ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
-              ownerId: access.userId,
-              conversationKey,
-              scope: "home_hub",
-            })
-          : null;
+        // Kick off task settings lookup in parallel with brief/session reads —
+        // it doesn't depend on either and is needed just before generation.
+        const taskSettingPromise = resolveAiTaskSettings("home_recipe");
+        const [persistedBrief, persistedSession] = await Promise.all([
+          conversationKey
+            ? getCookingBrief(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              })
+            : Promise.resolve(null),
+          conversationKey
+            ? getLockedDirectionSession(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              })
+            : Promise.resolve(null),
+        ]);
         const lockedSession: LockedDirectionSession | null = body.lockedSession ?? persistedSession?.session_json ?? null;
-        const compiledBrief = compileCookingBrief({
-          userMessage: prompt || body.ideaTitle,
-          conversationHistory,
-          recipeContext: {
-            title: body.ideaTitle,
-            ingredients,
-          },
-          lockedSessionState: lockedSession?.state ?? null,
-        });
+        // Use the persisted (locked) brief when available — it was compiled from
+        // the full conversation at lock time and should not be recompiled from
+        // the current prompt, which may have slightly different phrasing.
+        const compiledBrief = (persistedBrief?.is_locked && !lockedSession?.selected_direction)
+          ? persistedBrief.brief_json
+          : compileCookingBrief({
+              userMessage: prompt || body.ideaTitle,
+              conversationHistory,
+              recipeContext: {
+                title: body.ideaTitle,
+                ingredients,
+              },
+              lockedSessionState: lockedSession?.state ?? null,
+            });
         effectiveBrief = lockedSession?.selected_direction
           ? buildLockedBrief({
               session: lockedSession,
@@ -205,7 +221,8 @@ export async function POST(request: Request) {
         let activeRecipePlan = recipePlan;
         let result = null;
         let verification = null;
-        const taskSetting = await resolveAiTaskSettings("home_recipe");
+        const taskSetting = await taskSettingPromise;
+        resolvedTaskPrimaryModel = taskSetting.primaryModel;
         let modelOverride: string | undefined;
 
         while (!result) {
@@ -298,6 +315,7 @@ export async function POST(request: Request) {
                 : failure.retryStrategy;
 
             if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
+              lastAttemptModel = modelOverride ?? taskSetting.primaryModel;
               send({
                 type: "debug",
                 label: "attempt_failed",
@@ -305,6 +323,7 @@ export async function POST(request: Request) {
                   attempt: attemptNumber,
                   kind: failure.kind,
                   strategy: effectiveStrategy,
+                  model: lastAttemptModel,
                   reasons: failure.reasons,
                   checks: failure.verification?.checks ?? null,
                 },
@@ -351,7 +370,7 @@ export async function POST(request: Request) {
               conversationKey,
               scope: "home_hub",
               session: markLockedSessionBuilt(lockedSession, effectiveBrief),
-            });
+            }).catch((e) => console.error("upsertLockedDirectionSession failed", e));
           }
           void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
@@ -429,6 +448,7 @@ export async function POST(request: Request) {
             attempt: attemptNumber,
             kind: failure.kind,
             strategy: failure.retryStrategy,
+            model: lastAttemptModel ?? resolvedTaskPrimaryModel,
             reasons: failure.reasons,
             checks: failure.verification?.checks ?? null,
           },
@@ -438,6 +458,7 @@ export async function POST(request: Request) {
           message: failure.message,
           failure_kind: failure.kind,
           retry_strategy: failure.retryStrategy,
+          model: lastAttemptModel ?? resolvedTaskPrimaryModel,
           reasons: failure.reasons,
         });
       } finally {

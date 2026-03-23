@@ -62,11 +62,12 @@ function DebugBriefEntry({ data, time }: { data: Record<string, unknown>; time: 
 function DebugAttemptEntry({ data, time, terminal }: { data: Record<string, unknown>; time: string; terminal?: boolean }) {
   const checks = data.checks && typeof data.checks === "object" ? data.checks as Record<string, unknown> : null;
   const reasons = Array.isArray(data.reasons) ? data.reasons as string[] : [];
+  const model = typeof data.model === "string" ? data.model : null;
   const borderColor = terminal ? "border-orange-900/60 bg-orange-950/20" : "border-yellow-900/50 bg-yellow-950/10";
   const labelColor = terminal ? "text-orange-400" : "text-yellow-400";
   return (
     <div className={`mt-2 rounded border ${borderColor} p-2`}>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         <span className={`font-semibold ${labelColor}`}>
           {terminal ? "TERMINAL FAILURE" : `ATTEMPT ${String(data.attempt ?? "?")} FAILED`}
         </span>
@@ -74,11 +75,16 @@ function DebugAttemptEntry({ data, time, terminal }: { data: Record<string, unkn
         {data.kind != null && <span className="text-neutral-500">kind: <span className="text-amber-400">{String(data.kind)}</span></span>}
         {data.strategy != null && <span className="text-neutral-500">→ <span className="text-sky-400">{String(data.strategy)}</span></span>}
       </div>
+      {model && (
+        <div className="mt-1 text-neutral-500">
+          model: <span className="text-fuchsia-400">{model}</span>
+        </div>
+      )}
       {checks && <DebugChecks checks={checks} />}
       {reasons.length > 0 && (
         <ul className="mt-1 space-y-0.5">
           {reasons.map((r, j) => (
-            <li key={j} className="text-neutral-400">— {r}</li>
+            <li key={j} className="text-neutral-400 break-all">— {r}</li>
           ))}
         </ul>
       )}
@@ -147,10 +153,13 @@ function BuildDebugPanel({ log }: { log: BuildDebugEntry[] }) {
                 {entry.retry_strategy && (
                   <div className="text-neutral-500">strategy: <span className="text-amber-400">{entry.retry_strategy}</span></div>
                 )}
+                {entry.model && (
+                  <div className="text-neutral-500">model: <span className="text-fuchsia-400">{entry.model}</span></div>
+                )}
                 {entry.reasons && entry.reasons.length > 0 && (
                   <ul className="mt-1 space-y-0.5">
                     {entry.reasons.map((r, j) => (
-                      <li key={j} className="text-neutral-400">— {r}</li>
+                      <li key={j} className="text-neutral-400 break-all">— {r}</li>
                     ))}
                   </ul>
                 )}

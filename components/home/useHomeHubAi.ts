@@ -173,7 +173,7 @@ export type BuildDebugEntry =
   | { type: "status"; message: string; ts: number }
   | { type: "result"; title: string; ts: number }
   | { type: "debug"; label: string; data: Record<string, unknown>; ts: number }
-  | { type: "error"; message: string; failure_kind?: string; retry_strategy?: string; reasons?: string[]; ts: number };
+  | { type: "error"; message: string; failure_kind?: string; retry_strategy?: string; model?: string; reasons?: string[]; ts: number };
 
 const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
   const typedError = error as RecipeBuildStreamError;
@@ -571,6 +571,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
               retry_strategy?: VerificationRetryStrategy;
               reasons?: string[];
               failure_kind?: "verification_failed" | "invalid_payload" | "generation_failed";
+              model?: string;
             };
 
         if (event.type === "status") {
@@ -588,6 +589,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
             message: event.message,
             failure_kind: event.failure_kind,
             retry_strategy: event.retry_strategy,
+            model: event.model,
             reasons: event.reasons,
             ts: Date.now(),
           });
@@ -633,11 +635,6 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
   const goToCreatedRecipe = (recipeId: string, versionId: string) => {
     const href = getCreatedRecipeHref({ recipeId, versionId });
-
-    if (typeof window !== "undefined") {
-      window.location.assign(href);
-      return;
-    }
 
     router.push(href);
     router.refresh();

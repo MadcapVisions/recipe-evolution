@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
-import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
+import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { trackServerEvent } from "@/lib/trackServerEvent";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         .eq("id", versionId)
         .eq("recipe_id", recipeId)
         .maybeSingle(),
-      buildUserTasteSummary(access.supabase as SupabaseClient, access.userId),
+      getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId),
     ]);
 
     if (recipeError || versionError || !ownedRecipe || !ownedVersion) {

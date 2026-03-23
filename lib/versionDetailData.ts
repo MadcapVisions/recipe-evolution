@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signVersionPhotoUrls } from "@/lib/versionPhotoUrls";
-import { loadRecipeSidebarRecentRecipes } from "@/lib/recipeSidebarData";
+import { loadRecipeSidebarData } from "@/lib/recipeSidebarData";
 import type { RecipeListItem, TimelineVersion } from "@/components/recipes/version-detail/types";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { readCanonicalIngredients } from "@/lib/recipes/canonicalRecipe";
@@ -19,12 +19,30 @@ export async function loadRecipeTimelineSlice(
 ): Promise<{ versions: TimelineVersion[]; hasMore: boolean } | null> {
   const offset = input.offset ?? 0;
   const fetchLimit = Math.max(input.limit, 1) + 1;
-  const { data, error } = await supabase
+
+  // Fetch the page slice and the current version in parallel (offset=0 only —
+  // for paginated requests the current version is already in context).
+  const sliceQuery = supabase
     .from("recipe_versions")
     .select("id, version_number, version_label, change_summary, created_at")
     .eq("recipe_id", recipeId)
     .order("version_number", { ascending: false })
     .range(offset, offset + fetchLimit - 1);
+
+  const currentVersionQuery =
+    offset === 0
+      ? supabase
+          .from("recipe_versions")
+          .select("id, version_number, version_label, change_summary, created_at")
+          .eq("id", currentVersionId)
+          .eq("recipe_id", recipeId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null });
+
+  const [{ data, error }, { data: currentVersion, error: currentVersionError }] = await Promise.all([
+    sliceQuery,
+    currentVersionQuery,
+  ]);
 
   if (error) {
     return null;
@@ -37,13 +55,6 @@ export async function loadRecipeTimelineSlice(
   if (offset > 0 || trimmed.some((version) => version.id === currentVersionId)) {
     return { versions: trimmed, hasMore };
   }
-
-  const { data: currentVersion, error: currentVersionError } = await supabase
-    .from("recipe_versions")
-    .select("id, version_number, version_label, change_summary, created_at")
-    .eq("id", currentVersionId)
-    .eq("recipe_id", recipeId)
-    .maybeSingle();
 
   if (currentVersionError || !currentVersion) {
     return null;
@@ -72,6 +83,7 @@ export type VersionDetailData = {
     description?: string | null;
     best_version_id?: string | null;
     forked_from_version_id?: string | null;
+    dish_family?: string | null;
   };
   lineage: RecipeLineage | null;
   timelineVersions: Array<{
@@ -100,6 +112,7 @@ export type VersionDetailData = {
   initialPhotosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
   stockCoverUrl: string | null;
   sidebarRecentRecipes: RecipeListItem[];
+  sidebarFavoriteRecipes: RecipeListItem[];
 };
 
 export async function loadVersionPhotosWithUrls(
@@ -130,15 +143,23 @@ export async function loadVersionDetailData(
   versionId: string
 ): Promise<VersionDetailData | null> {
   const [
-    { data: recipe, error: recipeError },
+    recipeWithEmbed,
     timelineSlice,
     { data: version, error: versionError },
     initialPhotos,
-    recentRecipes,
+    sidebarData,
   ] = await Promise.all([
     supabase
       .from("recipes")
-      .select("id, title, description, tags, best_version_id, forked_from_version_id")
+      .select(
+        // The forked_version embed resolves lineage in the same round trip.
+        // FK hints are required because recipes has two FKs to recipe_versions.
+        `id, title, description, tags, best_version_id, forked_from_version_id, dish_family,
+        forked_version:recipe_versions!recipes_forked_from_version_id_fkey(
+          id, recipe_id, version_number,
+          source_recipe:recipes!recipe_versions_recipe_id_fkey(id, title, owner_id)
+        )`
+      )
       .eq("id", recipeId)
       .eq("owner_id", userId)
       .maybeSingle(),
@@ -152,18 +173,40 @@ export async function loadVersionDetailData(
       .eq("recipe_id", recipeId)
       .maybeSingle(),
     loadVersionPhotosWithUrls(supabase, versionId, { limit: 1 }),
-    loadRecipeSidebarRecentRecipes(supabase, userId),
+    loadRecipeSidebarData(supabase, userId),
   ]);
 
-  if (
-    recipeError ||
-    versionError ||
-    !recipe ||
-    !version ||
-    !recentRecipes ||
-    !timelineSlice ||
-    !initialPhotos
-  ) {
+  type RecipeData = { id: string; title: string; description?: string | null; tags?: string[] | null; best_version_id?: string | null; forked_from_version_id?: string | null; dish_family?: string | null; forked_version?: unknown };
+
+  // PGRST200 means PostgREST couldn't resolve the FK hint in the embedded join.
+  // That's the only error we handle gracefully here — all other recipe-query
+  // errors (auth, not-found, network) remain fatal.
+  let recipe: RecipeData | null = recipeWithEmbed.data as RecipeData | null;
+  let useSerialLineage = false;
+
+  if (recipeWithEmbed.error) {
+    if ((recipeWithEmbed.error as { code?: string }).code !== "PGRST200") {
+      return null;
+    }
+    // FK hint failed — retry without the embed, resolve lineage serially below.
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("recipes")
+      .select("id, title, description, tags, best_version_id, forked_from_version_id, dish_family")
+      .eq("id", recipeId)
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (fallbackError || !fallback) {
+      return null;
+    }
+    recipe = fallback as RecipeData;
+    useSerialLineage = true;
+  } else if (!recipe) {
+    return null;
+  }
+
+  // Version is critical — return null (404) if missing.
+  // Sidebar, timeline, and photos are non-critical and degrade gracefully.
+  if (versionError || !version) {
     return null;
   }
   const mappedVersion = {
@@ -174,41 +217,74 @@ export async function loadVersionDetailData(
   const stockCoverUrl = getStockRecipeCover({
     recipeId: recipe.id,
     title: recipe.title,
-    tags: "tags" in recipe ? recipe.tags ?? [] : [],
+    tags: recipe.tags ?? [],
     ingredientNames: readCanonicalIngredients(version.ingredients_json).map((item) => item.name),
   });
 
+  // Happy path: lineage resolved from the embedded join (no extra round trip).
+  // Fallback path (PGRST200): one serial query — only runs if the embed failed.
   let lineage: RecipeLineage | null = null;
-  const forkedFromVersionId = "forked_from_version_id" in recipe ? (recipe.forked_from_version_id as string | null) : null;
-  if (forkedFromVersionId) {
-    const { data: sourceVersion } = await supabase
-      .from("recipe_versions")
-      .select("id, recipe_id, version_number, recipes!inner(id, title, owner_id)")
-      .eq("id", forkedFromVersionId)
-      .maybeSingle();
-    if (sourceVersion) {
-      const sourceRecipe = Array.isArray(sourceVersion.recipes) ? sourceVersion.recipes[0] : sourceVersion.recipes;
-      if (sourceRecipe && (sourceRecipe as { owner_id: string }).owner_id === userId) {
-        lineage = {
-          sourceRecipeId: sourceVersion.recipe_id,
-          sourceTitle: (sourceRecipe as { title: string }).title,
-          sourceVersionId: forkedFromVersionId,
-          sourceVersionNumber: sourceVersion.version_number,
-        };
+  if (useSerialLineage) {
+    const forkedFromVersionId = recipe.forked_from_version_id ?? null;
+    if (forkedFromVersionId) {
+      const { data: sourceVersion } = await supabase
+        .from("recipe_versions")
+        .select("id, recipe_id, version_number, recipes!inner(id, title, owner_id)")
+        .eq("id", forkedFromVersionId)
+        .maybeSingle();
+      if (sourceVersion) {
+        const sourceRecipe = Array.isArray(sourceVersion.recipes) ? sourceVersion.recipes[0] : sourceVersion.recipes;
+        if (sourceRecipe && (sourceRecipe as { owner_id: string }).owner_id === userId) {
+          lineage = {
+            sourceRecipeId: sourceVersion.recipe_id,
+            sourceTitle: (sourceRecipe as { title: string }).title,
+            sourceVersionId: forkedFromVersionId,
+            sourceVersionNumber: sourceVersion.version_number,
+          };
+        }
+      }
+    }
+  } else {
+    const forkedVersionRaw = recipe.forked_version;
+    if (forkedVersionRaw) {
+      const fv = Array.isArray(forkedVersionRaw) ? forkedVersionRaw[0] : forkedVersionRaw;
+      if (fv) {
+        const srRaw = (fv as { source_recipe?: unknown }).source_recipe;
+        const sourceRecipe = Array.isArray(srRaw) ? srRaw[0] : srRaw;
+        if (sourceRecipe && (sourceRecipe as { owner_id: string }).owner_id === userId) {
+          lineage = {
+            sourceRecipeId: (fv as { recipe_id: string }).recipe_id,
+            sourceTitle: (sourceRecipe as { title: string }).title,
+            sourceVersionId: (fv as { id: string }).id,
+            sourceVersionNumber: (fv as { version_number: number }).version_number,
+          };
+        }
       }
     }
   }
 
+  // Strip embed-only fields before returning — the client should not receive
+  // the raw forked_version blob or tags (which are only used server-side here).
+  const recipePayload = {
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description ?? null,
+    best_version_id: recipe.best_version_id ?? null,
+    forked_from_version_id: recipe.forked_from_version_id ?? null,
+    dish_family: recipe.dish_family ?? null,
+  };
+
   return {
     userId,
-    recipe,
+    recipe: recipePayload,
     lineage,
-    timelineVersions: timelineSlice.versions,
-    timelineHasMore: timelineSlice.hasMore,
+    timelineVersions: timelineSlice?.versions ?? [],
+    timelineHasMore: timelineSlice?.hasMore ?? false,
     version: mappedVersion,
-    initialPhotosWithUrls: initialPhotos,
+    initialPhotosWithUrls: initialPhotos ?? [],
     stockCoverUrl,
-    sidebarRecentRecipes: recentRecipes,
+    sidebarRecentRecipes: sidebarData?.recentRecipes ?? [],
+    sidebarFavoriteRecipes: sidebarData?.favoriteRecipes ?? [],
   };
 }
 

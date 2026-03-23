@@ -42,7 +42,7 @@ export const SEED_RECIPE_EVAL_CASES: SeedRecipeEvalCase[] = [
     prompt: "I have chicken-filled ravioli, give me a sauce idea",
     conversation: "User: I have chicken-filled ravioli and want a sauce idea that fits it.",
     expected: {
-      dishFamily: null,
+      dishFamily: "pasta",
       normalizedNameHint: "ravioli",
     },
   },
@@ -53,7 +53,7 @@ export const SEED_RECIPE_EVAL_CASES: SeedRecipeEvalCase[] = [
     prompt: "Make a delicate Romanian salata de vinete with olive oil",
     conversation: "User: Make a delicate Romanian salata de vinete with olive oil.",
     expected: {
-      dishFamily: "dip",
+      dishFamily: "dips_spreads",
       normalizedNameHint: "salata de vinete",
     },
   },

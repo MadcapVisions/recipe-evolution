@@ -17,6 +17,7 @@ import type { AiRecipeResult } from "@/lib/ai/recipeResult";
 import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
+import { DISH_FAMILIES } from "@/lib/ai/homeRecipeAlignment";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import {
   buildVersionLabelFromInstruction,
@@ -114,7 +115,7 @@ export function VersionDetailClient({
   const [recipe, setRecipe] = useState<RecipeRow | null>(initialData.recipe);
   const [sidebarData, setSidebarData] = useState<RecipeSidebarData>({
     recentRecipes: initialData.sidebarRecentRecipes,
-    favoriteRecipes: [],
+    favoriteRecipes: initialData.sidebarFavoriteRecipes,
   });
   const [timelineVersions, setTimelineVersions] = useState<TimelineVersion[]>(initialData.timelineVersions);
   const [timelineHasMore, setTimelineHasMore] = useState(initialData.timelineHasMore);
@@ -226,34 +227,6 @@ export function VersionDetailClient({
       cancelled = true;
     };
   }, [recipeId, versionId]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadFavorites = async () => {
-      const response = await fetch("/api/recipes/sidebar?section=favorites", {
-        credentials: "include",
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = (await response.json()) as RecipeSidebarData["favoriteRecipes"];
-      if (cancelled) {
-        return;
-      }
-
-      setSidebarData((current) => ({ ...current, favoriteRecipes: payload }));
-    };
-
-    void loadFavorites();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -686,18 +659,7 @@ export function VersionDetailClient({
 
     const suggestion = await requestAiSuggestion(instruction);
     if (!suggestion) {
-      const fallbackSuggestion = buildDeterministicSuggestion(instruction);
-      if (!fallbackSuggestion) {
-        assistant.setAiError("AI improvement failed. Please try again.");
-        assistant.setIsGeneratingVersion(false);
-        return;
-      }
-      await createVersionFromSuggestion(fallbackSuggestion, buildVersionLabelFromInstruction(instruction), {
-        source: "fallback",
-        action: "quick_action",
-        instruction,
-      });
-      assistant.setAiError(null);
+      assistant.setAiError("AI improvement failed. Please try again.");
       assistant.setIsGeneratingVersion(false);
       return;
     }
@@ -984,6 +946,37 @@ export function VersionDetailClient({
       return;
     }
     await navigator.clipboard.writeText(shareUrl);
+  }
+
+  async function renameRecipe() {
+    if (!recipe) return;
+    const next = window.prompt("Rename recipe", recipe.title)?.trim();
+    if (!next || next === recipe.title) return;
+    const response = await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: next }),
+    });
+    if (!response.ok) {
+      sidebar.setSidebarActionError("Could not rename recipe.");
+      return;
+    }
+    setRecipe((current) => (current ? { ...current, title: next } : current));
+  }
+
+  async function saveCategoryChoice(next: string | null) {
+    if (!recipe) return;
+    if ((next ?? null) === (recipe.dish_family ?? null)) return;
+    const response = await fetch(`/api/recipes/${recipe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dish_family: next }),
+    });
+    if (!response.ok) {
+      sidebar.setSidebarActionError("Could not update category.");
+      return;
+    }
+    setRecipe((current) => (current ? { ...current, dish_family: next } : current));
   }
 
   async function renameVersion(targetVersionId: string, currentLabel: string | null) {
@@ -1305,6 +1298,9 @@ export function VersionDetailClient({
           topPhotoUrl={topPhotoUrl}
           userId={userId}
           photosWithUrls={photosWithUrls}
+          onRenameRecipe={() => void renameRecipe()}
+          dishFamilyOptions={DISH_FAMILIES}
+          onSaveCategory={(value) => void saveCategoryChoice(value)}
           onShare={() => void shareVersion()}
           onViewVersionHistory={() => setVersionHistoryOpen((current) => !current)}
           versionHistoryOpen={versionHistoryOpen}

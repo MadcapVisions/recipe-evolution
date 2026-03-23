@@ -15,6 +15,7 @@ export type RecipeRow = {
   title: string;
   description?: string | null;
   best_version_id?: string | null;
+  dish_family?: string | null;
 };
 
 export type RecipeListItem = {

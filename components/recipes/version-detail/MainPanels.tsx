@@ -8,6 +8,63 @@ import { Button } from "@/components/Button";
 import { ServingsControl } from "@/components/ServingsControl";
 import { versionLabel, type IngredientItem, type RecipeListItem, type RecipeRow, type StepItem, type TimelineVersion, type VersionRow } from "@/components/recipes/version-detail/types";
 
+function familyLabel(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function CategoryPicker({
+  current,
+  options,
+  onSave,
+}: {
+  current: string | null;
+  options: readonly string[];
+  onSave: (value: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title={current ? "Change category" : "Add category"}
+        className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(57,75,70,0.06)] px-3 py-1.5 text-sm font-semibold text-[color:var(--text)] transition hover:bg-[rgba(57,75,70,0.1)]"
+      >
+        {current ? (
+          familyLabel(current)
+        ) : (
+          <span className="text-[color:var(--muted)]">+ Add category</span>
+        )}
+        <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-[color:var(--muted)]" aria-hidden="true">
+          <path d="M11.013 3.586a1.5 1.5 0 112.121 2.121l-.594.595-2.121-2.122.594-.594zM9.025 5.574L2.25 12.35V14.5h2.15l6.775-6.775-2.15-2.15z" />
+        </svg>
+      </button>
+    );
+  }
+
+  return (
+    <select
+      autoFocus
+      defaultValue={current ?? ""}
+      className="rounded-full border border-[rgba(57,75,70,0.15)] bg-white px-3 py-1.5 text-sm font-semibold text-[color:var(--text)] focus:outline-none"
+      onChange={(e) => {
+        const val = e.target.value;
+        onSave(val === "" ? null : val);
+        setOpen(false);
+      }}
+      onBlur={() => setOpen(false)}
+    >
+      <option value="">— None —</option>
+      {options.map((family) => (
+        <option key={family} value={family}>
+          {familyLabel(family)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function VersionMainPanels({
   recipe,
   version,
@@ -18,6 +75,9 @@ export function VersionMainPanels({
   steps,
   topPhotoUrl,
   userId,
+  onRenameRecipe,
+  dishFamilyOptions,
+  onSaveCategory,
   onShare,
   onViewVersionHistory,
   versionHistoryOpen,
@@ -48,6 +108,9 @@ export function VersionMainPanels({
   steps: StepItem[];
   topPhotoUrl: string | null;
   userId: string | null;
+  onRenameRecipe: () => void;
+  dishFamilyOptions: readonly string[];
+  onSaveCategory: (value: string | null) => void;
   onShare: () => void;
   onViewVersionHistory: () => void;
   versionHistoryOpen: boolean;
@@ -144,7 +207,20 @@ export function VersionMainPanels({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="app-kicker">Current version</p>
-              <h1 className="mt-3 text-[24px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] min-[380px]:text-[28px] sm:text-[32px] lg:text-[42px]">{recipe.title}</h1>
+              <div className="mt-3 flex items-start gap-2">
+                <h1 className="text-[24px] font-semibold leading-[1.02] tracking-tight text-[color:var(--text)] min-[380px]:text-[28px] sm:text-[32px] lg:text-[42px]">{recipe.title}</h1>
+                <button
+                  type="button"
+                  onClick={onRenameRecipe}
+                  aria-label="Rename recipe"
+                  title="Rename recipe"
+                  className="mt-1 flex-shrink-0 rounded-full p-1.5 text-[color:var(--muted)] transition hover:bg-[rgba(57,75,70,0.08)] hover:text-[color:var(--text)]"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                </button>
+              </div>
               {recipe.description ? (
                 <p className="mt-3 text-[15px] leading-relaxed text-[color:var(--muted)]">{recipe.description}</p>
               ) : null}
@@ -158,6 +234,11 @@ export function VersionMainPanels({
                 <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-3 py-1.5 text-sm font-semibold text-[color:var(--text)]">
                   Serves {typeof version.servings === "number" ? displayServings : "-"}
                 </span>
+                <CategoryPicker
+                  current={recipe.dish_family ?? null}
+                  options={dishFamilyOptions}
+                  onSave={onSaveCategory}
+                />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">

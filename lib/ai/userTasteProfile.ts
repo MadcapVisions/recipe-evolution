@@ -189,6 +189,27 @@ function repeatValues(values: string[], count: number) {
   return values.flatMap((value) => Array.from({ length: count }, () => value));
 }
 
+const TASTE_PROFILE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Fast path: return the persisted combined_summary if it was built recently.
+// Falls back to a full rebuild (which also refreshes the persisted profile).
+export async function getCachedUserTasteSummary(supabase: SupabaseLike, ownerId: string): Promise<string> {
+  const { data } = await supabase
+    .from("user_taste_profiles")
+    .select("combined_summary, updated_at")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (data?.combined_summary) {
+    const ageMs = Date.now() - new Date(data.updated_at as string).getTime();
+    if (ageMs < TASTE_PROFILE_TTL_MS) {
+      return data.combined_summary as string;
+    }
+  }
+
+  return buildUserTasteSummary(supabase, ownerId);
+}
+
 export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: string): Promise<string> {
   const preferencesQuery = supabase
     .from("user_preferences")

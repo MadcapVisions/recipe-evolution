@@ -1,4 +1,4 @@
-import { normalizeRecipeDraft, repairRecipeDraftIngredientLines, type RecipeDraft } from "@/lib/recipes/recipeDraft";
+import { normalizeRecipeDraft, type RecipeDraft } from "@/lib/recipes/recipeDraft";
 
 export class LimitExceededError extends Error {
   constructor(message: string) {
@@ -88,20 +88,7 @@ export async function createRecipeFromDraft(input: {
   draft: RecipeDraft;
   forkedFromVersionId?: string | null;
 }) {
-  let draft: RecipeDraft;
-  try {
-    draft = normalizeRecipeDraft(input.draft);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (!message.includes("Each ingredient needs a quantity")) {
-      throw error;
-    }
-
-    draft = normalizeRecipeDraft({
-      ...input.draft,
-      ingredients: repairRecipeDraftIngredientLines(input.draft.ingredients),
-    });
-  }
+  const draft = normalizeRecipeDraft(input.draft);
   const body: Record<string, unknown> = { draft };
   if (input.forkedFromVersionId) {
     body.forkedFromVersionId = input.forkedFromVersionId;

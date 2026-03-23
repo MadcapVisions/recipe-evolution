@@ -6,8 +6,13 @@ import {
   type LockedDirectionSelected,
   type LockedDirectionSession,
 } from "./contracts/lockedDirectionSession";
-import { compileCookingBrief } from "./briefCompiler";
-import { deriveIdeaTitleFromConversationContext, detectRequestedDishFamily } from "./homeRecipeAlignment";
+import { compileCookingBrief, isGenericCenterpieceTitle } from "./briefCompiler";
+import {
+  deriveIdeaTitleFromConversationContext,
+  detectRequestedAnchorIngredient,
+  detectRequestedDishFamily,
+  detectRequestedProtein,
+} from "./homeRecipeAlignment";
 import { extractRefinementDelta } from "./refinementExtractor";
 
 function unique(values: string[]) {
@@ -130,16 +135,32 @@ export function buildLockedBrief(input: {
     ? selected.title.trim()
     : deriveIdeaTitleFromConversationContext(directionContext);
   const canonicalFamily = detectRequestedDishFamily(directionContext);
+  const userContext = [
+    ...(input.conversationHistory ?? [])
+      .filter((message) => message.role === "user")
+      .map((message) => message.content),
+    refinementText,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const conversationProtein = detectRequestedProtein(userContext);
+  const conversationAnchor = detectRequestedAnchorIngredient(userContext);
+  const preservedCenterpiece =
+    conversationProtein ??
+    conversationAnchor ??
+    (shouldKeepSelectedTitle(selected.title) && !isGenericCenterpieceTitle(canonicalDish) ? canonicalDish : null);
+  const forbiddenIngredients = unique([
+    ...brief.ingredients.forbidden,
+    ...refinements.flatMap((item) => item.extracted_changes.forbidden_ingredients),
+  ]);
   const requiredIngredients = unique([
     // Only use explicit user refinements — do not include brief.ingredients.required here,
     // as compileCookingBrief incorrectly parses the AI-generated direction summary text
     // and extracts ingredient mentions from it as if they were user-mandated requirements.
     ...refinements.flatMap((item) => item.extracted_changes.required_ingredients),
-  ]);
-  const forbiddenIngredients = unique([
-    ...brief.ingredients.forbidden,
-    ...refinements.flatMap((item) => item.extracted_changes.forbidden_ingredients),
-  ]);
+    ...(conversationProtein ? [conversationProtein] : []),
+    ...(conversationAnchor && conversationAnchor !== conversationProtein ? [conversationAnchor] : []),
+  ]).filter((ingredient) => !forbiddenIngredients.includes(ingredient));
   const styleTags = unique([
     ...brief.style.tags,
     ...refinements.flatMap((item) => item.extracted_changes.style_tags),
@@ -150,14 +171,17 @@ export function buildLockedBrief(input: {
   brief.dish.dish_family = canonicalFamily ?? brief.dish.dish_family;
   brief.ingredients.required = requiredIngredients;
   brief.ingredients.forbidden = forbiddenIngredients;
-  // Only set a centerpiece when the direction title is specific enough to be meaningful.
-  // A generic title like "Chef Conversation Recipe" would always fail centerpieceMatch.
-  brief.ingredients.centerpiece = shouldKeepSelectedTitle(selected.title)
-    ? (brief.dish.normalized_name || selected.title)
-    : null;
+  // Prefer a real user-mentioned anchor ingredient/protein over the selected title.
+  // Titles like "Tomato and Pepper Braise" are dish names, not useful centerpiece ingredients.
+  brief.ingredients.centerpiece = preservedCenterpiece;
   brief.style.tags = styleTags;
   brief.style.format_tags = unique(brief.style.format_tags);
-  brief.directives.must_have = unique([...brief.directives.must_have, ...requiredIngredients, ...styleTags]);
+  brief.directives.must_have = unique([
+    ...brief.directives.must_have,
+    ...requiredIngredients,
+    ...styleTags,
+    ...(preservedCenterpiece ? [preservedCenterpiece] : []),
+  ]);
   brief.directives.must_not_have = unique([...brief.directives.must_not_have, ...forbiddenIngredients]);
   brief.directives.required_techniques = brief.dish.dish_family === "pizza" ? ["bake"] : [];
   brief.constraints.time_max_minutes = brief.constraints.time_max_minutes ?? null;

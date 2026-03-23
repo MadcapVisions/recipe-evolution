@@ -3,6 +3,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type AiCachePurpose = "structure" | "refine" | "home_ideas" | "home_recipe" | "nutrition";
 
+// Per-purpose TTL in days. Entries older than this are ignored on read.
+// home_ideas expires quickly (mood/context changes); structural outputs are durable.
+const CACHE_TTL_DAYS: Record<AiCachePurpose, number> = {
+  home_ideas: 7,
+  home_recipe: 30,
+  structure: 90,
+  refine: 90,
+  nutrition: 30,
+};
+
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
@@ -26,12 +36,16 @@ export async function readAiCache<T>(
   purpose: AiCachePurpose,
   inputHash: string
 ) {
+  const ttlDays = CACHE_TTL_DAYS[purpose];
+  const oldestAllowed = new Date(Date.now() - ttlDays * 24 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from("ai_cache")
     .select("response_json, created_at, model")
     .eq("owner_id", userId)
     .eq("purpose", purpose)
     .eq("input_hash", inputHash)
+    .gte("created_at", oldestAllowed)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

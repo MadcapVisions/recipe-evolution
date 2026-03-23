@@ -7,7 +7,7 @@ import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
-import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
+import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { storeConversationTurns } from "@/lib/ai/conversationStore";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       userId: access.userId,
     };
     initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "chef-chat" });
-    const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
+    const tasteSummaryPromise = getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;
     try {
@@ -79,6 +79,8 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json({ error: true, message: "userMessage is required" }, { status: 400 });
     }
+
+    const userTasteSummary = await tasteSummaryPromise;
 
     const userMessage = body.userMessage;
 
@@ -209,7 +211,7 @@ export async function POST(request: Request) {
             metadata_json: suggestion ? { suggestion_created: true, envelope } : envelope.options.length > 0 ? envelope : null,
           },
         ],
-      });
+      }).catch((e) => console.error("storeConversationTurns failed", e));
     }
 
     return NextResponse.json({

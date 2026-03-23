@@ -32,10 +32,14 @@ export async function loadRecipeBrowsePage(
   recipes: RecipeBrowseItem[];
   hasMore: boolean;
 }> {
-  const { data: visibilityStates, error: visibilityError } = await supabase
-    .from("recipe_visibility_states")
-    .select("recipe_id, state")
-    .eq("owner_id", ownerId);
+  // Fetch visibility states and ingredient search results in parallel.
+  const searchTerm = input.search?.trim() ?? "";
+  const [{ data: visibilityStates, error: visibilityError }, { data: ingredientMatches }] = await Promise.all([
+    supabase.from("recipe_visibility_states").select("recipe_id, state").eq("owner_id", ownerId),
+    searchTerm
+      ? supabase.rpc("search_recipe_ids_by_ingredient", { p_owner_id: ownerId, p_search: searchTerm })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
   if (visibilityError) {
     throw new Error(visibilityError.message);
@@ -49,12 +53,7 @@ export async function loadRecipeBrowsePage(
     .select("id, title, tags, updated_at, is_favorite")
     .eq("owner_id", ownerId);
 
-  if (input.search?.trim()) {
-    const searchTerm = input.search.trim();
-    const { data: ingredientMatches } = await supabase.rpc("search_recipe_ids_by_ingredient", {
-      p_owner_id: ownerId,
-      p_search: searchTerm,
-    });
+  if (searchTerm) {
     const ingredientMatchIds = (ingredientMatches ?? []).map((row: { recipe_id: string }) => row.recipe_id);
     if (ingredientMatchIds.length > 0) {
       query = query.or(`title.ilike.%${searchTerm}%,id.in.(${ingredientMatchIds.join(",")})`);
@@ -103,62 +102,39 @@ export async function loadRecipeBrowsePage(
     return { recipes: [], hasMore: false };
   }
 
-  const { data: versions, error: versionsError } = await supabase
-    .from("recipe_versions")
-    .select("id, recipe_id")
-    .in("recipe_id", recipeIds);
+  // RPC returns one row per recipe (count + latest version) instead of
+  // transferring every version row for a full-table scan.
+  const { data: versionSummaries, error: versionsError } = await supabase.rpc(
+    "get_recipe_version_summaries",
+    { p_owner_id: ownerId, p_recipe_ids: recipeIds }
+  );
 
   if (versionsError) {
     throw new Error(versionsError.message);
   }
 
+  type VersionSummary = { recipe_id: string; version_count: number; latest_version_id: string | null; latest_servings: number | null };
   const versionCountByRecipe: Record<string, number> = {};
-  const versionToRecipe: Record<string, string> = {};
+  const latestVersionIdByRecipe: Record<string, string | null> = {};
   const latestServingsByRecipe: Record<string, number | null> = {};
 
-  for (const version of versions ?? []) {
-    versionCountByRecipe[version.recipe_id] = (versionCountByRecipe[version.recipe_id] ?? 0) + 1;
-    versionToRecipe[version.id] = version.recipe_id;
-    if (!(version.recipe_id in latestServingsByRecipe)) {
-      latestServingsByRecipe[version.recipe_id] = null;
-    }
+  for (const row of (versionSummaries ?? []) as VersionSummary[]) {
+    versionCountByRecipe[row.recipe_id] = row.version_count;
+    latestVersionIdByRecipe[row.recipe_id] = row.latest_version_id;
+    latestServingsByRecipe[row.recipe_id] = row.latest_servings;
   }
 
-  const { data: latestVersions, error: latestVersionsError } = await supabase
-    .from("recipe_versions")
-    .select("id, recipe_id, servings, version_number")
-    .in("recipe_id", recipeIds)
-    .order("version_number", { ascending: false });
+  // Photo query is now scoped to the latest version per recipe only.
+  // The version_photos_version_id_idx index makes this efficient.
+  const latestVersionIds = recipeIds
+    .map((id) => latestVersionIdByRecipe[id])
+    .filter((id): id is string => id != null);
 
-  if (latestVersionsError) {
-    throw new Error(latestVersionsError.message);
-  }
-
-  for (const version of latestVersions ?? []) {
-    if (!(version.recipe_id in latestServingsByRecipe)) {
-      continue;
-    }
-    if (latestServingsByRecipe[version.recipe_id] === null) {
-      latestServingsByRecipe[version.recipe_id] = typeof version.servings === "number" ? version.servings : null;
-    }
-  }
-
-  const latestVersionIdByRecipe: Record<string, string | null> = {};
-  for (const recipeId of recipeIds) {
-    latestVersionIdByRecipe[recipeId] = null;
-  }
-  for (const version of latestVersions ?? []) {
-    if (latestVersionIdByRecipe[version.recipe_id] === null) {
-      latestVersionIdByRecipe[version.recipe_id] = version.id;
-    }
-  }
-
-  const versionIds = Object.keys(versionToRecipe);
-  const { data: photos, error: photosError } = versionIds.length
+  const { data: photos, error: photosError } = latestVersionIds.length
     ? await supabase
         .from("version_photos")
         .select("version_id, storage_path, created_at")
-        .in("version_id", versionIds)
+        .in("version_id", latestVersionIds)
         .order("created_at", { ascending: false })
     : { data: [], error: null };
 
@@ -166,9 +142,15 @@ export async function loadRecipeBrowsePage(
     throw new Error(photosError.message);
   }
 
+  // Invert latestVersionIdByRecipe for O(1) photo lookup.
+  const recipeByLatestVersionId: Record<string, string> = {};
+  for (const [recipeId, versionId] of Object.entries(latestVersionIdByRecipe)) {
+    if (versionId) recipeByLatestVersionId[versionId] = recipeId;
+  }
+
   const firstPhotoPathByRecipe: Record<string, string> = {};
   for (const photo of photos ?? []) {
-    const recipeId = versionToRecipe[photo.version_id];
+    const recipeId = recipeByLatestVersionId[photo.version_id];
     if (!recipeId || firstPhotoPathByRecipe[recipeId]) {
       continue;
     }

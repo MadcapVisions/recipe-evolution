@@ -50,7 +50,7 @@ export const AI_TASK_DEFAULTS: Record<AiTaskKey, AiTaskDefaults> = {
     primaryModel: "openai/gpt-4o-mini",
     fallbackModel: "anthropic/claude-3.5-haiku",
     temperature: 0.35,
-    maxTokens: 600,
+    maxTokens: 900,
     enabled: true,
   },
   home_ideas: {

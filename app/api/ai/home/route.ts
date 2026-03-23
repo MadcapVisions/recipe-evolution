@@ -2,25 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chefChat } from "@/lib/ai/chefChat";
-import { generateHomeIdeasWithCache, generateHomeRecipe } from "@/lib/ai/homeHub";
+import { generateHomeIdeasWithCache } from "@/lib/ai/homeHub";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
-import { buildUserTasteSummary } from "@/lib/ai/userTasteProfile";
+import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { storeConversationTurns } from "@/lib/ai/conversationStore";
 import { getConversationTurns } from "@/lib/ai/conversationStore";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import { getCookingBrief, upsertCookingBrief } from "@/lib/ai/briefStore";
-import { storeGenerationAttempt } from "@/lib/ai/generationAttemptStore";
-import { createAiStageMetric } from "@/lib/ai/contracts/stageMetrics";
-import { createFailedVerificationResult } from "@/lib/ai/contracts/verificationResult";
-import { verifyRecipeAgainstBrief } from "@/lib/ai/recipeVerifier";
-import { buildRecipePlanFromBrief } from "@/lib/ai/recipePlanner";
-import { getRecipeBuildFailureDetails } from "@/lib/ai/recipeBuildError";
-import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeRecipeRetry";
-import { appendLockedSessionRefinementDelta, buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
+import { appendLockedSessionRefinementDelta, buildLockedBrief } from "@/lib/ai/lockedSession";
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 import { normalizeChefChatEnvelope } from "@/lib/ai/chefOptions";
@@ -116,15 +109,6 @@ const homeAiRequestSchema = z.discriminatedUnion("mode", [
       .optional(),
     requested_count: z.number().optional(),
   }),
-  z.object({
-    mode: z.literal("idea_recipe"),
-    ideaTitle: z.string().trim().min(1),
-    prompt: z.string().optional(),
-    ingredients: z.array(z.string()).optional(),
-    conversationHistory: z.array(aiMessageSchema).optional(),
-    conversationKey: z.string().optional(),
-    lockedSession: lockedSessionSchema.optional(),
-  }),
 ]);
 
 export async function POST(request: Request) {
@@ -150,7 +134,7 @@ export async function POST(request: Request) {
       userId: access.userId,
     };
     initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "home-hub" });
-    const userTasteSummary = await buildUserTasteSummary(access.supabase as SupabaseClient, access.userId);
+    const tasteSummaryPromise = getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;
     try {
@@ -158,6 +142,8 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json({ error: true, message: "Unsupported AI mode." }, { status: 400 });
     }
+
+    const userTasteSummary = await tasteSummaryPromise;
 
     if (body.mode === "chef_chat") {
       const userMessage = body.userMessage?.trim();
@@ -212,7 +198,7 @@ export async function POST(request: Request) {
           ownerId: access.userId,
           conversationKey,
           scope: "home_hub",
-        });
+        }).catch((e) => console.error("deleteLockedDirectionSession failed", e));
       }
       const persistedSession = conversationKey && !isSessionReset
         ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
@@ -272,27 +258,27 @@ export async function POST(request: Request) {
               metadata_json: envelope.options.length > 0 ? envelope : null,
             },
           ],
-        });
+        }).catch((e) => console.error("storeConversationTurns failed", e));
         if (refinedSession) {
           void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
             session: refinedSession,
-          });
+          }).catch((e) => console.error("upsertLockedDirectionSession failed", e));
         } else if (pivotedAwayFromLockedSession) {
           void deleteLockedDirectionSession(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
             scope: "home_hub",
-          });
+          }).catch((e) => console.error("deleteLockedDirectionSession failed", e));
         }
         void upsertCookingBrief(access.supabase as SupabaseClient, {
           ownerId: access.userId,
           conversationKey,
           scope: "home_hub",
           brief: compiledBrief,
-        });
+        }).catch((e) => console.error("upsertCookingBrief failed", e));
       }
 
       if (result.repaired) {
@@ -365,250 +351,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ideas });
     }
 
-    if (body.mode === "idea_recipe") {
-      const ideaTitle = body.ideaTitle?.trim();
-      if (!ideaTitle) {
-        return NextResponse.json({ error: true, message: "ideaTitle is required" }, { status: 400 });
-      }
 
-      const conversationKey = typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0
-        ? body.conversationKey.trim()
-        : null;
-      const [persistedBrief, persistedSession] = await Promise.all([
-        conversationKey
-          ? getCookingBrief(access.supabase as SupabaseClient, {
-              ownerId: access.userId,
-              conversationKey,
-              scope: "home_hub",
-            })
-          : Promise.resolve(null),
-        conversationKey
-          ? getLockedDirectionSession(access.supabase as SupabaseClient, {
-              ownerId: access.userId,
-              conversationKey,
-              scope: "home_hub",
-            })
-          : Promise.resolve(null),
-      ]);
-      const requestStartedAt = new Date().toISOString();
-      const resolvedIdeaTitle = ideaTitle;
-      const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;
-      const ingredients = Array.isArray(body.ingredients)
-        ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
-        : undefined;
-      const conversationHistory = Array.isArray(body.conversationHistory)
-        ? body.conversationHistory.filter(
-            (message): message is AIMessage =>
-              Boolean(message) &&
-              (message.role === "user" || message.role === "assistant") &&
-                typeof message.content === "string" &&
-                message.content.trim().length > 0
-          )
-        : undefined;
-      const compiledBrief = compileCookingBrief({
-        userMessage: prompt || ideaTitle,
-        conversationHistory,
-        recipeContext: {
-          title: ideaTitle,
-          ingredients,
-        },
-        lockedSessionState: (body.lockedSession ?? persistedSession?.session_json ?? null)?.state ?? null,
-      });
-      const lockedSession: LockedDirectionSession | null = body.lockedSession ?? persistedSession?.session_json ?? null;
-      const effectiveBrief =
-        lockedSession?.selected_direction
-          ? buildLockedBrief({
-              session: lockedSession,
-              conversationHistory,
-            })
-          : compiledBrief;
-      const briefCompiledAt = new Date().toISOString();
-      const planStartedAt = new Date().toISOString();
-      const recipePlan = buildRecipePlanFromBrief(effectiveBrief);
-      const generateStartedAt = new Date().toISOString();
-      let attemptNumber = 1;
-      const stageMetrics = [
-        createAiStageMetric("brief_compile", {
-          started_at: requestStartedAt,
-          completed_at: briefCompiledAt,
-          cache_status: persistedBrief ? "hit" : "miss",
-        }),
-        createAiStageMetric("recipe_plan", {
-          started_at: planStartedAt,
-          completed_at: generateStartedAt,
-        }),
-      ];
-      let retryStrategy: "regenerate_same_model" | "regenerate_stricter" = "regenerate_stricter";
-      let retryReasons: string[] = [];
-
-      try {
-        let activeRecipePlan = recipePlan;
-        let result = null;
-        let verification = null;
-
-        while (!result) {
-          const attemptGenerateStartedAt = new Date().toISOString();
-          try {
-            const attemptResult = await generateHomeRecipe({
-              ideaTitle: effectiveBrief.dish.normalized_name?.trim() || resolvedIdeaTitle,
-              prompt,
-              ingredients,
-              conversationHistory,
-              cookingBrief: effectiveBrief,
-              recipePlan: activeRecipePlan,
-              retryContext:
-                attemptNumber > 1
-                  ? {
-                      attemptNumber,
-                      retryStrategy,
-                      reasons: retryReasons,
-                    }
-                  : null,
-            }, userTasteSummary, {
-              supabase: access.supabase as SupabaseClient,
-              userId: access.userId,
-            });
-            const verifyStartedAt = new Date().toISOString();
-            // Note: generateHomeRecipe already throws RecipeBuildError if verification fails,
-            // so we run this again only for stage metrics and generation attempt logging.
-            const attemptVerification = verifyRecipeAgainstBrief({
-              brief: effectiveBrief,
-              recipe: attemptResult.recipe,
-              fallbackContext: `${resolvedIdeaTitle} ${prompt ?? ""}`,
-            });
-            const completedAt = new Date().toISOString();
-            stageMetrics.push(
-              createAiStageMetric("recipe_generate", {
-                started_at: attemptGenerateStartedAt,
-                completed_at: verifyStartedAt,
-                input_tokens: attemptResult.meta.input_tokens,
-                output_tokens: attemptResult.meta.output_tokens,
-                estimated_cost_usd: attemptResult.meta.estimated_cost_usd,
-                provider: attemptResult.meta.provider,
-                model: attemptResult.meta.model,
-              }),
-              createAiStageMetric("recipe_verify", {
-                started_at: verifyStartedAt,
-                completed_at: completedAt,
-                provider: attemptResult.meta.provider,
-                model: attemptResult.meta.model,
-              })
-            );
-            result = attemptResult;
-            verification = attemptVerification;
-          } catch (error) {
-            const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
-            const attemptCompletedAt = new Date().toISOString();
-            stageMetrics.push(
-              createAiStageMetric("recipe_generate", {
-                started_at: attemptGenerateStartedAt,
-                completed_at: attemptCompletedAt,
-              }),
-              createAiStageMetric("recipe_verify", {
-                started_at: attemptCompletedAt,
-                completed_at: attemptCompletedAt,
-              })
-            );
-
-            if (shouldAutoRetryRecipeBuild(failure.retryStrategy, attemptNumber)) {
-              attemptNumber += 1;
-              retryStrategy = failure.retryStrategy as "regenerate_same_model" | "regenerate_stricter";
-              retryReasons = failure.reasons;
-              const retryPlanStartedAt = new Date().toISOString();
-              activeRecipePlan = buildRetryRecipePlan(activeRecipePlan, {
-                retryStrategy: failure.retryStrategy,
-                reasons: failure.reasons,
-                attemptNumber,
-              });
-              const retryGenerateStartedAt = new Date().toISOString();
-              stageMetrics.push(
-                createAiStageMetric("recipe_plan", {
-                  started_at: retryPlanStartedAt,
-                  completed_at: retryGenerateStartedAt,
-                })
-              );
-              continue;
-            }
-
-            throw error;
-          }
-        }
-
-        if (!result || !verification) {
-          throw new Error("Recipe build loop completed without a verified result.");
-        }
-
-        if (conversationKey) {
-          if (lockedSession?.selected_direction) {
-            void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
-              ownerId: access.userId,
-              conversationKey,
-              scope: "home_hub",
-              session: markLockedSessionBuilt(lockedSession, effectiveBrief),
-            });
-          }
-          void storeGenerationAttempt(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-            requestMode: effectiveBrief.request_mode,
-            stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
-            stateAfter: lockedSession?.selected_direction ? "built" : "recipe_generated",
-            attempt: {
-              conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
-              cooking_brief: effectiveBrief,
-              recipe_plan: recipePlan,
-              generator_input: {
-                ideaTitle: effectiveBrief.dish.normalized_name?.trim() || resolvedIdeaTitle,
-                prompt: prompt ?? null,
-                ingredients: ingredients ?? [],
-              },
-              raw_model_output: result,
-              normalized_recipe: result.recipe,
-              verification,
-              attempt_number: attemptNumber,
-              provider: result.meta.provider,
-              model: result.meta.model,
-              outcome: verification.passes ? "passed" : "failed_verification",
-              stage_metrics: stageMetrics,
-            },
-          });
-        }
-
-        return NextResponse.json({ result });
-      } catch (error) {
-        const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
-        if (conversationKey) {
-          void storeGenerationAttempt(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-            requestMode: effectiveBrief.request_mode,
-            stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
-            stateAfter: "ready_for_recipe",
-            attempt: {
-              conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
-              cooking_brief: effectiveBrief,
-              recipe_plan: recipePlan,
-              generator_input: {
-                ideaTitle: effectiveBrief.dish.normalized_name?.trim() || resolvedIdeaTitle,
-                prompt: prompt ?? null,
-                ingredients: ingredients ?? [],
-              },
-              raw_model_output: null,
-              normalized_recipe: null,
-              verification: failure.verification ?? createFailedVerificationResult(failure.message, failure.retryStrategy),
-              attempt_number: attemptNumber,
-              provider: null,
-              model: null,
-              outcome: failure.outcome,
-              stage_metrics: stageMetrics,
-            },
-          });
-        }
-        throw error;
-      }
-    }
 
     return NextResponse.json({ error: true, message: "Unsupported AI mode." }, { status: 400 });
   } catch (error) {
@@ -647,39 +390,47 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: true, message: "conversationKey is required" }, { status: 400 });
   }
 
-  const [turns, lockedSession, brief] = await Promise.all([
-    getConversationTurns(access.supabase as SupabaseClient, {
-      ownerId: access.userId,
-      conversationKey,
-      scope: "home_hub",
-    }),
-    getLockedDirectionSession(access.supabase as SupabaseClient, {
-      ownerId: access.userId,
-      conversationKey,
-      scope: "home_hub",
-    }),
-    getCookingBrief(access.supabase as SupabaseClient, {
-      ownerId: access.userId,
-      conversationKey,
-      scope: "home_hub",
-    }),
-  ]);
+  try {
+    const [turns, lockedSession, brief] = await Promise.all([
+      getConversationTurns(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "home_hub",
+      }),
+      getLockedDirectionSession(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "home_hub",
+      }),
+      getCookingBrief(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "home_hub",
+      }),
+    ]);
 
-  const messages = turns.map((turn) => {
-    const envelope = normalizeChefChatEnvelope(turn.metadata_json);
-    return {
-      role: turn.role === "assistant" ? "ai" : "user",
-      text: turn.message,
-      kind: "message" as const,
-      options: envelope?.options ?? undefined,
-      recommendedOptionId: envelope?.recommended_option_id ?? null,
-    };
-  });
+    const messages = turns.map((turn) => {
+      const envelope = normalizeChefChatEnvelope(turn.metadata_json);
+      return {
+        role: turn.role === "assistant" ? "ai" : "user",
+        text: turn.message,
+        kind: "message" as const,
+        options: envelope?.options ?? undefined,
+        recommendedOptionId: envelope?.recommended_option_id ?? null,
+      };
+    });
 
-  return NextResponse.json({
-    conversationKey,
-    messages,
-    lockedSession: lockedSession?.session_json ?? null,
-    brief: brief?.brief_json ?? null,
-  });
+    return NextResponse.json({
+      conversationKey,
+      messages,
+      lockedSession: lockedSession?.session_json ?? null,
+      brief: brief?.brief_json ?? null,
+    });
+  } catch (error) {
+    console.error("Home session GET failed", error);
+    return NextResponse.json(
+      { error: true, message: "Failed to load session. Please try again." },
+      { status: 500 }
+    );
+  }
 }

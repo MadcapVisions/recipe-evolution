@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
-import { getRecipeLibraryTag, getRecipeSidebarTag } from "@/lib/cacheTags";
+import { getRecipeDetailTag, getRecipeLibraryTag, getRecipeSidebarTag, getRecipeSummaryTag } from "@/lib/cacheTags";
+import { DISH_FAMILIES } from "@/lib/ai/homeRecipeAlignment";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
 const recipePatchSchema = z.object({
-  best_version_id: z.string().uuid().nullable(),
+  best_version_id: z.string().uuid().nullable().optional(),
+  title: z.string().min(1).max(200).optional(),
+  dish_family: z.enum(DISH_FAMILIES).nullable().optional(),
 });
 
 async function requireOwnedRecipe(recipeId: string) {
@@ -19,22 +22,27 @@ async function requireOwnedRecipe(recipeId: string) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { supabase, user: null, owned: false as const };
+    return { supabase, user: null, owned: false as const, bestVersionId: null };
   }
 
   const { data: ownedRecipe, error } = await supabase
     .from("recipes")
-    .select("id")
+    .select("id, best_version_id")
     .eq("id", recipeId)
     .eq("owner_id", user.id)
     .maybeSingle();
 
-  return { supabase, user, owned: !error && Boolean(ownedRecipe) };
+  return {
+    supabase,
+    user,
+    owned: !error && Boolean(ownedRecipe),
+    bestVersionId: (ownedRecipe as { best_version_id?: string | null } | null)?.best_version_id ?? null,
+  };
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { id: recipeId } = await context.params;
-  const { supabase, user, owned } = await requireOwnedRecipe(recipeId);
+  const { supabase, user, owned, bestVersionId } = await requireOwnedRecipe(recipeId);
 
   if (!user) {
     return NextResponse.json({ error: true, message: "Authentication required." }, { status: 401 });
@@ -64,9 +72,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  const updates: Record<string, unknown> = {};
+  if (payload.best_version_id !== undefined) updates.best_version_id = payload.best_version_id;
+  if (payload.title !== undefined) updates.title = payload.title.trim();
+  if (payload.dish_family !== undefined) updates.dish_family = payload.dish_family;
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: true, message: "Nothing to update." }, { status: 400 });
+  }
+
   const { error } = await supabase
     .from("recipes")
-    .update({ best_version_id: payload.best_version_id })
+    .update(updates)
     .eq("id", recipeId);
 
   if (error) {
@@ -75,6 +92,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   revalidateTag(getRecipeLibraryTag(user.id), "max");
   revalidateTag(getRecipeSidebarTag(user.id), "max");
+  revalidateTag(getRecipeSummaryTag(recipeId), "max");
+  if (bestVersionId) {
+    revalidateTag(getRecipeDetailTag(user.id, recipeId, bestVersionId), "max");
+  }
 
   return NextResponse.json({ ok: true });
 }

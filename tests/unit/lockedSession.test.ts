@@ -55,6 +55,41 @@ test("buildLockedBrief compiles canonical dish identity from locked session", ()
   assert.ok(brief.ingredients.required.includes("jalapeños"));
 });
 
+test("buildLockedBrief preserves original protein anchors when a locked direction title omits them", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Tomato and Pepper Braise",
+      summary: "Braised chicken leg quarters with tomato pulp, peppers, onions, and mushrooms.",
+      tags: ["Braised"],
+    },
+  });
+
+  const brief = buildLockedBrief({
+    session,
+    conversationHistory: [
+      {
+        role: "user",
+        content: "I want to make a braised chicken dish. I have 3 chicken leg quarter, mushrooms, peppers, onions, and carrots.",
+      },
+      {
+        role: "assistant",
+        content: "For a braised chicken dish, sear the chicken leg quarters first, then braise them with mushrooms, onions, and peppers.",
+      },
+      {
+        role: "user",
+        content: "I also have tomato pulp. Can you suggest a couple different options",
+      },
+    ],
+  });
+
+  assert.equal(brief.dish.normalized_name, "Tomato and Pepper Braise");
+  assert.equal(brief.dish.dish_family, "braised");
+  assert.equal(brief.ingredients.centerpiece, "chicken");
+  assert.ok(brief.ingredients.required.includes("chicken"));
+});
+
 test("buildLockedBrief preserves a specific selected title and ignores old conversation constraints", () => {
   const session = createLockedSessionFromDirection({
     conversationKey: "conv-1",
