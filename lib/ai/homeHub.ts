@@ -9,6 +9,7 @@ import { resolveAiTaskSettings } from "./taskSettings";
 import type { CookingBrief } from "./contracts/cookingBrief";
 import type { RecipeOutline } from "./contracts/recipeOutline";
 import type { RecipePlan } from "./contracts/recipePlan";
+import type { RecipeIngredientSection, RecipeInstructionSection } from "./contracts/recipeSections";
 import { verifyRecipeAgainstBrief } from "./recipeVerifier";
 import { RecipeBuildError } from "./recipeBuildError";
 import { createFailedVerificationResult } from "./contracts/verificationResult";
@@ -24,7 +25,13 @@ import { detectRequestedAnchorIngredient, detectRequestedProtein } from "./homeR
 import { buildHomeRecipeAiMetadata } from "./homeRecipeMetadata";
 import { normalizeGeneratedRecipePayload, type HomeGeneratedRecipe, type RecipeNormalizationResult } from "./recipeNormalization";
 import { buildFallbackRecipeOutline, normalizeRecipeOutlinePayload, validateRecipeOutline } from "./recipeOutline";
-import { HOME_RECIPE_JSON_SCHEMA, RECIPE_OUTLINE_JSON_SCHEMA } from "./recipeJsonSchemas";
+import {
+  HOME_RECIPE_JSON_SCHEMA,
+  RECIPE_INGREDIENT_SECTION_JSON_SCHEMA,
+  RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA,
+  RECIPE_OUTLINE_JSON_SCHEMA,
+} from "./recipeJsonSchemas";
+import { assembleRecipeDraftFromSections, buildGeneratedRecipeFromSectionPayloads, buildRecipeSections } from "./recipeSections";
 import { isLikelyTruncatedRecipePayload } from "./recipeTruncation";
 import { validateRecipeStructure } from "./recipeStructuralValidation";
 
@@ -708,6 +715,623 @@ ${input.rawText}`,
   };
 }
 
+function normalizeRecipeIngredientSectionPayload(parsed: unknown): { value: RecipeIngredientSection | null; error: string | null } {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { value: null, error: "Ingredient section payload was not an object." };
+  }
+
+  const raw = parsed as Record<string, unknown>;
+  const ingredients = Array.isArray(raw.ingredients)
+    ? raw.ingredients
+        .map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            return null;
+          }
+          const ingredient = item as Record<string, unknown>;
+          const name = typeof ingredient.name === "string" ? ingredient.name.trim() : "";
+          if (!name) {
+            return null;
+          }
+          return {
+            name,
+            quantity: typeof ingredient.quantity === "number" ? ingredient.quantity : null,
+            unit: typeof ingredient.unit === "string" ? ingredient.unit.trim() || null : null,
+            prep: typeof ingredient.prep === "string" ? ingredient.prep.trim() || null : null,
+          };
+        })
+        .filter((item): item is RecipeIngredientSection["ingredients"][number] => item !== null)
+    : [];
+
+  if (ingredients.length === 0) {
+    return { value: null, error: "Ingredient section was missing recognizable ingredients." };
+  }
+
+  return {
+    value: {
+      servings: typeof raw.servings === "number" ? Math.round(raw.servings) : null,
+      prep_time_min: typeof raw.prep_time_min === "number" ? Math.round(raw.prep_time_min) : null,
+      cook_time_min: typeof raw.cook_time_min === "number" ? Math.round(raw.cook_time_min) : null,
+      difficulty: typeof raw.difficulty === "string" ? raw.difficulty.trim() || null : null,
+      ingredients,
+    },
+    error: null,
+  };
+}
+
+function normalizeRecipeInstructionSectionPayload(parsed: unknown): { value: RecipeInstructionSection | null; error: string | null } {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { value: null, error: "Instruction section payload was not an object." };
+  }
+
+  const raw = parsed as Record<string, unknown>;
+  const steps = Array.isArray(raw.steps)
+    ? raw.steps
+        .map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            return null;
+          }
+          const rawStep = item as Record<string, unknown>;
+          const text = typeof rawStep.text === "string" ? rawStep.text.trim() : "";
+          return text ? { text } : null;
+        })
+        .filter((item): item is { text: string } => item !== null)
+    : [];
+  if (steps.length === 0) {
+    return { value: null, error: "Instruction section was missing recognizable steps." };
+  }
+
+  const chefTips = Array.isArray(raw.chefTips)
+    ? raw.chefTips.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim()).slice(0, 3)
+    : [];
+
+  return {
+    value: {
+      description: typeof raw.description === "string" ? raw.description.trim() || null : null,
+      steps,
+      chefTips,
+    },
+    error: null,
+  };
+}
+
+async function buildRecipeBySections(input: {
+  ideaTitle: string;
+  prompt?: string;
+  ingredients?: string[];
+  conversationHistory?: AIMessage[];
+  cookingBrief?: CookingBrief | null;
+  recipePlan?: RecipePlan | null;
+  recipeOutline: RecipeOutline;
+  aiCallOptions: AICallOptions;
+  onStage?: HomeRecipeStageReporter;
+}) {
+  async function generateSectionWithRepair<T>(params: {
+    sectionName: "ingredient" | "instruction";
+    messages: AIMessage[];
+    validator: (parsed: unknown) => { value: T | null; error: string | null };
+    schemaName: string;
+    schema: Record<string, unknown>;
+    repairContext: string;
+    maxTokens: number;
+  }) {
+    const firstAttempt = await callAIForJson(params.messages, {
+      ...input.aiCallOptions,
+      max_tokens: params.maxTokens,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: params.schemaName,
+          strict: true,
+          schema: params.schema,
+        },
+      },
+    });
+
+    const firstValidated = params.validator(firstAttempt.parsed);
+    if (firstValidated.value) {
+      return {
+        contract: firstValidated.value,
+        usage: firstAttempt.usage,
+        repaired: false,
+        repairTag: null as string | null,
+      };
+    }
+
+    input.onStage?.("recipe_generate", `Repairing ${params.sectionName} section...`);
+    const repairMessages: AIMessage[] = [
+      {
+        role: "system",
+        content: `You repair malformed ${params.sectionName} recipe sections.
+Return ONLY valid JSON matching the requested section schema. Do not add wrapper keys, markdown, or explanation.
+Preserve the dish identity, format, and outline exactly.`,
+      },
+      {
+        role: "user",
+        content: `${params.repairContext}
+Malformed ${params.sectionName} section:
+${firstAttempt.text}`,
+      },
+    ];
+
+    const repairedAttempt = await callAIForJson(repairMessages, {
+      ...input.aiCallOptions,
+      max_tokens: params.maxTokens,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: `${params.schemaName}_repair`,
+          strict: true,
+          schema: params.schema,
+        },
+      },
+    });
+    const repairedValidated = params.validator(repairedAttempt.parsed);
+    if (!repairedValidated.value) {
+      throw new Error(repairedValidated.error ?? `Malformed ${params.sectionName} section could not be repaired.`);
+    }
+
+    return {
+      contract: repairedValidated.value,
+      usage: {
+        input_tokens: (firstAttempt.usage.input_tokens ?? 0) + (repairedAttempt.usage.input_tokens ?? 0),
+        output_tokens: (firstAttempt.usage.output_tokens ?? 0) + (repairedAttempt.usage.output_tokens ?? 0),
+        total_tokens: (firstAttempt.usage.total_tokens ?? 0) + (repairedAttempt.usage.total_tokens ?? 0),
+        estimated_cost_usd: (firstAttempt.usage.estimated_cost_usd ?? 0) + (repairedAttempt.usage.estimated_cost_usd ?? 0),
+      },
+      repaired: true,
+      repairTag: `${params.sectionName}_structure`,
+    };
+  }
+
+  const ingredientMessages = [
+    {
+      role: "system" as const,
+      content: `You build the ingredient/meta section for a recipe.
+Return ONLY a single JSON object with EXACTLY these fields:
+{
+  "servings": number|null,
+  "prep_time_min": number|null,
+  "cook_time_min": number|null,
+  "difficulty": string|null,
+  "ingredients": [{ "name": string, "quantity": number|null, "unit": string|null, "prep": string|null }]
+}
+Rules:
+- Follow the provided outline exactly.
+- Include all core ingredients needed to execute the recipe cleanly.
+- Every ingredient should have a practical quantity whenever possible.
+- Do not include steps, chef tips, wrappers, or commentary.`,
+    },
+    {
+      role: "user" as const,
+      content: `Build the ingredient section for this recipe.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}
+Conversation context:
+${formatConversation(input.conversationHistory) || "No chef conversation available."}
+Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
+    },
+  ];
+
+  const instructionMessages = [
+    {
+      role: "system" as const,
+      content: `You build the instruction section for a recipe.
+Return ONLY a single JSON object with EXACTLY these fields:
+{
+  "description": string|null,
+  "steps": [{ "text": string }],
+  "chefTips": string[]
+}
+Rules:
+- Follow the provided outline exactly.
+- Steps must be complete and practical for a home cook.
+- Keep the recipe format and dish identity locked.
+- chefTips should be short, practical tips, not repeated steps.
+- Do not include ingredients, wrapper keys, or commentary.`,
+    },
+    {
+      role: "user" as const,
+      content: `Build the instruction section for this recipe.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}
+Conversation context:
+${formatConversation(input.conversationHistory) || "No chef conversation available."}`,
+    },
+  ];
+
+  input.onStage?.("recipe_generate", "Building recipe sections...");
+  const [ingredientResult, instructionResult] = await Promise.all([
+    generateSectionWithRepair<RecipeIngredientSection>({
+      sectionName: "ingredient",
+      messages: ingredientMessages,
+      validator: normalizeRecipeIngredientSectionPayload,
+      schemaName: "recipe_ingredient_section",
+      schema: RECIPE_INGREDIENT_SECTION_JSON_SCHEMA,
+      repairContext: `Repair the ingredient/meta section for this recipe.
+Idea: ${input.ideaTitle}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}`,
+      maxTokens: Math.min(1400, Math.max(700, Math.floor((input.aiCallOptions.max_tokens ?? 1600) * 0.6))),
+    }),
+    generateSectionWithRepair<RecipeInstructionSection>({
+      sectionName: "instruction",
+      messages: instructionMessages,
+      validator: normalizeRecipeInstructionSectionPayload,
+      schemaName: "recipe_instruction_section",
+      schema: RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA,
+      repairContext: `Repair the instruction/tips section for this recipe.
+Idea: ${input.ideaTitle}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}`,
+      maxTokens: Math.min(1800, Math.max(900, Math.floor((input.aiCallOptions.max_tokens ?? 1600) * 0.75))),
+    }),
+  ]);
+
+  return {
+    recipe: buildGeneratedRecipeFromSectionPayloads({
+      title: input.recipeOutline.title || input.ideaTitle,
+      outline: input.recipeOutline,
+      ingredientSection: ingredientResult.contract,
+      instructionSection: instructionResult.contract,
+    }),
+    usage: {
+      input_tokens: (ingredientResult.usage.input_tokens ?? 0) + (instructionResult.usage.input_tokens ?? 0),
+      output_tokens: (ingredientResult.usage.output_tokens ?? 0) + (instructionResult.usage.output_tokens ?? 0),
+      total_tokens:
+        (ingredientResult.usage.total_tokens ?? 0) + (instructionResult.usage.total_tokens ?? 0),
+      estimated_cost_usd:
+        (ingredientResult.usage.estimated_cost_usd ?? 0) + (instructionResult.usage.estimated_cost_usd ?? 0),
+    },
+    repaired: ingredientResult.repaired || instructionResult.repaired,
+    repairedSections: [ingredientResult.repairTag, instructionResult.repairTag].filter(
+      (value): value is string => typeof value === "string" && value.length > 0
+    ),
+  };
+}
+
+async function repairSectionedRecipeAgainstVerification(input: {
+  ideaTitle: string;
+  prompt?: string;
+  conversationHistory?: AIMessage[];
+  cookingBrief?: CookingBrief | null;
+  recipePlan?: RecipePlan | null;
+  recipeOutline: RecipeOutline;
+  aiCallOptions: AICallOptions;
+  verification: ReturnType<typeof verifyRecipeAgainstBrief>;
+  currentRecipe: HomeGeneratedRecipe;
+  onStage?: HomeRecipeStageReporter;
+}): Promise<{ recipe: HomeGeneratedRecipe; repairedSections: string[] } | null> {
+  if (shouldEscalateVerification(input.verification.checks)) {
+    return null;
+  }
+
+  const repairPlan = buildVerificationRepairPlan(input.verification, input.cookingBrief);
+  if (repairPlan.instructions.length === 0) {
+    return null;
+  }
+
+  const ingredientScopes = new Set([
+    "alignment_centerpiece",
+    "alignment_required_ingredients",
+    "alignment_forbidden_ingredients",
+  ] as const);
+  const instructionScopes = new Set([
+    "alignment_style",
+    "alignment_title",
+  ] as const);
+
+  const ingredientInstructions = repairPlan.instructions.filter((_, index) => ingredientScopes.has(repairPlan.scopes[index] as never));
+  const instructionInstructions = repairPlan.instructions.filter((_, index) => instructionScopes.has(repairPlan.scopes[index] as never));
+
+  let repairedRecipe = input.currentRecipe;
+  const repairedSections: string[] = [];
+
+  if (ingredientInstructions.length > 0) {
+    input.onStage?.("recipe_verify", "Fixing ingredient alignment...");
+    const ingredientMessages: AIMessage[] = [
+      {
+        role: "system",
+        content: `You repair only the ingredient/meta section of a recipe.
+Return ONLY valid JSON with these fields:
+{
+  "servings": number|null,
+  "prep_time_min": number|null,
+  "cook_time_min": number|null,
+  "difficulty": string|null,
+  "ingredients": [{ "name": string, "quantity": number|null, "unit": string|null, "prep": string|null }]
+}
+Do not output steps, tips, wrapper keys, or commentary.
+Preserve the dish identity and outline exactly.`,
+      },
+      {
+        role: "user",
+        content: `Repair the ingredient/meta section for this recipe.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}
+Current recipe:
+${JSON.stringify(input.currentRecipe, null, 2)}
+Fix these issues:
+${ingredientInstructions.join("\n")}`,
+      },
+    ];
+    const ingredientRepair = await callAIForJsonWithContract<RecipeIngredientSection>(
+      ingredientMessages,
+      normalizeRecipeIngredientSectionPayload,
+      {
+        ...input.aiCallOptions,
+        max_tokens: Math.min(1400, Math.max(700, Math.floor((input.aiCallOptions.max_tokens ?? 1600) * 0.6))),
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "recipe_ingredient_section_semantic_repair",
+            strict: true,
+            schema: RECIPE_INGREDIENT_SECTION_JSON_SCHEMA,
+          },
+        },
+      }
+    );
+
+    repairedRecipe = buildGeneratedRecipeFromSectionPayloads({
+      title: repairedRecipe.title,
+      outline: input.recipeOutline,
+      ingredientSection: ingredientRepair.contract,
+      instructionSection: {
+        description: repairedRecipe.description,
+        steps: repairedRecipe.steps,
+        chefTips: repairedRecipe.chefTips,
+      },
+    });
+    repairedSections.push("ingredient_semantic");
+  }
+
+  if (instructionInstructions.length > 0) {
+    input.onStage?.("recipe_verify", "Fixing instruction alignment...");
+    const instructionMessages: AIMessage[] = [
+      {
+        role: "system",
+        content: `You repair only the instruction/tips section of a recipe.
+Return ONLY valid JSON with these fields:
+{
+  "description": string|null,
+  "steps": [{ "text": string }],
+  "chefTips": string[]
+}
+Do not output ingredients, wrapper keys, or commentary.
+Preserve the dish identity and outline exactly.`,
+      },
+      {
+        role: "user",
+        content: `Repair the instruction/tips section for this recipe.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}
+Current recipe:
+${JSON.stringify(repairedRecipe, null, 2)}
+Fix these issues:
+${instructionInstructions.join("\n")}`,
+      },
+    ];
+    const instructionRepair = await callAIForJsonWithContract<RecipeInstructionSection>(
+      instructionMessages,
+      normalizeRecipeInstructionSectionPayload,
+      {
+        ...input.aiCallOptions,
+        max_tokens: Math.min(1800, Math.max(900, Math.floor((input.aiCallOptions.max_tokens ?? 1600) * 0.75))),
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "recipe_instruction_section_semantic_repair",
+            strict: true,
+            schema: RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA,
+          },
+        },
+      }
+    );
+
+    repairedRecipe = {
+      ...repairedRecipe,
+      description: instructionRepair.contract.description?.trim() || repairedRecipe.description,
+      steps: instructionRepair.contract.steps.map((item) => ({ text: item.text.trim() })).filter((item) => item.text.length > 0),
+      chefTips:
+        instructionRepair.contract.chefTips.length > 0
+          ? instructionRepair.contract.chefTips.map((tip) => tip.trim()).filter(Boolean)
+          : repairedRecipe.chefTips,
+    };
+    repairedSections.push("instruction_semantic");
+  }
+
+  if (!input.verification.checks.title_quality_pass) {
+    repairedRecipe = {
+      ...repairedRecipe,
+      title: input.recipeOutline.title?.trim() || input.ideaTitle,
+    };
+    repairedSections.push("title_semantic");
+  }
+
+  return {
+    recipe: repairedRecipe,
+    repairedSections,
+  };
+}
+
+async function repairSectionedRecipeQuality(input: {
+  ideaTitle: string;
+  prompt?: string;
+  conversationHistory?: AIMessage[];
+  cookingBrief?: CookingBrief | null;
+  recipePlan?: RecipePlan | null;
+  recipeOutline: RecipeOutline;
+  aiCallOptions: AICallOptions;
+  currentRecipe: HomeGeneratedRecipe;
+  vagueSteps: Array<{ text: string }>;
+  tasteViolations: string[];
+  missingQuantities: string[];
+  onStage?: HomeRecipeStageReporter;
+}): Promise<{ recipe: HomeGeneratedRecipe; repairedSections: string[] }> {
+  let repairedRecipe = input.currentRecipe;
+  const repairedSections: string[] = [];
+
+  if (input.missingQuantities.length > 0 || input.tasteViolations.length > 0) {
+    input.onStage?.("recipe_verify", "Polishing ingredient details...");
+    const ingredientMessages: AIMessage[] = [
+      {
+        role: "system",
+        content: `You repair only the ingredient/meta section of a recipe.
+Return ONLY valid JSON with these fields:
+{
+  "servings": number|null,
+  "prep_time_min": number|null,
+  "cook_time_min": number|null,
+  "difficulty": string|null,
+  "ingredients": [{ "name": string, "quantity": number|null, "unit": string|null, "prep": string|null }]
+}
+Do not output steps, tips, wrapper keys, or commentary.
+Preserve the dish identity and outline exactly.`,
+      },
+      {
+        role: "user",
+        content: `Repair the ingredient/meta section for this recipe.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}
+Current recipe:
+${JSON.stringify(repairedRecipe, null, 2)}
+Fix these quality issues:
+${input.missingQuantities.length > 0 ? `Add explicit quantities for: ${input.missingQuantities.join("; ")}` : ""}
+${input.tasteViolations.length > 0 ? `Remove or replace disliked ingredients: ${input.tasteViolations.join(", ")}` : ""}`,
+      },
+    ];
+    const ingredientRepair = await callAIForJsonWithContract<RecipeIngredientSection>(
+      ingredientMessages,
+      normalizeRecipeIngredientSectionPayload,
+      {
+        ...input.aiCallOptions,
+        max_tokens: Math.min(1400, Math.max(700, Math.floor((input.aiCallOptions.max_tokens ?? 1600) * 0.6))),
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "recipe_ingredient_section_quality_repair",
+            strict: true,
+            schema: RECIPE_INGREDIENT_SECTION_JSON_SCHEMA,
+          },
+        },
+      }
+    );
+    repairedRecipe = buildGeneratedRecipeFromSectionPayloads({
+      title: repairedRecipe.title,
+      outline: input.recipeOutline,
+      ingredientSection: ingredientRepair.contract,
+      instructionSection: {
+        description: repairedRecipe.description,
+        steps: repairedRecipe.steps,
+        chefTips: repairedRecipe.chefTips,
+      },
+    });
+    repairedSections.push("ingredient_quality");
+  }
+
+  if (input.vagueSteps.length > 0) {
+    input.onStage?.("recipe_verify", "Polishing cooking steps...");
+    const instructionMessages: AIMessage[] = [
+      {
+        role: "system",
+        content: `You repair only the instruction/tips section of a recipe.
+Return ONLY valid JSON with these fields:
+{
+  "description": string|null,
+  "steps": [{ "text": string }],
+  "chefTips": string[]
+}
+Do not output ingredients, wrapper keys, or commentary.
+Preserve the dish identity and outline exactly.`,
+      },
+      {
+        role: "user",
+        content: `Repair the instruction/tips section for this recipe.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(input.recipeOutline, null, 2)}
+Current recipe:
+${JSON.stringify(repairedRecipe, null, 2)}
+Fix these quality issues:
+Expand these vague steps with concrete action, timing, and doneness cues: ${input.vagueSteps.map((step) => `"${step.text}"`).join("; ")}`,
+      },
+    ];
+    const instructionRepair = await callAIForJsonWithContract<RecipeInstructionSection>(
+      instructionMessages,
+      normalizeRecipeInstructionSectionPayload,
+      {
+        ...input.aiCallOptions,
+        max_tokens: Math.min(1800, Math.max(900, Math.floor((input.aiCallOptions.max_tokens ?? 1600) * 0.75))),
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "recipe_instruction_section_quality_repair",
+            strict: true,
+            schema: RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA,
+          },
+        },
+      }
+    );
+    repairedRecipe = {
+      ...repairedRecipe,
+      description: instructionRepair.contract.description?.trim() || repairedRecipe.description,
+      steps: instructionRepair.contract.steps.map((item) => ({ text: item.text.trim() })).filter((item) => item.text.length > 0),
+      chefTips:
+        instructionRepair.contract.chefTips.length > 0
+          ? instructionRepair.contract.chefTips.map((tip) => tip.trim()).filter(Boolean)
+          : repairedRecipe.chefTips,
+    };
+    repairedSections.push("instruction_quality");
+  }
+
+  return {
+    recipe: repairedRecipe,
+    repairedSections,
+  };
+}
+
 function buildExpandedRecipeCallOptions(options: AICallOptions): AICallOptions {
   const current = typeof options.max_tokens === "number" ? options.max_tokens : 1600;
   return {
@@ -841,6 +1465,210 @@ export async function generateHomeRecipe(input: {
     totalOutputTokens += outlineBuild.usage.output_tokens ?? 0;
     totalEstimatedCostUsd += outlineBuild.usage.estimated_cost_usd ?? 0;
     hasUsageMetrics = true;
+  }
+
+  try {
+    const repairedSections: string[] = [];
+    const sectionBuild = await buildRecipeBySections({
+      ideaTitle: input.ideaTitle,
+      prompt: input.prompt,
+      ingredients: input.ingredients,
+      conversationHistory: input.conversationHistory,
+      cookingBrief: input.cookingBrief,
+      recipePlan: input.recipePlan,
+      recipeOutline,
+      aiCallOptions,
+      onStage,
+    });
+
+    if (
+      sectionBuild.usage.input_tokens != null ||
+      sectionBuild.usage.output_tokens != null ||
+      sectionBuild.usage.estimated_cost_usd != null
+    ) {
+      totalInputTokens += sectionBuild.usage.input_tokens ?? 0;
+      totalOutputTokens += sectionBuild.usage.output_tokens ?? 0;
+      totalEstimatedCostUsd += sectionBuild.usage.estimated_cost_usd ?? 0;
+      hasUsageMetrics = true;
+    }
+
+    let recipe = sectionBuild.recipe;
+    let generationPath = sectionBuild.repaired ? "sectioned_repaired_structure" : "sectioned";
+    repairedSections.push(...sectionBuild.repairedSections);
+    const structuralValidation = validateRecipeStructure(recipe);
+    if (!structuralValidation.passes) {
+      throw new RecipeBuildError({
+        message: structuralValidation.reasons[0] ?? "Recipe failed structural validation.",
+        kind: "structural_validation_failed",
+        verification: createFailedVerificationResult(
+          structuralValidation.reasons[0] ?? "Recipe failed structural validation.",
+          "regenerate_same_model",
+          {
+            failure_stage: "schema",
+            failure_context: {
+              structural_checks: structuralValidation.checks,
+              structural_reasons: structuralValidation.reasons,
+              generation_path: "sectioned",
+              generation_details: {
+                sectioned_attempted: true,
+                monolithic_fallback_used: false,
+                repaired_sections: Array.from(new Set(repairedSections)),
+              },
+            },
+          }
+        ),
+      });
+    }
+
+    let verification = verifyRecipeAgainstBrief({
+      recipe,
+      brief: input.cookingBrief,
+      fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+    });
+    onStage?.("recipe_verify", "Checking that the sectioned recipe matches...");
+
+    if (!verification.passes) {
+      try {
+        const repairedSectionedRecipe = await repairSectionedRecipeAgainstVerification({
+          ideaTitle: input.ideaTitle,
+          prompt: input.prompt,
+          conversationHistory: input.conversationHistory,
+          cookingBrief: input.cookingBrief,
+          recipePlan: input.recipePlan,
+          recipeOutline,
+          aiCallOptions,
+          verification,
+          currentRecipe: recipe,
+          onStage,
+        });
+        if (repairedSectionedRecipe) {
+          const repairedVerification = verifyRecipeAgainstBrief({
+            recipe: repairedSectionedRecipe.recipe,
+            brief: input.cookingBrief,
+            fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+          });
+          if (repairedVerification.passes) {
+            recipe = repairedSectionedRecipe.recipe;
+            verification = repairedVerification;
+            generationPath = "sectioned_repaired_semantic";
+            repairedSections.push(...repairedSectionedRecipe.repairedSections);
+          }
+        }
+      } catch {
+        // fail soft; fall through to existing throw
+      }
+    }
+
+    if (!verification.passes) {
+      throw new RecipeBuildError({
+        message: verification.reasons[0] ?? "AI recipe drifted from the chef conversation.",
+        kind: "verification_failed",
+        verification: {
+          ...verification,
+          failure_stage: "semantic",
+          failure_context: {
+            checks: verification.checks,
+            reasons: verification.reasons,
+            generation_path: "sectioned",
+            generation_details: {
+              sectioned_attempted: true,
+              monolithic_fallback_used: false,
+              repaired_sections: Array.from(new Set(repairedSections)),
+            },
+          },
+        },
+      });
+    }
+
+    const vagueSteps = recipe.steps.filter((s: { text: string }) => isVagueStep(s.text));
+    const disliked = userTasteSummary ? extractDislikedFromSummary(userTasteSummary) : [];
+    const violations = findTasteViolations(recipe, disliked);
+    const missingQty = findMissingQuantities(recipe.ingredients);
+
+    if (vagueSteps.length > 0 || violations.length > 0 || missingQty.length > 0) {
+      try {
+        const qualityRepairedRecipe = await repairSectionedRecipeQuality({
+          ideaTitle: input.ideaTitle,
+          prompt: input.prompt,
+          conversationHistory: input.conversationHistory,
+          cookingBrief: input.cookingBrief,
+          recipePlan: input.recipePlan,
+          recipeOutline,
+          aiCallOptions,
+          currentRecipe: recipe,
+          vagueSteps,
+          tasteViolations: violations,
+          missingQuantities: missingQty,
+          onStage,
+        });
+        const repairedVerification = verifyRecipeAgainstBrief({
+          recipe: qualityRepairedRecipe.recipe,
+          brief: input.cookingBrief,
+          fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+        });
+        if (repairedVerification.passes) {
+          recipe = qualityRepairedRecipe.recipe;
+          verification = repairedVerification;
+          generationPath = "sectioned_repaired_quality";
+          repairedSections.push(...qualityRepairedRecipe.repairedSections);
+        }
+      } catch {
+        // fail soft — keep already valid sectioned recipe
+      }
+    }
+
+    const aiMetadata = buildHomeRecipeAiMetadata({
+      outline: recipeOutline,
+      outlineSource: outlineBuild.source,
+      generationPath,
+      generationDetails: {
+        sectionedAttempted: true,
+        monolithicFallbackUsed: false,
+        repairedSections: Array.from(new Set(repairedSections)),
+      },
+      cookingBrief: input.cookingBrief,
+      recipePlan: input.recipePlan,
+      retryContext: input.retryContext,
+    });
+
+    const recipeSections = buildRecipeSections({
+      recipe,
+      outline: recipeOutline,
+    });
+
+    const aiRecipeResult = createAiRecipeResult({
+      purpose: "home_recipe",
+      source: "ai",
+      provider: resolvedModel ? "openrouter" : null,
+      model: resolvedModel,
+      cached: false,
+      inputHash,
+      createdAt: new Date().toISOString(),
+      inputTokens: hasUsageMetrics ? totalInputTokens : null,
+      outputTokens: hasUsageMetrics ? totalOutputTokens : null,
+      estimatedCostUsd: hasUsageMetrics ? Number(totalEstimatedCostUsd.toFixed(6)) : null,
+      recipe: assembleRecipeDraftFromSections({
+        sections: recipeSections,
+        ai_metadata_json: aiMetadata,
+      }),
+    });
+
+    if (cacheContext && inputHash) {
+      await writeAiCache(
+        cacheContext.supabase,
+        cacheContext.userId,
+        "home_recipe",
+        inputHash,
+        resolvedModel,
+        aiRecipeResult
+      );
+    }
+
+    return aiRecipeResult;
+  } catch (sectionError) {
+    console.warn("[homeHub] sectioned generation fell back to monolithic path", {
+      error: sectionError instanceof Error ? sectionError.message : String(sectionError),
+    });
   }
 
   const messages = [
@@ -1224,6 +2052,25 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     }
   }
 
+  const aiMetadata = buildHomeRecipeAiMetadata({
+    outline: recipeOutline,
+    outlineSource: outlineBuild.source,
+    generationPath: "monolithic",
+    generationDetails: {
+      sectionedAttempted: true,
+      monolithicFallbackUsed: true,
+      repairedSections: [],
+    },
+    cookingBrief: input.cookingBrief,
+    recipePlan: input.recipePlan,
+    retryContext: input.retryContext,
+  });
+
+  const recipeSections = buildRecipeSections({
+    recipe,
+    outline: recipeOutline,
+  });
+
   const aiRecipeResult = createAiRecipeResult({
     purpose: "home_recipe",
     source: "ai",
@@ -1235,20 +2082,10 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       inputTokens: hasUsageMetrics ? totalInputTokens : null,
       outputTokens: hasUsageMetrics ? totalOutputTokens : null,
       estimatedCostUsd: hasUsageMetrics ? Number(totalEstimatedCostUsd.toFixed(6)) : null,
-      recipe: {
-        ...recipe,
-      ingredients: repairRecipeDraftIngredientLines(recipe.ingredients),
-      tags: null,
-      notes: recipe.chefTips.length > 0 ? recipe.chefTips.map((tip: string) => `• ${tip}`).join("\n") : null,
-      change_log: null,
-      ai_metadata_json: buildHomeRecipeAiMetadata({
-        outline: recipeOutline,
-        outlineSource: outlineBuild.source,
-        cookingBrief: input.cookingBrief,
-        recipePlan: input.recipePlan,
-        retryContext: input.retryContext,
+      recipe: assembleRecipeDraftFromSections({
+        sections: recipeSections,
+        ai_metadata_json: aiMetadata,
       }),
-    },
   });
 
   if (cacheContext && inputHash) {

@@ -5,6 +5,12 @@ import { buildHomeRecipeAiMetadata } from "../../lib/ai/homeRecipeMetadata";
 test("buildHomeRecipeAiMetadata persists outline artifact and retry context", () => {
   const metadata = buildHomeRecipeAiMetadata({
     outlineSource: "fallback",
+    generationPath: "sectioned_quality_repaired",
+    generationDetails: {
+      sectionedAttempted: true,
+      monolithicFallbackUsed: false,
+      repairedSections: ["ingredient_structure", "instruction_quality"],
+    },
     outline: {
       title: "Spanish-Inspired Chicken with Peppers",
       summary: "Home-cook friendly braised direction.",
@@ -53,8 +59,14 @@ test("buildHomeRecipeAiMetadata persists outline artifact and retry context", ()
     },
   });
 
-  assert.equal(metadata.pipeline_version, "outline_draft_v1");
+  assert.equal(metadata.pipeline_version, "outline_sections_v1");
   assert.equal(metadata.outline_source, "fallback");
+  assert.equal(metadata.generation_path, "sectioned_quality_repaired");
+  assert.deepEqual(metadata.generation_details, {
+    sectioned_attempted: true,
+    monolithic_fallback_used: false,
+    repaired_sections: ["ingredient_structure", "instruction_quality"],
+  });
   assert.equal(metadata.dish_family, "braised");
   assert.equal(metadata.primary_ingredient, "chicken");
   assert.equal(metadata.recipe_outline.title, "Spanish-Inspired Chicken with Peppers");

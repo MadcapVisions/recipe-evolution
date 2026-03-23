@@ -75,3 +75,53 @@ export const HOME_RECIPE_JSON_SCHEMA = {
     },
   },
 } as const;
+
+export const RECIPE_INGREDIENT_SECTION_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["servings", "prep_time_min", "cook_time_min", "difficulty", "ingredients"],
+  properties: {
+    servings: { type: ["number", "null"] },
+    prep_time_min: { type: ["number", "null"] },
+    cook_time_min: { type: ["number", "null"] },
+    difficulty: { type: ["string", "null"] },
+    ingredients: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["name", "quantity", "unit", "prep"],
+        properties: {
+          name: { type: "string" },
+          quantity: { type: ["number", "null"] },
+          unit: { type: ["string", "null"] },
+          prep: { type: ["string", "null"] },
+        },
+      },
+    },
+  },
+} as const;
+
+export const RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["description", "steps", "chefTips"],
+  properties: {
+    description: { type: ["string", "null"] },
+    steps: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text"],
+        properties: {
+          text: { type: "string" },
+        },
+      },
+    },
+    chefTips: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+} as const;

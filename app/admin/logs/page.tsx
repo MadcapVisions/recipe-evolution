@@ -60,6 +60,11 @@ export default async function AdminLogsPage() {
         >
           {recentSuccessfulAttempts.map((attempt) => {
             const normalizedSummary = summarizeNormalizedRecipe(attempt.normalized_recipe_json);
+            const generationPath = extractGenerationPath(attempt.generator_payload_json, attempt.verification_json?.failure_context ?? null);
+            const generationDetails = extractGenerationDetails(
+              attempt.generator_payload_json,
+              attempt.verification_json?.failure_context ?? null
+            );
             const totalCost = (attempt.stage_metrics_json ?? []).reduce(
               (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
               0
@@ -71,10 +76,19 @@ export default async function AdminLogsPage() {
                 </p>
                 <p className="text-sm text-[color:var(--muted)]">
                   {attempt.provider ?? "unknown"}{attempt.model ? ` · ${attempt.model}` : ""}
+                  {generationPath ? ` · path: ${generationPath}` : ""}
                   {totalCost > 0 ? ` · $${totalCost.toFixed(4)}` : ""}
                 </p>
                 {normalizedSummary ? (
                   <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Normalized: {normalizedSummary}</p>
+                ) : null}
+                {generationDetails && (generationDetails.repairedSections.length > 0 || generationDetails.monolithicFallbackUsed) ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
+                    {generationDetails.repairedSections.length > 0
+                      ? `Repairs: ${generationDetails.repairedSections.join(", ")}`
+                      : "Repairs: none"}
+                    {generationDetails.monolithicFallbackUsed ? " · monolithic fallback used" : ""}
+                  </p>
                 ) : null}
               </ErrorRow>
             );
@@ -148,6 +162,8 @@ export default async function AdminLogsPage() {
                 ? attempt.verification_json.failure_stage
                 : null;
               const failureContext = attempt.verification_json?.failure_context ?? null;
+              const generationPath = extractGenerationPath(attempt.generator_payload_json, failureContext);
+              const generationDetails = extractGenerationDetails(attempt.generator_payload_json, failureContext);
               const rawPreview = summarizeRawModelOutput(attempt.raw_model_output_json);
               const rawText = extractRawModelText(attempt.raw_model_output_json);
               const finishReason = extractFinishReason(attempt.raw_model_output_json);
@@ -163,6 +179,7 @@ export default async function AdminLogsPage() {
                   </p>
                   <p className="text-sm text-[color:var(--muted)]">
                     {attempt.provider ?? "unknown"}{attempt.model ? ` · ${attempt.model}` : ""}
+                    {generationPath ? ` · path: ${generationPath}` : ""}
                     {failureStage ? ` · stage: ${failureStage}` : ""}
                     {retryStrategy ? ` · retry: ${retryStrategy}` : ""}
                     {finishReason ? ` · finish: ${finishReason}` : ""}
@@ -177,6 +194,14 @@ export default async function AdminLogsPage() {
                   {normalizedSummary ? (
                     <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
                       Normalized: {normalizedSummary}
+                    </p>
+                  ) : null}
+                  {generationDetails && (generationDetails.repairedSections.length > 0 || generationDetails.monolithicFallbackUsed) ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
+                      {generationDetails.repairedSections.length > 0
+                        ? `Repairs: ${generationDetails.repairedSections.join(", ")}`
+                        : "Repairs: none"}
+                      {generationDetails.monolithicFallbackUsed ? " · monolithic fallback used" : ""}
                     </p>
                   ) : null}
                   <details className="mt-2 rounded-[16px] bg-[rgba(57,52,43,0.04)] px-3 py-2">
@@ -376,6 +401,45 @@ function extractFinishReason(value: unknown): string | null {
 
   const raw = value as Record<string, unknown>;
   return typeof raw.finishReason === "string" && raw.finishReason.trim().length > 0 ? raw.finishReason : null;
+}
+
+function extractGenerationPath(
+  generatorPayload: Record<string, unknown> | null | undefined,
+  failureContext: Record<string, unknown> | null | undefined
+): string | null {
+  const direct = generatorPayload?.generation_path;
+  if (typeof direct === "string" && direct.trim().length > 0) {
+    return direct;
+  }
+
+  const fromFailureContext = failureContext?.generation_path;
+  if (typeof fromFailureContext === "string" && fromFailureContext.trim().length > 0) {
+    return fromFailureContext;
+  }
+
+  return null;
+}
+
+function extractGenerationDetails(
+  generatorPayload: Record<string, unknown> | null | undefined,
+  failureContext?: Record<string, unknown> | null | undefined
+) {
+  const raw = generatorPayload?.generation_details
+    ?? (failureContext && typeof failureContext === "object" ? failureContext.generation_details : null);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const details = raw as Record<string, unknown>;
+  const repairedSections = Array.isArray(details.repaired_sections)
+    ? details.repaired_sections.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+
+  return {
+    sectionedAttempted: details.sectioned_attempted === true,
+    monolithicFallbackUsed: details.monolithic_fallback_used === true,
+    repairedSections,
+  };
 }
 
 function summarizeNormalizedRecipe(

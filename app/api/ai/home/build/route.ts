@@ -495,6 +495,12 @@ export async function POST(request: Request) {
                 outline_source: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
                   ? (result.recipe.ai_metadata_json as { outline_source?: unknown }).outline_source ?? null
                   : null,
+                generation_path: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
+                  ? (result.recipe.ai_metadata_json as { generation_path?: unknown }).generation_path ?? null
+                  : null,
+                generation_details: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
+                  ? (result.recipe.ai_metadata_json as { generation_details?: unknown }).generation_details ?? null
+                  : null,
               },
               raw_model_output: result,
               normalized_recipe: result.recipe,
@@ -533,6 +539,12 @@ export async function POST(request: Request) {
                 ingredients: ingredients ?? [],
                 recipe_outline: null,
                 outline_source: null,
+                generation_path: failure.verification?.failure_context && typeof failure.verification.failure_context === "object"
+                  ? (failure.verification.failure_context as { generation_path?: unknown }).generation_path ?? null
+                  : null,
+                generation_details: failure.verification?.failure_context && typeof failure.verification.failure_context === "object"
+                  ? (failure.verification.failure_context as { generation_details?: unknown }).generation_details ?? null
+                  : null,
               },
               raw_model_output: failure.rawModelOutput,
               normalized_recipe: failure.normalizedRecipe,
