@@ -34,8 +34,8 @@
 <p class="subtitle">Check off each family once its stock photo has been created.</p>
 
 <div class="filter-bar">
-  <button class="filter-btn active" data-filter="all">All</button>
-  <button class="filter-btn" data-filter="todo">Todo</button>
+  <button class="filter-btn" data-filter="all">All</button>
+  <button class="filter-btn active" data-filter="todo">Todo</button>
   <button class="filter-btn" data-filter="done">Done</button>
   <button class="reset-btn" id="resetBtn">Reset all</button>
 </div>
@@ -55,7 +55,7 @@ const sections = [
       { id: "brownies_bars", triggers: "brownie, brownies, blondie, blondies, lemon bar, lemon bars, nanaimo bar, rice krispie treat, traybake, flapjack, granola bar, cereal bar, energy bar" },
       { id: "muffins_scones", triggers: "muffin, muffins, scone, scones, quick bread" },
       { id: "cookies", triggers: "cookie, cookies, biscotti, snickerdoodle, shortbread, macaroon, macaron, linzer cookie, thumbprint cookie, springerle, pizzelle, tuile, florentine, rugelach, hamantaschen, sandwich cookie" },
-      { id: "cake", triggers: "cupcake, cheesecake, pound cake, bundt cake, layer cake, coffee cake, upside-down cake, sponge cake, carrot cake, red velvet, angel food, swiss roll, roulade, chiffon cake, genoise, opera cake, dobos torte, black forest; also bare "cake"" },
+      { id: "cake", triggers: "cupcake, cheesecake, pound cake, bundt cake, layer cake, coffee cake, upside-down cake, sponge cake, carrot cake, red velvet, angel food, swiss roll, roulade, chiffon cake, genoise, opera cake, dobos torte, black forest; also bare 'cake'" },
       { id: "pastry", triggers: "croissant, danish, puff pastry, pain au chocolat, strudel, palmier, eclair, profiterole, choux, mille-feuille, napoleon pastry, vol-au-vent, paris-brest, phyllo, filo pastry, baklava, baklawa" },
       { id: "fried_pastry", triggers: "donut, doughnut, beignet, churro, churros, funnel cake, zeppole, sopapilla, loukoumades, struffoli" },
       { id: "dessert_bread", triggers: "cinnamon roll, cinnamon bun, monkey bread, babka, kolache, stollen, panettone, cardamom bun, morning bun, sticky bun" },
@@ -191,7 +191,7 @@ const sections = [
 
 const TOTAL = sections.reduce((s, sec) => s + sec.families.length, 0);
 let state = {};
-let filter = "all";
+let filter = "todo";
 
 function load() {
   try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { state = {}; }
