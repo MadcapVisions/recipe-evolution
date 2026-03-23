@@ -113,6 +113,12 @@ export default async function AdminLogsPage() {
               const retryStrategy = typeof attempt.verification_json?.retry_strategy === "string"
                 ? attempt.verification_json.retry_strategy
                 : null;
+              const failureStage = typeof attempt.verification_json?.failure_stage === "string"
+                ? attempt.verification_json.failure_stage
+                : null;
+              const failureContext = attempt.verification_json?.failure_context ?? null;
+              const rawPreview = summarizeRawModelOutput(attempt.raw_model_output_json);
+              const normalizedSummary = summarizeNormalizedRecipe(attempt.normalized_recipe_json);
               const totalCost = (attempt.stage_metrics_json ?? []).reduce(
                 (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
                 0
@@ -124,10 +130,26 @@ export default async function AdminLogsPage() {
                   </p>
                   <p className="text-sm text-[color:var(--muted)]">
                     {attempt.provider ?? "unknown"}{attempt.model ? ` · ${attempt.model}` : ""}
+                    {failureStage ? ` · stage: ${failureStage}` : ""}
                     {retryStrategy ? ` · retry: ${retryStrategy}` : ""}
                     {totalCost > 0 ? ` · $${totalCost.toFixed(4)}` : ""}
                   </p>
                   {firstReason ? <p className="mt-1 text-sm text-amber-600">{firstReason}</p> : null}
+                  {rawPreview ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
+                      Raw preview: <span className="font-mono">{rawPreview}</span>
+                    </p>
+                  ) : null}
+                  {normalizedSummary ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
+                      Normalized: {normalizedSummary}
+                    </p>
+                  ) : null}
+                  {failureContext && Object.keys(failureContext).length > 0 ? (
+                    <pre className="mt-2 overflow-x-auto rounded-[16px] bg-[rgba(57,52,43,0.04)] p-3 text-xs leading-5 text-[color:var(--muted)]">
+                      {JSON.stringify(failureContext, null, 2)}
+                    </pre>
+                  ) : null}
                 </ErrorRow>
               );
             })}
@@ -255,4 +277,57 @@ function ErrorRow({
       <p className="mt-1 text-xs text-[color:var(--muted)]">{new Date(timestamp).toLocaleString()}</p>
     </div>
   );
+}
+
+function summarizeRawModelOutput(value: unknown) {
+  const rawText = extractRawModelText(value);
+  if (!rawText) {
+    return null;
+  }
+
+  return rawText.replace(/\s+/g, " ").trim().slice(0, 220);
+}
+
+function extractRawModelText(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.text === "string" && raw.text.trim().length > 0) {
+    return raw.text;
+  }
+  if (typeof raw.raw_text === "string" && raw.raw_text.trim().length > 0) {
+    return raw.raw_text;
+  }
+
+  return JSON.stringify(value);
+}
+
+function summarizeNormalizedRecipe(
+  value: { title?: string | null; ingredients?: Array<unknown> | null; steps?: Array<unknown> | null } | null
+) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const title = typeof value.title === "string" && value.title.trim().length > 0 ? value.title.trim() : null;
+  const ingredientCount = Array.isArray(value.ingredients) ? value.ingredients.length : 0;
+  const stepCount = Array.isArray(value.steps) ? value.steps.length : 0;
+
+  if (!title && ingredientCount === 0 && stepCount === 0) {
+    return null;
+  }
+
+  const parts = [
+    title ? `title "${title}"` : null,
+    ingredientCount > 0 ? `${ingredientCount} ingredients` : null,
+    stepCount > 0 ? `${stepCount} steps` : null,
+  ].filter((part): part is string => part !== null);
+
+  return parts.join(" · ");
 }

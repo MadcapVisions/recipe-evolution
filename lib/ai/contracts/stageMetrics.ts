@@ -1,6 +1,7 @@
 export const AI_RELIABILITY_STAGE_NAMES = [
   "brief_compile",
   "recipe_plan",
+  "recipe_outline",
   "recipe_generate",
   "recipe_verify",
 ] as const;
@@ -27,6 +28,7 @@ export type GenerationAttemptOutcome =
   | "passed"
   | "failed_verification"
   | "parse_failed"
+  | "schema_failed"
   | "generation_failed"
   | "blocked";
 

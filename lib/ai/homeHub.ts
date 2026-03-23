@@ -1,4 +1,5 @@
-import { callAIForJson } from "./jsonResponse";
+import { AIJsonParseError, callAIForJson, callAIForJsonWithContract } from "./jsonResponse";
+import type { AICallOptions } from "./aiClient";
 import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import type { AIMessage } from "./chatPromptBuilder";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
@@ -6,14 +7,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { repairRecipeDraftIngredientLines } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 import type { CookingBrief } from "./contracts/cookingBrief";
+import type { RecipeOutline } from "./contracts/recipeOutline";
 import type { RecipePlan } from "./contracts/recipePlan";
 import { verifyRecipeAgainstBrief } from "./recipeVerifier";
 import { RecipeBuildError } from "./recipeBuildError";
 import { createFailedVerificationResult } from "./contracts/verificationResult";
 import { buildRetryInstructions } from "./homeRecipeRetry";
-import { shouldEscalateVerification, findMissingQuantities, buildVerificationRepairInstructions } from "./recipeRepair";
+import {
+  shouldEscalateVerification,
+  findMissingQuantities,
+  buildVerificationRepairPlan,
+  buildQualityRepairPlan,
+  buildScopedRepairPrompt,
+} from "./recipeRepair";
 import { detectRequestedAnchorIngredient, detectRequestedProtein } from "./homeRecipeAlignment";
+import { buildHomeRecipeAiMetadata } from "./homeRecipeMetadata";
 import { normalizeGeneratedRecipePayload, type HomeGeneratedRecipe, type RecipeNormalizationResult } from "./recipeNormalization";
+import { buildFallbackRecipeOutline, normalizeRecipeOutlinePayload, validateRecipeOutline } from "./recipeOutline";
+import { HOME_RECIPE_JSON_SCHEMA, RECIPE_OUTLINE_JSON_SCHEMA } from "./recipeJsonSchemas";
+import { validateRecipeStructure } from "./recipeStructuralValidation";
 
 type HomeIdea = {
   title: string;
@@ -44,7 +56,7 @@ type AiCacheContext = {
   userId: string;
 };
 
-type HomeRecipeStage = "recipe_plan" | "recipe_generate" | "recipe_verify";
+type HomeRecipeStage = "recipe_plan" | "recipe_outline" | "recipe_generate" | "recipe_verify";
 
 type HomeRecipeStageReporter = (stage: HomeRecipeStage, message: string) => void;
 
@@ -311,6 +323,123 @@ function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRe
   return normalizeGeneratedRecipePayload(value, fallbackTitle).recipe;
 }
 
+async function buildRecipeOutlineForGeneration(input: {
+  ideaTitle: string;
+  prompt?: string;
+  ingredients?: string[];
+  conversationHistory?: AIMessage[];
+  cookingBrief?: CookingBrief | null;
+  recipePlan?: RecipePlan | null;
+  aiCallOptions: AICallOptions;
+  onStage?: HomeRecipeStageReporter;
+}) {
+  const fallbackOutline = buildFallbackRecipeOutline({
+    ideaTitle: input.ideaTitle,
+    brief: input.cookingBrief,
+    recipePlan: input.recipePlan,
+  });
+  const outlineMaxTokens = input.aiCallOptions.max_tokens ?? 900;
+  const outlineTemperature = input.aiCallOptions.temperature ?? 0.35;
+
+  input.onStage?.("recipe_outline", "Drafting the recipe outline...");
+  const outlineMessages = [
+    {
+      role: "system" as const,
+      content: `You build typed recipe outlines for a home-cooking pipeline.
+Return ONLY a single JSON object with EXACTLY these fields:
+{
+  "title": string,
+  "summary": string|null,
+  "dish_family": string|null,
+  "primary_ingredient": string|null,
+  "ingredient_groups": [{ "name": string, "items": string[] }],
+  "step_outline": string[],
+  "chef_tip_topics": string[]
+}
+Rules:
+- Preserve the requested dish identity and format exactly.
+- Keep ingredient_groups focused on the core components the final recipe must include.
+- step_outline should capture the cooking flow, not full detailed instructions.
+- chef_tip_topics must be short topic phrases, not full chef tips.
+- Do not include markdown, wrapper keys, or commentary.`,
+    },
+    {
+      role: "user" as const,
+      content: `Build a recipe outline for this idea.
+Idea: ${input.ideaTitle}
+Prompt context: ${input.prompt ?? ""}
+Structured cooking brief:
+${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
+Structured recipe plan:
+${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Conversation context:
+${formatConversation(input.conversationHistory) || "No chef conversation available."}
+Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
+    },
+  ];
+
+  try {
+    const outlineResult = await callAIForJsonWithContract<RecipeOutline>(
+      outlineMessages,
+      (parsed) => {
+        const normalized = normalizeRecipeOutlinePayload(parsed, fallbackOutline.title);
+        return {
+          value: normalized.outline,
+          error: normalized.reason,
+        };
+      },
+      {
+      ...input.aiCallOptions,
+      max_tokens: Math.min(900, Math.max(500, Math.floor(outlineMaxTokens * 0.55))),
+      temperature: Math.min(outlineTemperature, 0.35),
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "recipe_outline",
+          strict: true,
+          schema: RECIPE_OUTLINE_JSON_SCHEMA,
+        },
+      },
+      allow_response_format_downgrade: true,
+      }
+    );
+
+    const validation = validateRecipeOutline({
+      outline: outlineResult.contract,
+      brief: input.cookingBrief,
+      recipePlan: input.recipePlan,
+    });
+    if (!validation.passes) {
+      console.warn("[homeHub] outline validation failed", {
+        reasons: validation.reasons,
+        checks: validation.checks,
+      });
+      return {
+        outline: fallbackOutline,
+        source: "fallback" as const,
+        usage: outlineResult.usage,
+      };
+    }
+
+    return {
+      outline: outlineResult.contract,
+      source: "ai" as const,
+      usage: outlineResult.usage,
+    };
+  } catch {
+    return {
+      outline: fallbackOutline,
+      source: "fallback" as const,
+      usage: {
+        input_tokens: null,
+        output_tokens: null,
+        total_tokens: null,
+        estimated_cost_usd: null,
+      },
+    };
+  }
+}
+
 function getSuspiciousBriefReason(input: {
   ideaTitle: string;
   prompt?: string;
@@ -514,12 +643,8 @@ async function repairMalformedRecipePayload(input: {
   conversationHistory?: AIMessage[];
   cookingBrief?: CookingBrief | null;
   recipePlan?: RecipePlan | null;
-  aiCallOptions: {
-    max_tokens: number;
-    temperature: number;
-    model: string;
-    fallback_models: string[];
-  };
+  recipeOutline?: RecipeOutline | null;
+  aiCallOptions: AICallOptions;
 }) {
   const repairMessages = [
     {
@@ -555,6 +680,8 @@ Structured cooking brief:
 ${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
 Structured recipe plan:
 ${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${input.recipeOutline ? JSON.stringify(input.recipeOutline, null, 2) : "No structured recipe outline available."}
 Conversation context:
 ${formatConversation(input.conversationHistory) || "No chef conversation available."}
 Malformed recipe draft:
@@ -562,11 +689,20 @@ ${input.rawText}`,
     },
   ];
 
-  const repairResult = await callAIForJson(repairMessages, input.aiCallOptions);
-  const normalized = normalizeGeneratedRecipePayload(repairResult.parsed, input.ideaTitle);
+  const repairResult = await callAIForJsonWithContract<HomeGeneratedRecipe>(
+    repairMessages,
+    (parsed) => {
+      const normalized = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
+      return {
+        value: normalized.recipe,
+        error: normalized.reason,
+      };
+    },
+    input.aiCallOptions
+  );
   return {
-    recipe: normalized.recipe,
-    reason: normalized.reason,
+    recipe: repairResult.contract,
+    reason: null,
     usage: repairResult.usage,
   };
 }
@@ -590,7 +726,13 @@ export async function generateHomeRecipe(input: {
     throw new RecipeBuildError({
       message: suspiciousBriefReason,
       kind: "generation_failed",
-      verification: createFailedVerificationResult(suspiciousBriefReason, "ask_user"),
+      verification: createFailedVerificationResult(suspiciousBriefReason, "ask_user", {
+        failure_stage: "generation",
+        failure_context: {
+          reason: "suspicious_brief",
+          idea_title: input.ideaTitle,
+        },
+      }),
       retryStrategy: "ask_user",
       reasons: [suspiciousBriefReason],
     });
@@ -645,6 +787,53 @@ export async function generateHomeRecipe(input: {
     }
   }
 
+  const taskSetting = await resolveAiTaskSettings("home_recipe");
+  if (!taskSetting.enabled) {
+    throw new Error("Home recipe AI task is disabled.");
+  }
+  const resolvedModel = input.retryContext?.modelOverride ?? taskSetting.primaryModel;
+  const aiCallOptions = {
+    max_tokens: taskSetting.maxTokens,
+    temperature: taskSetting.temperature,
+    model: resolvedModel,
+    fallback_models: input.retryContext?.modelOverride ? [] : (taskSetting.fallbackModel ? [taskSetting.fallbackModel] : []),
+    strict_model: !!input.retryContext?.modelOverride,
+    response_format: {
+      type: "json_schema" as const,
+      json_schema: {
+        name: "home_recipe",
+        strict: true,
+        schema: HOME_RECIPE_JSON_SCHEMA,
+      },
+    },
+    allow_response_format_downgrade: true,
+  };
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalEstimatedCostUsd = 0;
+  let hasUsageMetrics = false;
+  const outlineBuild = await buildRecipeOutlineForGeneration({
+    ideaTitle: input.ideaTitle,
+    prompt: input.prompt,
+    ingredients: input.ingredients,
+    conversationHistory: input.conversationHistory,
+    cookingBrief: input.cookingBrief,
+    recipePlan: input.recipePlan,
+    aiCallOptions,
+    onStage,
+  });
+  const recipeOutline = outlineBuild.outline;
+  if (
+    outlineBuild.usage.input_tokens != null ||
+    outlineBuild.usage.output_tokens != null ||
+    outlineBuild.usage.estimated_cost_usd != null
+  ) {
+    totalInputTokens += outlineBuild.usage.input_tokens ?? 0;
+    totalOutputTokens += outlineBuild.usage.output_tokens ?? 0;
+    totalEstimatedCostUsd += outlineBuild.usage.estimated_cost_usd ?? 0;
+    hasUsageMetrics = true;
+  }
+
   const messages = [
     {
       role: "system" as const,
@@ -655,6 +844,7 @@ Priority order:
 User taste summary: ${userTasteSummary?.trim() || "No user taste summary available."}
 Structured cooking brief: ${input.cookingBrief ? JSON.stringify(input.cookingBrief) : "No structured cooking brief available."}
 Structured recipe plan: ${input.recipePlan ? JSON.stringify(input.recipePlan) : "No structured recipe plan available."}
+Structured recipe outline: ${JSON.stringify(recipeOutline)}
 Retry instructions: ${
           input.retryContext
             ? buildRetryInstructions({
@@ -699,6 +889,8 @@ Structured cooking brief:
 ${input.cookingBrief ? JSON.stringify(input.cookingBrief, null, 2) : "No structured cooking brief available."}
 Structured recipe plan:
 ${input.recipePlan ? JSON.stringify(input.recipePlan, null, 2) : "No structured recipe plan available."}
+Structured recipe outline:
+${JSON.stringify(recipeOutline, null, 2)}
 Retry instructions:
 ${
         input.retryContext
@@ -714,24 +906,6 @@ ${formatConversation(input.conversationHistory) || "No chef conversation availab
 Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     },
   ];
-
-  const taskSetting = await resolveAiTaskSettings("home_recipe");
-  if (!taskSetting.enabled) {
-    throw new Error("Home recipe AI task is disabled.");
-  }
-  const resolvedModel = input.retryContext?.modelOverride ?? taskSetting.primaryModel;
-  const aiCallOptions = {
-    max_tokens: taskSetting.maxTokens,
-    temperature: taskSetting.temperature,
-    model: resolvedModel,
-    fallback_models: input.retryContext?.modelOverride ? [] : (taskSetting.fallbackModel ? [taskSetting.fallbackModel] : []),
-    strict_model: !!input.retryContext?.modelOverride,
-    response_format: { type: "json_object" as const },
-  };
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalEstimatedCostUsd = 0;
-  let hasUsageMetrics = false;
   const retryStageMessage = input.retryContext
     ? input.retryContext.retryStrategy === "try_fallback_model"
       ? "Trying a different approach..."
@@ -743,10 +917,20 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     result = await callAIForJson(messages, aiCallOptions);
   } catch (callError) {
     const errMessage = callError instanceof Error ? callError.message : String(callError);
+    const parseResponse = callError instanceof AIJsonParseError ? callError.response : null;
     throw new RecipeBuildError({
       message: errMessage,
       kind: "invalid_payload",
-      verification: createFailedVerificationResult(errMessage, "regenerate_same_model"),
+      verification: createFailedVerificationResult(errMessage, "regenerate_same_model", {
+        failure_stage: "parse",
+        failure_context: {
+          provider: parseResponse?.provider ?? null,
+          model: parseResponse?.model ?? resolvedModel,
+        },
+      }),
+      rawModelOutput: parseResponse,
+      provider: parseResponse?.provider ?? null,
+      model: parseResponse?.model ?? resolvedModel,
     });
   }
   if (result.usage.input_tokens != null || result.usage.output_tokens != null || result.usage.estimated_cost_usd != null) {
@@ -774,6 +958,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
         conversationHistory: input.conversationHistory,
         cookingBrief: input.cookingBrief,
         recipePlan: input.recipePlan,
+        recipeOutline,
         aiCallOptions,
       });
       if (
@@ -811,8 +996,39 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     throw new RecipeBuildError({
       message: invalidPayloadReason,
       kind: "invalid_payload",
-      verification: createFailedVerificationResult(invalidPayloadReason, "regenerate_same_model"),
+      verification: createFailedVerificationResult(invalidPayloadReason, "regenerate_same_model", {
+        failure_stage: "parse",
+        failure_context: {
+          normalization_log: normalizedResult.normalization_log,
+          raw_top_level_keys: normalizedResult.normalization_log.raw_top_level_keys,
+        },
+      }),
       reasons: [invalidPayloadReason],
+      rawModelOutput: result,
+      provider: result.provider,
+      model: result.model ?? resolvedModel,
+    });
+  }
+
+  const structuralValidation = validateRecipeStructure(recipe);
+  if (!structuralValidation.passes) {
+    const structuralReason = structuralValidation.reasons[0] ?? "Recipe failed structural validation.";
+    throw new RecipeBuildError({
+      message: structuralReason,
+      kind: "structural_validation_failed",
+      verification: createFailedVerificationResult(structuralReason, "regenerate_same_model", {
+        failure_stage: "schema",
+        failure_context: {
+          structural_checks: structuralValidation.checks,
+          structural_reasons: structuralValidation.reasons,
+        },
+      }),
+      retryStrategy: "regenerate_same_model",
+      reasons: structuralValidation.reasons,
+      rawModelOutput: result,
+      normalizedRecipe: recipe,
+      provider: result.provider,
+      model: result.model ?? resolvedModel,
     });
   }
 
@@ -829,8 +1045,8 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     // Attempt a targeted repair for patchable failures before escalating to a full retry.
     // Only escalate immediately if dish_family_match = false (model built the wrong dish entirely).
     if (!shouldEscalateVerification(verification.checks)) {
-      const verificationRepairs = buildVerificationRepairInstructions(verification, input.cookingBrief);
-      if (verificationRepairs.length > 0) {
+      const verificationRepairPlan = buildVerificationRepairPlan(verification, input.cookingBrief);
+      if (verificationRepairPlan.instructions.length > 0) {
         try {
           onStage?.("recipe_verify", "Fixing the recipe alignment...");
           const verificationRepairMessages = [
@@ -838,10 +1054,20 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
             { role: "assistant" as const, content: JSON.stringify(recipe) },
             {
               role: "user" as const,
-              content: `Fix these specific issues in the recipe without changing the dish identity:\n${verificationRepairs.join("\n")}\nReturn the corrected recipe using the same JSON format. Do not change anything else.`,
+              content: buildScopedRepairPrompt(verificationRepairPlan, "alignment"),
             },
           ];
-          const verificationRepairResult = await callAIForJson(verificationRepairMessages, aiCallOptions);
+          const verificationRepairResult = await callAIForJsonWithContract<HomeGeneratedRecipe>(
+            verificationRepairMessages,
+            (parsed) => {
+              const normalized = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
+              return {
+                value: normalized.recipe,
+                error: normalized.reason,
+              };
+            },
+            aiCallOptions
+          );
           if (
             verificationRepairResult.usage.input_tokens != null ||
             verificationRepairResult.usage.output_tokens != null ||
@@ -852,7 +1078,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
             totalEstimatedCostUsd += verificationRepairResult.usage.estimated_cost_usd ?? 0;
             hasUsageMetrics = true;
           }
-          const repairedVerificationRecipe = normalizeRecipe(verificationRepairResult.parsed, input.ideaTitle);
+          const repairedVerificationRecipe = verificationRepairResult.contract;
           if (repairedVerificationRecipe) {
             recipe = repairedVerificationRecipe;
             verification = verifyRecipeAgainstBrief({
@@ -871,7 +1097,18 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       throw new RecipeBuildError({
         message: verification.reasons[0] ?? "AI recipe drifted from the chef conversation.",
         kind: "verification_failed",
-        verification,
+        verification: {
+          ...verification,
+          failure_stage: "semantic",
+          failure_context: {
+            checks: verification.checks,
+            reasons: verification.reasons,
+          },
+        },
+        rawModelOutput: result,
+        normalizedRecipe: recipe,
+        provider: result.provider,
+        model: result.model ?? resolvedModel,
       });
     }
   }
@@ -885,32 +1122,31 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
   const missingQty = findMissingQuantities(recipe.ingredients);
 
   if (vagueSteps.length > 0 || violations.length > 0 || missingQty.length > 0) {
-    const repairs: string[] = [];
-    if (vagueSteps.length > 0) {
-      repairs.push(
-        `Expand these vague steps — each must include an actionable verb, technique, and timing or doneness cues (minimum 10 words): ${vagueSteps.map((s: { text: string }) => `"${s.text}"`).join("; ")}.`
-      );
-    }
-    if (violations.length > 0) {
-      repairs.push(
-        `The user dislikes: ${violations.join(", ")}. Remove these ingredients and substitute a compatible alternative that preserves the dish format and flavor direction.`
-      );
-    }
-    if (missingQty.length > 0) {
-      repairs.push(
-        `These ingredients are missing explicit quantities: ${missingQty.join("; ")}. Add a realistic quantity to each one (e.g. "2 tbsp", "1 lb", "3 cloves"). Do not change anything else.`
-      );
-    }
+    const qualityRepairPlan = buildQualityRepairPlan({
+      vagueSteps,
+      tasteViolations: violations,
+      missingQuantities: missingQty,
+    });
     try {
       const repairMessages = [
         ...messages,
         { role: "assistant" as const, content: JSON.stringify(parsed) },
         {
           role: "user" as const,
-          content: `Fix these quality issues in the recipe:\n${repairs.join("\n")}\nReturn the corrected recipe using the same JSON format.`,
+          content: buildScopedRepairPrompt(qualityRepairPlan, "quality"),
         },
       ];
-      const repairResult = await callAIForJson(repairMessages, aiCallOptions);
+      const repairResult = await callAIForJsonWithContract<HomeGeneratedRecipe>(
+        repairMessages,
+        (parsed) => {
+          const normalized = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
+          return {
+            value: normalized.recipe,
+            error: normalized.reason,
+          };
+        },
+        aiCallOptions
+      );
       if (
         repairResult.usage.input_tokens != null ||
         repairResult.usage.output_tokens != null ||
@@ -921,7 +1157,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
         totalEstimatedCostUsd += repairResult.usage.estimated_cost_usd ?? 0;
         hasUsageMetrics = true;
       }
-      const repairedRecipe = normalizeRecipe(repairResult.parsed, input.ideaTitle);
+      const repairedRecipe = repairResult.contract;
       if (repairedRecipe) {
         onStage?.("recipe_verify", "Re-checking the corrected recipe...");
         const repairedVerification = verifyRecipeAgainstBrief({
@@ -958,7 +1194,13 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       tags: null,
       notes: recipe.chefTips.length > 0 ? recipe.chefTips.map((tip: string) => `• ${tip}`).join("\n") : null,
       change_log: null,
-      ai_metadata_json: null,
+      ai_metadata_json: buildHomeRecipeAiMetadata({
+        outline: recipeOutline,
+        outlineSource: outlineBuild.source,
+        cookingBrief: input.cookingBrief,
+        recipePlan: input.recipePlan,
+        retryContext: input.retryContext,
+      }),
     },
   });
 

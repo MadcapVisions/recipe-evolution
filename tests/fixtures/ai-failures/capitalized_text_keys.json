@@ -1,0 +1,11 @@
+{
+  "id": "capitalized_text_keys",
+  "raw_text": "Here is the recipe JSON:\n{\n  \"Title\": \"Spanish-Inspired Chicken with Peppers\",\n  \"Ingredients_Text\": \"1 lb chicken thighs\\n2 bell peppers\\n1 tsp paprika\",\n  \"Instructions_Text\": \"1. Brown the chicken.\\n2. Simmer with peppers and paprika until tender.\"\n}",
+  "fallback_title": "Fallback Title",
+  "expected": {
+    "parse_success": true,
+    "normalization_reason": null,
+    "structural_passes": true,
+    "title": "Spanish-Inspired Chicken with Peppers"
+  }
+}

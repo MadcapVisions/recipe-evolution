@@ -1,0 +1,25 @@
+{
+  "id": "9008ac98_75ea_4eb6_a546_f0a4fccaaa67_attempt_3_parse_failed",
+  "raw_text": "null",
+  "fallback_title": "Tofu Pasta",
+  "source": {
+    "attempt_id": "4ff2a492-0380-4336-b466-02327d9f5c1b",
+    "created_at": "2026-03-22T10:52:47.662524+00:00",
+    "conversation_key": "9008ac98-75ea-4eb6-a546-f0a4fccaaa67",
+    "attempt_number": 3
+  },
+  "observed": {
+    "outcome": "parse_failed",
+    "failure_stage": null,
+    "failure_context": null
+  },
+  "expected": {
+    "parse_success": false,
+    "normalization_reason": null,
+    "structural_passes": null,
+    "title": null,
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": null
+  }
+}

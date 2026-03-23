@@ -93,16 +93,18 @@ const buildRequestSchema = z.object({
 });
 
 type StreamEvent =
-  | { type: "status"; message: string }
+  | { type: "status"; message: string; stage?: string }
   | { type: "result"; result: unknown }
   | { type: "debug"; label: string; data: Record<string, unknown> }
   | {
       type: "error";
       message: string;
       failure_kind?: RecipeBuildFailureKind;
+      failure_stage?: string | null;
       retry_strategy?: VerificationRetryStrategy;
       model?: string;
       reasons?: string[];
+      failure_context?: Record<string, unknown> | null;
     };
 
 function eventLine(event: StreamEvent) {
@@ -165,10 +167,12 @@ export async function POST(request: Request) {
       let retryStrategy: VerificationRetryStrategy = "regenerate_stricter";
       let retryReasons: string[] = [];
       let lastAttemptModel: string | undefined;
+      let currentAttemptModel: string | undefined;
       let resolvedTaskPrimaryModel: string | undefined;
+      let terminalFailureStored = false;
 
       try {
-        send({ type: "status", message: "Understanding your request..." });
+        send({ type: "status", message: "Understanding your request...", stage: "brief_compile" });
         // Kick off task settings lookup in parallel with brief/session reads —
         // it doesn't depend on either and is needed just before generation.
         const taskSettingPromise = resolveAiTaskSettings("home_recipe");
@@ -236,7 +240,7 @@ export async function POST(request: Request) {
         });
         const resolvedIdeaTitle = effectiveBrief.dish.normalized_name?.trim() || body.ideaTitle.trim();
         planStartedAt = new Date().toISOString();
-        send({ type: "status", message: "Planning the recipe..." });
+        send({ type: "status", message: "Planning the recipe...", stage: "recipe_plan" });
         recipePlan = buildRecipePlanFromBrief(effectiveBrief);
         generateStartedAt = new Date().toISOString();
         stageMetrics.push(
@@ -260,6 +264,10 @@ export async function POST(request: Request) {
 
         while (!result) {
           const attemptGenerateStartedAt = new Date().toISOString();
+          let attemptOutlineStartedAt: string | null = null;
+          let attemptRecipeGenerateStartedAt: string | null = null;
+          let attemptRecipeVerifyStartedAt: string | null = null;
+          currentAttemptModel = modelOverride ?? taskSetting.primaryModel;
           try {
             const attemptResult = await generateHomeRecipe(
               {
@@ -284,12 +292,22 @@ export async function POST(request: Request) {
                 supabase: access.supabase as SupabaseClient,
                 userId: access.userId,
               },
-              (_, message) => {
-                send({ type: "status", message });
+              (stage, message) => {
+                const now = new Date().toISOString();
+                if (stage === "recipe_outline" && !attemptOutlineStartedAt) {
+                  attemptOutlineStartedAt = now;
+                }
+                if (stage === "recipe_generate" && !attemptRecipeGenerateStartedAt) {
+                  attemptRecipeGenerateStartedAt = now;
+                }
+                if (stage === "recipe_verify" && !attemptRecipeVerifyStartedAt) {
+                  attemptRecipeVerifyStartedAt = now;
+                }
+                send({ type: "status", message, stage });
               }
             );
 
-            verifyStartedAt = new Date().toISOString();
+            verifyStartedAt = attemptRecipeVerifyStartedAt ?? new Date().toISOString();
             const attemptVerification = verifyRecipeAgainstBrief({
               brief: effectiveBrief,
               recipe: attemptResult.recipe,
@@ -306,8 +324,14 @@ export async function POST(request: Request) {
             }
             const completedAt = new Date().toISOString();
             stageMetrics.push(
+              createAiStageMetric("recipe_outline", {
+                started_at: attemptOutlineStartedAt ?? attemptGenerateStartedAt,
+                completed_at: attemptRecipeGenerateStartedAt ?? verifyStartedAt,
+                provider: attemptResult.meta.provider,
+                model: attemptResult.meta.model,
+              }),
               createAiStageMetric("recipe_generate", {
-                started_at: attemptGenerateStartedAt,
+                started_at: attemptRecipeGenerateStartedAt ?? attemptGenerateStartedAt,
                 completed_at: verifyStartedAt,
                 input_tokens: attemptResult.meta.input_tokens,
                 output_tokens: attemptResult.meta.output_tokens,
@@ -329,15 +353,53 @@ export async function POST(request: Request) {
             const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
             const attemptCompletedAt = new Date().toISOString();
             stageMetrics.push(
+              createAiStageMetric("recipe_outline", {
+                started_at: attemptOutlineStartedAt ?? attemptGenerateStartedAt,
+                completed_at: attemptRecipeGenerateStartedAt ?? attemptCompletedAt,
+              }),
               createAiStageMetric("recipe_generate", {
-                started_at: attemptGenerateStartedAt,
-                completed_at: attemptCompletedAt,
+                started_at: attemptRecipeGenerateStartedAt ?? attemptGenerateStartedAt,
+                completed_at: attemptRecipeVerifyStartedAt ?? attemptCompletedAt,
               }),
               createAiStageMetric("recipe_verify", {
-                started_at: attemptCompletedAt,
+                started_at: attemptRecipeVerifyStartedAt ?? attemptCompletedAt,
                 completed_at: attemptCompletedAt,
               })
             );
+
+            if (conversationKey) {
+              void storeGenerationAttempt(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+                requestMode: effectiveBrief?.request_mode ?? "generate",
+                stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+                stateAfter: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+                attempt: {
+                  conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
+                  cooking_brief: effectiveBrief ?? compileCookingBrief({
+                    userMessage: prompt || body.ideaTitle,
+                    conversationHistory,
+                  }),
+                  recipe_plan: activeRecipePlan,
+                  generator_input: {
+                    ideaTitle: resolvedIdeaTitle,
+                    prompt: prompt ?? null,
+                    ingredients: ingredients ?? [],
+                    recipe_outline: null,
+                    outline_source: null,
+                  },
+                  raw_model_output: failure.rawModelOutput,
+                  normalized_recipe: failure.normalizedRecipe,
+                  verification: failure.verification ?? createFailedVerificationResult(failure.message, failure.retryStrategy),
+                  attempt_number: attemptNumber,
+                  provider: failure.provider ?? null,
+                  model: failure.model ?? currentAttemptModel ?? null,
+                  outcome: failure.outcome,
+                  stage_metrics: stageMetrics,
+                },
+              });
+            }
 
             // Escalate same-model failures on attempt 2 to try the fallback model
             const effectiveStrategy =
@@ -348,7 +410,7 @@ export async function POST(request: Request) {
                 : failure.retryStrategy;
 
             if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
-              lastAttemptModel = modelOverride ?? taskSetting.primaryModel;
+              lastAttemptModel = currentAttemptModel;
               // If retries keep failing with brief_source=reconstructed, the root cause is
               // a missing BuildSpec — the model is being retried from an unstable spec.
               send({
@@ -361,6 +423,8 @@ export async function POST(request: Request) {
                   model: lastAttemptModel,
                   reasons: failure.reasons,
                   checks: failure.verification?.checks ?? null,
+                  failure_stage: failure.failureStage,
+                  failure_context: failure.failureContext,
                   brief_source: briefSource,
                   spec_stable: briefSource === "build_spec",
                 },
@@ -371,9 +435,9 @@ export async function POST(request: Request) {
 
               if (effectiveStrategy === "try_fallback_model") {
                 modelOverride = taskSetting.fallbackModel ?? undefined;
-                send({ type: "status", message: "Trying a different approach..." });
+                send({ type: "status", message: "Trying a different approach...", stage: "recipe_generate" });
               } else {
-                send({ type: "status", message: "Retrying..." });
+                send({ type: "status", message: "Retrying...", stage: "recipe_generate" });
               }
 
               const retryPlanStartedAt = new Date().toISOString();
@@ -392,6 +456,7 @@ export async function POST(request: Request) {
               continue;
             }
 
+            terminalFailureStored = true;
             throw error;
           }
         }
@@ -424,6 +489,12 @@ export async function POST(request: Request) {
                 ideaTitle: resolvedIdeaTitle,
                 prompt: prompt ?? null,
                 ingredients: ingredients ?? [],
+                recipe_outline: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
+                  ? (result.recipe.ai_metadata_json as { recipe_outline?: unknown }).recipe_outline ?? null
+                  : null,
+                outline_source: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
+                  ? (result.recipe.ai_metadata_json as { outline_source?: unknown }).outline_source ?? null
+                  : null,
               },
               raw_model_output: result,
               normalized_recipe: result.recipe,
@@ -437,11 +508,11 @@ export async function POST(request: Request) {
           });
         }
 
-        send({ type: "status", message: "Recipe is ready." });
+        send({ type: "status", message: "Recipe is ready.", stage: "recipe_verify" });
         send({ type: "result", result });
       } catch (error) {
         const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
-        if (conversationKey) {
+        if (conversationKey && !terminalFailureStored) {
           void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
@@ -460,13 +531,15 @@ export async function POST(request: Request) {
                 ideaTitle: body.ideaTitle,
                 prompt: prompt ?? null,
                 ingredients: ingredients ?? [],
+                recipe_outline: null,
+                outline_source: null,
               },
-              raw_model_output: null,
-              normalized_recipe: null,
+              raw_model_output: failure.rawModelOutput,
+              normalized_recipe: failure.normalizedRecipe,
               verification: failure.verification ?? createFailedVerificationResult(failure.message, failure.retryStrategy),
               attempt_number: attemptNumber,
-              provider: null,
-              model: null,
+              provider: failure.provider ?? null,
+              model: failure.model ?? currentAttemptModel ?? lastAttemptModel ?? null,
               outcome: failure.outcome,
               stage_metrics: stageMetrics.length > 0 ? stageMetrics : [
                 createAiStageMetric("brief_compile", {
@@ -485,18 +558,22 @@ export async function POST(request: Request) {
             attempt: attemptNumber,
             kind: failure.kind,
             strategy: failure.retryStrategy,
-            model: lastAttemptModel ?? resolvedTaskPrimaryModel,
+            model: currentAttemptModel ?? lastAttemptModel ?? resolvedTaskPrimaryModel,
             reasons: failure.reasons,
             checks: failure.verification?.checks ?? null,
+            failure_stage: failure.failureStage,
+            failure_context: failure.failureContext,
           },
         });
         send({
           type: "error",
           message: failure.message,
           failure_kind: failure.kind,
+          failure_stage: failure.failureStage,
           retry_strategy: failure.retryStrategy,
-          model: lastAttemptModel ?? resolvedTaskPrimaryModel,
+          model: currentAttemptModel ?? lastAttemptModel ?? resolvedTaskPrimaryModel,
           reasons: failure.reasons,
+          failure_context: failure.failureContext,
         });
       } finally {
         controller.close();

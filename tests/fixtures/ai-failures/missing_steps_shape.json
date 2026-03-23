@@ -1,0 +1,11 @@
+{
+  "id": "missing_steps_shape",
+  "raw_text": "{\n  \"title\": \"Broken Recipe\",\n  \"ingredients\": [{ \"name\": \"2 onions\" }],\n  \"step_notes\": \"Cook until done.\"\n}",
+  "fallback_title": "Fallback Title",
+  "expected": {
+    "parse_success": true,
+    "normalization_reason": "Recipe JSON was missing recognizable steps.",
+    "structural_passes": null,
+    "title": null
+  }
+}

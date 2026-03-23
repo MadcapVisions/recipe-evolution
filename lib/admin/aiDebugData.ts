@@ -23,6 +23,14 @@ type GenerationAttemptRow = {
   verification_json: {
     retry_strategy?: string | null;
     reasons?: string[] | null;
+    failure_stage?: string | null;
+    failure_context?: Record<string, unknown> | null;
+  } | null;
+  raw_model_output_json: unknown;
+  normalized_recipe_json: {
+    title?: string | null;
+    ingredients?: Array<unknown> | null;
+    steps?: Array<unknown> | null;
   } | null;
   stage_metrics_json: Array<{
     stage_name?: string | null;
@@ -44,7 +52,7 @@ export async function getAdminAiDebugEvents() {
       .limit(50),
     admin
       .from("ai_generation_attempts")
-      .select("id, created_at, owner_id, scope, outcome, provider, model, attempt_number, conversation_key, verification_json, stage_metrics_json")
+      .select("id, created_at, owner_id, scope, outcome, provider, model, attempt_number, conversation_key, verification_json, raw_model_output_json, normalized_recipe_json, stage_metrics_json")
       .order("created_at", { ascending: false })
       .limit(25),
   ]);

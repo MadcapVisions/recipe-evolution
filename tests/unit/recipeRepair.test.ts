@@ -4,6 +4,9 @@ import {
   shouldEscalateVerification,
   findMissingQuantities,
   buildVerificationRepairInstructions,
+  buildVerificationRepairPlan,
+  buildQualityRepairPlan,
+  buildScopedRepairPrompt,
 } from "../../lib/ai/recipeRepair";
 import type { VerificationResult } from "../../lib/ai/contracts/verificationResult";
 import type { CookingBrief } from "../../lib/ai/contracts/cookingBrief";
@@ -122,4 +125,57 @@ test("buildVerificationRepairInstructions includes title fix for generic titles"
   const instructions = buildVerificationRepairInstructions(verification, null);
   assert.equal(instructions.length, 1);
   assert.match(instructions[0], /title/i);
+});
+
+test("buildVerificationRepairPlan returns scoped alignment repairs", () => {
+  const verification = {
+    passes: false,
+    confidence: 0.2,
+    score: 0.4,
+    reasons: ["missing required", "generic title"],
+    checks: {
+      ...passingChecks(),
+      required_ingredients_present: false,
+      title_quality_pass: false,
+    },
+    retry_strategy: "regenerate_stricter" as const,
+  };
+  const brief = {
+    ingredients: {
+      centerpiece: null,
+      required: ["shrimp", "lime crema"],
+      forbidden: [],
+      preferred: [],
+    },
+    style: { tags: [], texture_tags: [], format_tags: [] },
+  } as unknown as CookingBrief;
+
+  const plan = buildVerificationRepairPlan(verification, brief);
+  assert.deepEqual(plan.scopes, ["alignment_required_ingredients", "alignment_title"]);
+  assert.equal(plan.instructions.length, 2);
+});
+
+test("buildQualityRepairPlan returns scoped quality repairs", () => {
+  const plan = buildQualityRepairPlan({
+    vagueSteps: [{ text: "Cook until done." }],
+    tasteViolations: ["cilantro"],
+    missingQuantities: ["olive oil"],
+  });
+
+  assert.deepEqual(plan.scopes, ["quality_steps", "quality_taste", "quality_quantities"]);
+  assert.equal(plan.instructions.length, 3);
+});
+
+test("buildScopedRepairPrompt constrains repairs to the requested scope", () => {
+  const prompt = buildScopedRepairPrompt(
+    {
+      scopes: ["alignment_title"],
+      instructions: ["Replace the generic title with a specific dish name."],
+    },
+    "alignment"
+  );
+
+  assert.match(prompt, /Repair scope: alignment_title/);
+  assert.match(prompt, /Only fix the listed alignment failures/);
+  assert.match(prompt, /Do not change the dish family/);
 });

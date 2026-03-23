@@ -26,8 +26,27 @@ export type RecipeNormalizationResult = {
 };
 
 const WRAPPER_KEYS = ["recipe", "data", "result", "output"] as const;
-const INGREDIENT_KEYS = ["ingredients", "ingredient_list", "ingredientLines", "items"] as const;
-const STEP_KEYS = ["steps", "instructions", "directions", "method", "procedure"] as const;
+const INGREDIENT_KEYS = [
+  "ingredients",
+  "ingredient_list",
+  "ingredientLines",
+  "ingredient_lines",
+  "ingredients_text",
+  "ingredient_text",
+  "items",
+] as const;
+const STEP_KEYS = [
+  "steps",
+  "instructions",
+  "instruction_text",
+  "instructions_text",
+  "directions",
+  "direction_text",
+  "method",
+  "method_text",
+  "procedure",
+  "prep_steps",
+] as const;
 const FRACTION_MAP: Record<string, string> = {
   "¼": "1/4",
   "½": "1/2",
@@ -50,6 +69,27 @@ const FRACTION_MAP: Record<string, string> = {
 };
 const JUNK_PREP = new Set(["none", "n/a", "-", "null", "na"]);
 
+function normalizeLookupKey(value: string) {
+  return value.toLowerCase().replace(/[\s_-]/g, "");
+}
+
+function getMatchingValue(raw: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    if (key in raw) {
+      return raw[key];
+    }
+  }
+
+  const normalizedKeys = new Set(keys.map(normalizeLookupKey));
+  for (const [candidateKey, candidateValue] of Object.entries(raw)) {
+    if (normalizedKeys.has(normalizeLookupKey(candidateKey))) {
+      return candidateValue;
+    }
+  }
+
+  return undefined;
+}
+
 function unwrapRecipePayload(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -57,7 +97,14 @@ function unwrapRecipePayload(value: unknown): Record<string, unknown> | null {
 
   let current = value as Record<string, unknown>;
   for (let depth = 0; depth < 3; depth += 1) {
-    if (INGREDIENT_KEYS.some((key) => Array.isArray(current[key])) || STEP_KEYS.some((key) => Array.isArray(current[key]))) {
+    const ingredientValue = getMatchingValue(current, INGREDIENT_KEYS);
+    const stepValue = getMatchingValue(current, STEP_KEYS);
+    if (
+      Array.isArray(ingredientValue) ||
+      Array.isArray(stepValue) ||
+      typeof ingredientValue === "string" ||
+      typeof stepValue === "string"
+    ) {
       return current;
     }
 
@@ -72,10 +119,9 @@ function unwrapRecipePayload(value: unknown): Record<string, unknown> | null {
 }
 
 function getArrayByKeys(raw: Record<string, unknown>, keys: readonly string[]) {
-  for (const key of keys) {
-    if (Array.isArray(raw[key])) {
-      return raw[key] as unknown[];
-    }
+  const value = getMatchingValue(raw, keys);
+  if (Array.isArray(value)) {
+    return value as unknown[];
   }
   return [];
 }
@@ -88,12 +134,16 @@ function splitTextList(value: string): string[] {
 }
 
 function getStringByKeys(raw: Record<string, unknown>, keys: readonly string[]) {
-  for (const key of keys) {
-    if (typeof raw[key] === "string" && raw[key]!.trim().length > 0) {
-      return raw[key] as string;
-    }
+  const value = getMatchingValue(raw, keys);
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
   }
   return null;
+}
+
+function getNumberByKeys(raw: Record<string, unknown>, keys: readonly string[]) {
+  const value = getMatchingValue(raw, keys);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function parseFractionString(raw: string): number | null {
@@ -196,8 +246,10 @@ export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: s
 
   const topLevelKeys = Object.keys(value as Record<string, unknown>);
   const isTopLevelDirect =
-    INGREDIENT_KEYS.some((k) => Array.isArray((value as Record<string, unknown>)[k])) ||
-    STEP_KEYS.some((k) => Array.isArray((value as Record<string, unknown>)[k]));
+    Array.isArray(getMatchingValue(value as Record<string, unknown>, INGREDIENT_KEYS)) ||
+    Array.isArray(getMatchingValue(value as Record<string, unknown>, STEP_KEYS)) ||
+    typeof getMatchingValue(value as Record<string, unknown>, INGREDIENT_KEYS) === "string" ||
+    typeof getMatchingValue(value as Record<string, unknown>, STEP_KEYS) === "string";
   const pathTaken: NormalizationLog["path_taken"] = isTopLevelDirect ? "direct" : "unwrapped";
 
   const raw = unwrapRecipePayload(value);
@@ -219,7 +271,8 @@ export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: s
   if (rawIngredients.length === 0 && ingredientBlock) repairedFields.push("ingredients_from_text");
   const stepSource = rawSteps.length > 0 ? rawSteps : stepBlock ? splitTextList(stepBlock) : [];
   if (rawSteps.length === 0 && stepBlock) repairedFields.push("steps_from_text");
-  if (typeof raw.title !== "string" || !raw.title.trim()) repairedFields.push("title_from_fallback");
+  const titleValue = getStringByKeys(raw, ["title"]);
+  if (!titleValue) repairedFields.push("title_from_fallback");
 
   const ingredients = ingredientSource
     .map(normalizeIngredientItem)
@@ -244,23 +297,29 @@ export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: s
     return { recipe: null, reason: `Recipe JSON was missing recognizable ${missingParts}.`, normalization_log: log };
   }
 
-  const title = typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : fallbackTitle;
-  const chefTips = Array.isArray(raw.chefTips)
-    ? raw.chefTips
+  const title = titleValue?.trim() || fallbackTitle;
+  const chefTipsValue = getMatchingValue(raw, ["chefTips", "chef_tips"]);
+  const chefTips = Array.isArray(chefTipsValue)
+    ? chefTipsValue
         .filter((tip): tip is string => typeof tip === "string" && tip.trim().length > 0)
         .map((tip) => tip.trim())
         .slice(0, 3)
     : [];
+  const descriptionValue = getStringByKeys(raw, ["description"]);
+  const difficultyValue = getStringByKeys(raw, ["difficulty"]);
+  const servingsValue = getNumberByKeys(raw, ["servings"]);
+  const prepTimeValue = getNumberByKeys(raw, ["prep_time_min", "prepTimeMin"]);
+  const cookTimeValue = getNumberByKeys(raw, ["cook_time_min", "cookTimeMin"]);
 
   return {
     recipe: {
       title,
-      description: typeof raw.description === "string" ? raw.description.trim() || null : null,
-      servings: typeof raw.servings === "number" ? Math.round(raw.servings) : 4,
-      prep_time_min: typeof raw.prep_time_min === "number" ? Math.round(raw.prep_time_min) : 15,
-      cook_time_min: typeof raw.cook_time_min === "number" ? Math.round(raw.cook_time_min) : 30,
-      difficulty: typeof raw.difficulty === "string" && raw.difficulty.trim()
-        ? raw.difficulty.trim().charAt(0).toUpperCase() + raw.difficulty.trim().slice(1).toLowerCase()
+      description: descriptionValue?.trim() || null,
+      servings: servingsValue != null ? Math.round(servingsValue) : 4,
+      prep_time_min: prepTimeValue != null ? Math.round(prepTimeValue) : 15,
+      cook_time_min: cookTimeValue != null ? Math.round(cookTimeValue) : 30,
+      difficulty: difficultyValue?.trim()
+        ? difficultyValue.trim().charAt(0).toUpperCase() + difficultyValue.trim().slice(1).toLowerCase()
         : "Easy",
       ingredients,
       steps,

@@ -14,6 +14,8 @@ export type VerificationResult = {
   confidence: number;
   score: number;
   reasons: string[];
+  failure_stage?: "parse" | "schema" | "semantic" | "generation";
+  failure_context?: Record<string, unknown> | null;
   checks: {
     dish_family_match: boolean;
     style_match: boolean;
@@ -26,12 +28,21 @@ export type VerificationResult = {
   retry_strategy: VerificationRetryStrategy;
 };
 
-export function createFailedVerificationResult(reason: string, retryStrategy: VerificationRetryStrategy = "ask_user"): VerificationResult {
+export function createFailedVerificationResult(
+  reason: string,
+  retryStrategy: VerificationRetryStrategy = "ask_user",
+  extra?: {
+    failure_stage?: "parse" | "schema" | "semantic" | "generation";
+    failure_context?: Record<string, unknown> | null;
+  }
+): VerificationResult {
   return {
     passes: false,
     confidence: 0,
     score: 0,
     reasons: [reason],
+    failure_stage: extra?.failure_stage,
+    failure_context: extra?.failure_context ?? null,
     checks: {
       dish_family_match: false,
       style_match: false,

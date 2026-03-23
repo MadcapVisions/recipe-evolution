@@ -11,6 +11,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:unit": "rm -rf .tmp-unit && tsc -p tsconfig.unit.json && node --test .tmp-unit/tests/unit/**/*.test.js",
+    "fixtures:export:ai-failures": "node --import tsx scripts/export-ai-failure-fixtures.ts",
     "eval:seed:live": "rm -rf .tmp-eval && tsc -p tsconfig.eval.json && node scripts/test-recipe-gen.mjs",
     "e2e": "npm run build && playwright test"
   },
@@ -25,6 +26,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.2",
+    "server-only": "^0.0.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -37,6 +39,7 @@
     "eslint-config-next": "16.1.6",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

@@ -1,44 +1,25 @@
 import { callAIWithMeta, type AICallOptions } from "./aiClient";
 import type { AIMessage } from "./chatPromptBuilder";
+import { parseJsonResponse, validateJsonContract } from "./jsonContract";
 
-export function parseJsonResponse(text: string): unknown {
-  if (typeof text !== "string" || text.trim().length === 0) {
-    return null;
+export class AIJsonParseError extends Error {
+  readonly response: ReturnType<typeof buildJsonResponseEnvelope>;
+
+  constructor(message: string, response: ReturnType<typeof buildJsonResponseEnvelope>) {
+    super(message);
+    this.name = "AIJsonParseError";
+    this.response = response;
   }
+}
 
-  const direct = text.trim();
-
-  try {
-    return JSON.parse(direct);
-  } catch {
-    // Fall through to fence/substring extraction.
-  }
-
-  const withoutFences = direct.replace(/```json/gi, "").replace(/```/g, "").trim();
-
-  try {
-    return JSON.parse(withoutFences);
-  } catch {
-    // Fall through to brace slice extraction.
-  }
-
-  // Try every { position (left to right) against the last }.
-  // Handles models that prepend reasoning text containing {placeholder} before the real JSON object.
-  const lastBrace = withoutFences.lastIndexOf("}");
-  if (lastBrace >= 0) {
-    let searchPos = 0;
-    while (true) {
-      const bracePos = withoutFences.indexOf("{", searchPos);
-      if (bracePos < 0 || bracePos >= lastBrace) break;
-      try {
-        return JSON.parse(withoutFences.slice(bracePos, lastBrace + 1));
-      } catch {
-        searchPos = bracePos + 1;
-      }
-    }
-  }
-
-  return null;
+function buildJsonResponseEnvelope(result: Awaited<ReturnType<typeof callAIWithMeta>>) {
+  return {
+    text: result.text,
+    provider: result.provider,
+    model: result.model ?? null,
+    finishReason: result.finishReason ?? null,
+    usage: result.usage,
+  };
 }
 
 export async function callAIForJson(messages: AIMessage[], options: AICallOptions = {}) {
@@ -47,11 +28,30 @@ export async function callAIForJson(messages: AIMessage[], options: AICallOption
 
   if (parsed == null) {
     const preview = result.text.trim().slice(0, 200).replace(/\n/g, " ");
-    throw new Error(`AI returned invalid JSON (${result.provider}${result.model ? `:${result.model}` : ""}). Response preview: ${preview}`);
+    throw new AIJsonParseError(
+      `AI returned invalid JSON (${result.provider}${result.model ? `:${result.model}` : ""}). Response preview: ${preview}`,
+      buildJsonResponseEnvelope(result)
+    );
   }
 
   return {
     ...result,
     parsed,
+  };
+}
+
+export { parseJsonResponse, validateJsonContract } from "./jsonContract";
+
+export async function callAIForJsonWithContract<T>(
+  messages: AIMessage[],
+  validator: (parsed: unknown) => { value: T | null; error: string | null },
+  options: AICallOptions = {}
+) {
+  const result = await callAIForJson(messages, options);
+  const contract = validateJsonContract(result.parsed, validator);
+
+  return {
+    ...result,
+    contract,
   };
 }

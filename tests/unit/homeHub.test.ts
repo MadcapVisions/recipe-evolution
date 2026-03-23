@@ -37,7 +37,7 @@ test("normalizeGeneratedRecipeForTest explains when recognizable steps are missi
     {
       title: "Broken Recipe",
       ingredients: [{ name: "2 onions" }],
-      method_text: "Cook until done.",
+      step_notes: "Cook until done.",
     },
     "Fallback Title"
   );
@@ -65,5 +65,27 @@ test("normalizeGeneratedRecipeForTest accepts multiline string ingredients and s
   assert.deepEqual(normalized.recipe?.steps.map((item) => item.text), [
     "Sear the chicken until browned.",
     "Braise with tomato pulp and mushrooms until tender.",
+  ]);
+});
+
+test("normalizeGeneratedRecipeForTest accepts capitalized and underscored key variants", () => {
+  const normalized = normalizeGeneratedRecipePayload(
+    {
+      Title: "Spanish-Inspired Chicken with Peppers",
+      Ingredients_Text: "1 lb chicken thighs\n2 bell peppers\n1 tsp paprika",
+      Instructions_Text: "1. Brown the chicken.\n2. Simmer with peppers and paprika until tender.",
+    },
+    "Fallback Title"
+  );
+
+  assert.equal(normalized.reason, null);
+  assert.deepEqual(normalized.recipe?.ingredients.map((item) => item.name), [
+    "1 lb chicken thighs",
+    "2 bell peppers",
+    "1 tsp paprika",
+  ]);
+  assert.deepEqual(normalized.recipe?.steps.map((item) => item.text), [
+    "Brown the chicken.",
+    "Simmer with peppers and paprika until tender.",
   ]);
 });

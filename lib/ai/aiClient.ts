@@ -1,6 +1,11 @@
 import type { AIMessage } from "./chatPromptBuilder";
 import { estimateUsageCostUsd, type AiUsageMetrics } from "./usageMetrics";
 import { logCallUsage } from "./usageLogger";
+import {
+  getDowngradedResponseFormat,
+  shouldDowngradeStructuredOutputError,
+  type AIResponseFormat,
+} from "./responseFormat";
 
 export type AICallOptions = {
   max_tokens?: number;
@@ -10,7 +15,9 @@ export type AICallOptions = {
   /** When true, skip appending DEFAULT_OPENROUTER_MODEL as a last-resort fallback. */
   strict_model?: boolean;
   /** Force JSON output mode. Only pass for calls that require JSON responses. */
-  response_format?: { type: "json_object" };
+  response_format?: AIResponseFormat;
+  /** Downgrade unsupported json_schema requests to json_object and retry once on the same model. */
+  allow_response_format_downgrade?: boolean;
 };
 
 type AIProvider = "openrouter";
@@ -27,6 +34,7 @@ class AIProviderError extends Error {
   provider: AIProvider;
   statusCode?: number;
   retryable: boolean;
+  cause?: unknown;
 
   constructor(provider: AIProvider, message: string, options?: { statusCode?: number; retryable?: boolean; cause?: unknown }) {
     super(message);
@@ -134,20 +142,34 @@ function getModelOrder(options: AICallOptions) {
 }
 
 async function callOpenRouter(messages: AIMessage[], options: AICallOptions, model: string): Promise<AICallResult> {
-  try {
+  const attemptRequest = async (responseFormat: AIResponseFormat | undefined) => {
     const client = await getOpenRouterClient();
-    const response = await client.chat.completions.create(
+    return client.chat.completions.create(
       {
         model,
         messages,
         max_tokens: options.max_tokens || 400,
         temperature: options.temperature || 0.6,
-        ...(options.response_format ? { response_format: options.response_format } : {}),
+        ...(responseFormat ? { response_format: responseFormat } : {}),
       },
       {
         timeout: DEFAULT_TIMEOUT_MS,
       }
     );
+  };
+
+  try {
+    let response;
+    try {
+      response = await attemptRequest(options.response_format);
+    } catch (error) {
+      if (options.allow_response_format_downgrade && shouldDowngradeStructuredOutputError(error, options.response_format)) {
+        const downgraded = getDowngradedResponseFormat(options.response_format);
+        response = await attemptRequest(downgraded);
+      } else {
+        throw error;
+      }
+    }
 
     const promptTokens = typeof response.usage?.prompt_tokens === "number" ? response.usage.prompt_tokens : null;
     const completionTokens = typeof response.usage?.completion_tokens === "number" ? response.usage.completion_tokens : null;

@@ -1,0 +1,11 @@
+{
+  "id": "non_json_response",
+  "raw_text": "I think a braised chicken dish would be great here. Start by browning the chicken, then add peppers and paprika.",
+  "fallback_title": "Fallback Title",
+  "expected": {
+    "parse_success": false,
+    "normalization_reason": null,
+    "structural_passes": null,
+    "title": null
+  }
+}

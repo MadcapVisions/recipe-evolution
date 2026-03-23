@@ -19,6 +19,7 @@ import { trackEventInBackground } from "@/lib/trackEventInBackground";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import type { ChatMessage, LockedDirectionSession, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
 import type { VerificationRetryStrategy } from "@/lib/ai/contracts/verificationResult";
+import type { RecipeBuildFailureKind } from "@/lib/ai/recipeBuildError";
 
 const extractIngredientsFromPrompt = (prompt: string) =>
   prompt
@@ -166,7 +167,7 @@ const buildSelectedDirectionForMessages = (messages: ChatMessage[], selectedDire
 type RecipeBuildStreamError = Error & {
   retryStrategy?: VerificationRetryStrategy;
   reasons?: string[];
-  failureKind?: "verification_failed" | "invalid_payload" | "generation_failed";
+  failureKind?: RecipeBuildFailureKind;
 };
 
 export type BuildDebugEntry =
@@ -306,6 +307,10 @@ function deriveSelectedDirectionFromSession(messages: ChatMessage[], session: Lo
 export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const router = useRouter();
   const conversationKeyRef = useRef(createConversationKey());
+  const threadIdentityRef = useRef(0);
+  const hydrationAbortRef = useRef<AbortController | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
+  const buildAbortRef = useRef<AbortController | null>(null);
   const [promptInput, setPromptInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatingRecipe, setGeneratingRecipe] = useState(false);
@@ -401,9 +406,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     }
 
     const conversationKey = conversationKeyRef.current;
+    const hydrationThread = threadIdentityRef.current;
+    const controller = new AbortController();
+    hydrationAbortRef.current = controller;
     void (async () => {
       try {
-        const response = await fetch(`/api/ai/home?conversationKey=${encodeURIComponent(conversationKey)}`);
+        const response = await fetch(`/api/ai/home?conversationKey=${encodeURIComponent(conversationKey)}`, {
+          signal: controller.signal,
+        });
         if (!response.ok) {
           return;
         }
@@ -414,6 +424,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         const serverMessages = Array.isArray(data.messages) ? data.messages : [];
         const serverLockedSession = data.lockedSession ?? null;
 
+        if (
+          controller.signal.aborted ||
+          threadIdentityRef.current !== hydrationThread ||
+          conversationKeyRef.current !== conversationKey
+        ) {
+          return;
+        }
+
         if (serverMessages.length > 0) {
           setHeroChatMessages(serverMessages);
           setHeroChatReadyToApply(true);
@@ -422,10 +440,20 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           setLockedSession(serverLockedSession);
           setSelectedChefDirection(deriveSelectedDirectionFromSession(serverMessages, serverLockedSession));
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         // Keep local state if rehydration fails.
       }
     })();
+
+    return () => {
+      controller.abort();
+      if (hydrationAbortRef.current === controller) {
+        hydrationAbortRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -433,6 +461,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       if (statusTimeoutRef.current) {
         clearTimeout(statusTimeoutRef.current);
       }
+      hydrationAbortRef.current?.abort();
+      chatAbortRef.current?.abort();
+      buildAbortRef.current?.abort();
     };
   }, []);
 
@@ -504,13 +535,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     };
   };
 
-  const invokeAi = async (body: Record<string, unknown>) => {
+  const invokeAi = async (body: Record<string, unknown>, signal?: AbortSignal) => {
     const response = await fetch("/api/ai/home", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal,
     });
 
     const data = (await response.json()) as { error?: boolean; message?: string } & Record<string, unknown>;
@@ -526,7 +558,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handlers: {
       onStatus: (message: string) => void;
       onDebugEvent?: (entry: BuildDebugEntry) => void;
-    }
+    },
+    signal?: AbortSignal
   ) => {
     const response = await fetch("/api/ai/home/build", {
       method: "POST",
@@ -534,6 +567,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal,
     });
 
     if (!response.ok || !response.body) {
@@ -570,7 +604,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
               message: string;
               retry_strategy?: VerificationRetryStrategy;
               reasons?: string[];
-              failure_kind?: "verification_failed" | "invalid_payload" | "generation_failed";
+              failure_kind?: RecipeBuildFailureKind;
+              failure_stage?: string | null;
+              failure_context?: Record<string, unknown> | null;
               model?: string;
             };
 
@@ -645,13 +681,15 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     source = "chef-chat",
     selectedDirectionOverride: SelectedChefDirection | null = selectedChefDirection
   ) => {
+    const requestThread = threadIdentityRef.current;
+    const requestConversationKey = conversationKeyRef.current;
     const effectiveLockedSession =
       selectedDirectionOverride == null
         ? null
         : lockedSession?.selected_direction?.id === selectedDirectionOverride.optionId
         ? lockedSession
         : createLockedSessionFromDirection({
-            conversationKey: conversationKeyRef.current,
+            conversationKey: requestConversationKey,
             selectedDirection: {
               id: selectedDirectionOverride.optionId,
               title: selectedDirectionOverride.title,
@@ -680,6 +718,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setError(null);
     setStatus("Understanding your request...");
     setBuildDebugLog([{ type: "status", message: "Understanding your request...", ts: Date.now() }]);
+    buildAbortRef.current?.abort();
+    const controller = new AbortController();
+    buildAbortRef.current = controller;
 
     try {
       const data = await invokeRecipeBuildStream({
@@ -687,20 +728,38 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         prompt: latestUserPrompt,
         ingredients,
         conversationHistory,
-        conversationKey: conversationKeyRef.current,
+        conversationKey: requestConversationKey,
         lockedSession: effectiveLockedSession,
       }, {
         onStatus: (message) => setStatus(message),
         onDebugEvent: (entry) => setBuildDebugLog((prev) => [...prev, entry]),
-      });
+      }, controller.signal);
+
+      if (
+        controller.signal.aborted ||
+        threadIdentityRef.current !== requestThread ||
+        conversationKeyRef.current !== requestConversationKey
+      ) {
+        return;
+      }
 
       const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
         ? (data.result as { recipe: RecipeDraft }).recipe
         : (data.recipe as RecipeDraft);
       setStatus("Saving your recipe...");
       const created = await saveGeneratedRecipe(recipe, source);
+      if (
+        controller.signal.aborted ||
+        threadIdentityRef.current !== requestThread ||
+        conversationKeyRef.current !== requestConversationKey
+      ) {
+        return;
+      }
       goToCreatedRecipe(created.recipeId, created.versionId);
     } catch (saveError) {
+      if ((saveError instanceof DOMException && saveError.name === "AbortError") || controller.signal.aborted) {
+        return;
+      }
       const typedSaveError = saveError as RecipeBuildStreamError;
       const alreadyLoggedError =
         buildDebugLog.length > 0 && buildDebugLog[buildDebugLog.length - 1]?.type === "error";
@@ -722,6 +781,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       );
       setStatus(null);
     } finally {
+      if (buildAbortRef.current === controller) {
+        buildAbortRef.current = null;
+      }
       setGeneratingRecipe(false);
       setActiveChatRecipeIndex(null);
       setStatus(null);
@@ -749,6 +811,11 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setLoading(true);
     setError(null);
     setStatus("Chef is refining...");
+    const requestThread = threadIdentityRef.current;
+    const requestConversationKey = conversationKeyRef.current;
+    chatAbortRef.current?.abort();
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
 
     try {
       const startsNewDirection = selectedChefDirection != null && shouldStartNewChefDirection(trimmedPrompt);
@@ -801,14 +868,22 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
             : selectedChefDirection != null
             ? buildConversationHistory(buildLockedDirectionMessages(heroChatMessages, selectedChefDirection).slice(-6))
             : buildFocusedChatHistory(heroChatMessages),
-        conversationKey: conversationKeyRef.current,
+        conversationKey: requestConversationKey,
         lockedSession: startsNewDirection ? undefined : lockedSession ?? undefined,
         reset_session: startsNewDirection ? true : undefined,
-      })) as ChefChatEnvelope & {
+      }, controller.signal)) as ChefChatEnvelope & {
         message?: string;
         session_action?: "clear_locked_direction" | null;
         lockedSession?: LockedDirectionSession | null;
       };
+
+      if (
+        controller.signal.aborted ||
+        threadIdentityRef.current !== requestThread ||
+        conversationKeyRef.current !== requestConversationKey
+      ) {
+        return;
+      }
 
       if (!data.reply) {
         throw new Error(data.message ?? "Chef chat failed.");
@@ -860,9 +935,15 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }
       setHeroChatReadyToApply(true);
     } catch (chatError) {
+      if ((chatError instanceof DOMException && chatError.name === "AbortError") || controller.signal.aborted) {
+        return;
+      }
       setError("Chef hit a temporary problem before the direction could be updated. Please try again.");
       setTransientStatus(describeAiOutage(chatError, "Chef is temporarily unavailable"));
     } finally {
+      if (chatAbortRef.current === controller) {
+        chatAbortRef.current = null;
+      }
       heroSubmitLockRef.current = false;
       setLoading(false);
     }
@@ -957,6 +1038,10 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   };
 
   const handleStartOver = () => {
+    threadIdentityRef.current += 1;
+    hydrationAbortRef.current?.abort();
+    chatAbortRef.current?.abort();
+    buildAbortRef.current?.abort();
     conversationKeyRef.current = createConversationKey();
     lastHeroPromptRef.current = null;
     if (typeof window !== "undefined") {
@@ -972,6 +1057,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setActiveChatRecipeIndex(null);
     setPromptInput("");
     setError(null);
+    setLoading(false);
+    setGeneratingRecipe(false);
+    setBuildDebugLog([]);
     setTransientStatus(null);
   };
 
