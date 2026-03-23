@@ -317,3 +317,70 @@ test("getConversationTurns returns ordered home-hub turns", async () => {
   assert.equal(result[0]?.role, "user");
   assert.equal(result[1]?.role, "assistant");
 });
+
+test("upsertLockedDirectionSession persists build_spec provenance fields intact across a round-trip", async () => {
+  let persistedPayload: Record<string, unknown> | null = null;
+
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_locked_direction_sessions");
+      return {
+        upsert(payload: Record<string, unknown>) {
+          persistedPayload = payload;
+          return Promise.resolve({ error: null });
+        },
+        select() { return this; },
+        eq() { return this; },
+        maybeSingle() {
+          return Promise.resolve({
+            data: {
+              id: "session-1",
+              owner_id: "user-1",
+              conversation_key: "conv-1",
+              scope: "home_hub",
+              session_json: persistedPayload?.session_json,
+              state: "direction_locked",
+              created_at: "2026-03-23T10:00:00Z",
+              updated_at: "2026-03-23T10:00:01Z",
+            },
+            error: null,
+          });
+        },
+      };
+    },
+  };
+
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      summary: "Shredded chicken on tostadas with avocado crema.",
+      tags: ["Mexican", "Crunchy"],
+    },
+    conversationHistory: [
+      { role: "user" as const, content: "I want crunchy chicken tacos." },
+    ],
+  });
+
+  // Session created with conversationHistory so build_spec is populated with provenance fields.
+  assert.ok(session.build_spec !== null, "build_spec should be populated when conversationHistory is provided");
+  assert.ok(session.build_spec!.derived_at === "lock_time");
+  assert.ok(session.build_spec!.dish_family_source === "model" || session.build_spec!.dish_family_source === "inferred");
+  assert.ok(["model", "inferred", "none"].includes(session.build_spec!.anchor_source));
+
+  await upsertLockedDirectionSession(supabase as unknown as SupabaseClient, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "home_hub",
+    session,
+  });
+
+  // Verify the persisted session_json contains the build_spec with provenance fields intact.
+  assert.ok(persistedPayload !== null);
+  const storedSession = (persistedPayload as Record<string, unknown>).session_json as typeof session;
+  assert.ok(storedSession.build_spec !== null);
+  assert.equal(storedSession.build_spec!.derived_at, "lock_time");
+  assert.equal(storedSession.build_spec!.dish_family_source, session.build_spec!.dish_family_source);
+  assert.equal(storedSession.build_spec!.anchor_source, session.build_spec!.anchor_source);
+});

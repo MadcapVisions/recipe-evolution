@@ -1,11 +1,13 @@
 import type { AIMessage } from "./chatPromptBuilder";
 import type { CookingBrief } from "./contracts/cookingBrief";
+import { createEmptyCookingBrief } from "./contracts/cookingBrief";
 import {
   createLockedDirectionSession,
   type LockedDirectionRefinement,
   type LockedDirectionSelected,
   type LockedDirectionSession,
 } from "./contracts/lockedDirectionSession";
+import { normalizeBuildSpec, type BuildSpec } from "./contracts/buildSpec";
 import { compileCookingBrief, isGenericCenterpieceTitle } from "./briefCompiler";
 import {
   deriveIdeaTitleFromConversationContext,
@@ -14,6 +16,7 @@ import {
   detectRequestedProtein,
 } from "./homeRecipeAlignment";
 import { extractRefinementDelta } from "./refinementExtractor";
+import { deriveBuildSpec } from "./buildSpecDeriver";
 
 function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
@@ -99,9 +102,75 @@ export function buildLockedBrief(input: {
   }
 
   const refinements = recentRefinements(input.session);
-  const refinementText = refinements
-    .map((item) => item.user_text)
-    .join("\n");
+  const refinementText = refinements.map((item) => item.user_text).join("\n");
+
+  // --- BuildSpec fast path (new sessions) ---
+  // When a valid BuildSpec is present, dish identity was resolved at lock time — read it directly.
+  // No re-inference of dish_family, title, protein, or anchor.
+  // Invalid or partial specs (e.g. stale client payloads, corrupted storage) are treated as absent
+  // and fall through to the legacy reconstruction path below — never as hard errors.
+  const spec = normalizeBuildSpec(input.session.build_spec);
+  if (spec) {
+    const forbiddenIngredients = unique([
+      ...spec.forbidden_ingredients,
+      ...refinements.flatMap((item) => item.extracted_changes.forbidden_ingredients),
+    ]);
+    const requiredIngredients = unique([
+      ...spec.required_ingredients,
+      ...refinements.flatMap((item) => item.extracted_changes.required_ingredients),
+      ...(spec.primary_anchor_type === "protein" && spec.primary_anchor_value ? [spec.primary_anchor_value] : []),
+      ...(spec.primary_anchor_type === "ingredient" && spec.primary_anchor_value ? [spec.primary_anchor_value] : []),
+    ]).filter((ingredient) => !forbiddenIngredients.includes(ingredient));
+    const styleTags = unique([
+      ...spec.style_tags,
+      ...refinements.flatMap((item) => item.extracted_changes.style_tags),
+    ]);
+
+    // Centerpiece: prefer explicit anchor, fall back to build_title only when anchor type is "dish"
+    const centerpiece =
+      spec.primary_anchor_type === "protein" || spec.primary_anchor_type === "ingredient"
+        ? spec.primary_anchor_value
+        : spec.primary_anchor_type === "dish" && spec.primary_anchor_value && !isGenericCenterpieceTitle(spec.primary_anchor_value)
+          ? spec.primary_anchor_value
+          : null;
+
+    // Run compileCookingBrief only for refinement-derived constraints (time, dietary tags).
+    // Ignore its dish/ingredient inferences — we use BuildSpec for those.
+    const refinementBrief = refinementText
+      ? compileCookingBrief({
+          userMessage: refinementText,
+          lockedSessionState: input.session.state,
+        })
+      : null;
+
+    const brief = createEmptyCookingBrief();
+    brief.request_mode = "locked";
+    brief.confidence = spec.confidence;
+    brief.dish.normalized_name = spec.build_title;
+    brief.dish.dish_family = spec.dish_family;
+    brief.dish.raw_user_phrase = selected.title;
+    brief.ingredients.required = requiredIngredients;
+    brief.ingredients.forbidden = forbiddenIngredients;
+    brief.ingredients.centerpiece = centerpiece;
+    brief.style.tags = styleTags;
+    brief.directives.must_have = unique([
+      ...(spec.dish_family ? [spec.dish_family] : []),
+      ...requiredIngredients,
+      ...styleTags,
+      ...(centerpiece ? [centerpiece] : []),
+    ]);
+    brief.directives.must_not_have = forbiddenIngredients;
+    brief.directives.required_techniques = spec.dish_family === "pizza" ? ["bake"] : [];
+    brief.constraints.time_max_minutes = refinementBrief?.constraints.time_max_minutes ?? null;
+    brief.constraints.dietary_tags = unique(refinementBrief?.constraints.dietary_tags ?? []);
+    brief.field_state.dish_family = spec.dish_family ? "locked" : "unknown";
+    brief.field_state.normalized_name = spec.build_title ? "locked" : "unknown";
+    brief.compiler_notes = [`Built from BuildSpec (lock_time). Family: ${spec.dish_family ?? "none"}.`];
+    return brief;
+  }
+
+  // --- Legacy path (sessions without BuildSpec) ---
+  // Kept for backward-compat with sessions created before BuildSpec was introduced.
   const syntheticUserMessage = [selected.title, selected.summary, refinementText].filter(Boolean).join("\n");
   const brief = compileCookingBrief({
     userMessage: syntheticUserMessage,
@@ -119,9 +188,6 @@ export function buildLockedBrief(input: {
     },
   });
 
-  // When the direction title is specific, derive dish identity only from the title + summary.
-  // When the title is generic (e.g. "Chef Conversation Recipe"), fall back to the full
-  // conversation history so we can extract a real dish family and canonical name.
   const titleIsSpecific = shouldKeepSelectedTitle(selected.title);
   const directionContext = [
     selected.title,
@@ -154,9 +220,6 @@ export function buildLockedBrief(input: {
     ...refinements.flatMap((item) => item.extracted_changes.forbidden_ingredients),
   ]);
   const requiredIngredients = unique([
-    // Only use explicit user refinements — do not include brief.ingredients.required here,
-    // as compileCookingBrief incorrectly parses the AI-generated direction summary text
-    // and extracts ingredient mentions from it as if they were user-mandated requirements.
     ...refinements.flatMap((item) => item.extracted_changes.required_ingredients),
     ...(conversationProtein ? [conversationProtein] : []),
     ...(conversationAnchor && conversationAnchor !== conversationProtein ? [conversationAnchor] : []),
@@ -171,8 +234,6 @@ export function buildLockedBrief(input: {
   brief.dish.dish_family = canonicalFamily ?? brief.dish.dish_family;
   brief.ingredients.required = requiredIngredients;
   brief.ingredients.forbidden = forbiddenIngredients;
-  // Prefer a real user-mentioned anchor ingredient/protein over the selected title.
-  // Titles like "Tomato and Pepper Braise" are dish names, not useful centerpiece ingredients.
   brief.ingredients.centerpiece = preservedCenterpiece;
   brief.style.tags = styleTags;
   brief.style.format_tags = unique(brief.style.format_tags);
@@ -188,7 +249,7 @@ export function buildLockedBrief(input: {
   brief.constraints.dietary_tags = unique(brief.constraints.dietary_tags);
   brief.field_state.dish_family = brief.dish.dish_family ? "locked" : brief.field_state.dish_family;
   brief.field_state.normalized_name = brief.dish.normalized_name ? "locked" : brief.field_state.normalized_name;
-  brief.compiler_notes.push("Built from locked direction session.");
+  brief.compiler_notes.push("Built from locked direction session (legacy — no BuildSpec).");
 
   return brief;
 }
@@ -196,6 +257,27 @@ export function buildLockedBrief(input: {
 export function createLockedSessionFromDirection(input: {
   conversationKey: string;
   selectedDirection: LockedDirectionSelected;
+  conversationHistory?: AIMessage[];
+  buildSpec?: BuildSpec | null;
+  /** Optional enriched fields from ChefDirectionOption (Phase 3b/3c) — model-provided, takes precedence over inference */
+  modelDishFamily?: string | null;
+  modelAnchor?: string | null;
+  modelAnchorType?: "dish" | "protein" | "ingredient" | "format" | null;
 }) {
-  return createLockedDirectionSession(input);
+  const build_spec =
+    input.buildSpec ??
+    (input.conversationHistory !== undefined
+      ? deriveBuildSpec({
+          selectedDirection: input.selectedDirection,
+          conversationHistory: input.conversationHistory,
+          modelDishFamily: input.modelDishFamily,
+          modelAnchor: input.modelAnchor,
+          modelAnchorType: input.modelAnchorType,
+        })
+      : null);
+  return createLockedDirectionSession({
+    conversationKey: input.conversationKey,
+    selectedDirection: input.selectedDirection,
+    buildSpec: build_spec,
+  });
 }

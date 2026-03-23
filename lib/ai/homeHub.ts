@@ -525,18 +525,19 @@ async function repairMalformedRecipePayload(input: {
     {
       role: "system" as const,
       content: `You repair malformed AI recipe drafts.
-Return ONLY valid JSON:
+Return ONLY a single JSON object with EXACTLY these fields — no markdown, no wrapper keys, no explanation:
 {
-  "title": string,
+  "title": string,            // REQUIRED
   "description": string|null,
   "servings": number|null,
   "prep_time_min": number|null,
   "cook_time_min": number|null,
   "difficulty": string|null,
-  "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],
-  "steps": [{ "text": string }],
+  "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],  // REQUIRED — non-empty array
+  "steps": [{ "text": string }],  // REQUIRED — non-empty array
   "chefTips": string[]
 }
+SELF-CHECK before returning: confirm (1) "title" is a non-empty string, (2) "ingredients" is a non-empty array with every element having a "name", (3) "steps" is a non-empty array with every element having a "text". Fix before returning if any is missing.
 Rules:
 - Preserve the original dish identity and requested format exactly.
 - Preserve named dishes and regional dishes exactly instead of renaming them generically.
@@ -663,18 +664,19 @@ Retry instructions: ${
               }).join(" ")
             : "No retry instructions."
         }
-Return ONLY valid JSON:
+Return ONLY a single JSON object with EXACTLY these fields — no markdown, no wrapper keys, no explanation:
 {
-  "title": string,
+  "title": string,            // REQUIRED — clean dish-specific recipe name
   "description": string|null,
   "servings": number|null,
   "prep_time_min": number|null,
   "cook_time_min": number|null,
   "difficulty": string|null,
-  "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],
-  "steps": [{ "text": string }],
+  "ingredients": [{ "name": string, "quantity": number, "unit": string|null, "prep": string|null }],  // REQUIRED — must be a non-empty array
+  "steps": [{ "text": string }],  // REQUIRED — must be a non-empty array
   "chefTips": string[]
 }
+SELF-CHECK before returning: confirm your JSON has (1) a non-empty "title" string, (2) a non-empty "ingredients" array where every element has a "name" key, (3) a non-empty "steps" array where every element has a "text" key. If any of these is missing, fix it before returning.
 Rules:
 - The recipe must follow the chef conversation closely.
 - If the user narrowed to one exact dish, make that dish. Do not drift to adjacent ideas.
@@ -758,6 +760,11 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
   let recipe = normalizedResult.recipe;
 
   if (!recipe) {
+    // Log normalization telemetry before attempting repair so we capture the raw failure.
+    console.warn("[homeHub] normalization failed on first parse", {
+      reason: normalizedResult.reason,
+      normalization_log: normalizedResult.normalization_log,
+    });
     onStage?.("recipe_generate", "Repairing malformed recipe output...");
     try {
       const repaired = await repairMalformedRecipePayload({
@@ -783,6 +790,12 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       normalizedResult = {
         recipe,
         reason: recipe ? null : repaired.reason ?? normalizedResult.reason,
+        normalization_log: {
+          raw_top_level_keys: normalizedResult.normalization_log.raw_top_level_keys,
+          path_taken: "failed",
+          missing_fields: normalizedResult.normalization_log.missing_fields,
+          repaired_fields: recipe ? ["repair_succeeded"] : ["repair_failed"],
+        },
       };
     } catch {
       recipe = null;
@@ -791,6 +804,10 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
 
   if (!recipe) {
     const invalidPayloadReason = normalizedResult.reason ?? "AI returned invalid recipe payload.";
+    console.error("[homeHub] invalid payload after repair", {
+      reason: invalidPayloadReason,
+      normalization_log: normalizedResult.normalization_log,
+    });
     throw new RecipeBuildError({
       message: invalidPayloadReason,
       kind: "invalid_payload",

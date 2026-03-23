@@ -20,6 +20,7 @@ import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeR
 import { buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
 import { getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
+import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 
 const aiMessageSchema = z.object({
@@ -59,6 +60,27 @@ const lockedSessionSchema = z.object({
     })
   ),
   brief_snapshot: z.any().nullable(),
+  // Invalid or partial objects (e.g. stale client, empty {}) fall back to null via .catch(null)
+  // so the session degrades to legacy reconstruction rather than throwing a 500.
+  build_spec: z
+    .object({
+      dish_family: z.string().nullable(),
+      display_title: z.string(),
+      build_title: z.string(),
+      primary_anchor_type: z.enum(["dish", "protein", "ingredient", "format"]).nullable(),
+      primary_anchor_value: z.string().nullable(),
+      required_ingredients: z.array(z.string()),
+      forbidden_ingredients: z.array(z.string()),
+      style_tags: z.array(z.string()),
+      must_preserve_format: z.boolean(),
+      confidence: z.number(),
+      derived_at: z.literal("lock_time"),
+      dish_family_source: z.enum(["model", "inferred"]).optional().default("inferred"),
+      anchor_source: z.enum(["model", "inferred", "none"]).optional().default("none"),
+    })
+    .nullable()
+    .optional()
+    .catch(null),
 });
 
 const buildRequestSchema = z.object({
@@ -166,7 +188,12 @@ export async function POST(request: Request) {
               })
             : Promise.resolve(null),
         ]);
-        const lockedSession: LockedDirectionSession | null = body.lockedSession ?? persistedSession?.session_json ?? null;
+        // Normalize build_spec: malformed/stale objects become null so the session
+        // falls back to legacy reconstruction rather than crashing the fast path.
+        const rawSession = body.lockedSession ?? persistedSession?.session_json ?? null;
+        const lockedSession: LockedDirectionSession | null = rawSession
+          ? { ...rawSession, build_spec: normalizeBuildSpec(rawSession.build_spec) }
+          : null;
         // Use the persisted (locked) brief when available — it was compiled from
         // the full conversation at lock time and should not be recompiled from
         // the current prompt, which may have slightly different phrasing.
@@ -188,6 +215,9 @@ export async function POST(request: Request) {
             })
           : compiledBrief;
         briefCompiledAt = new Date().toISOString();
+        const briefSource = lockedSession?.selected_direction
+          ? (lockedSession.build_spec ? "build_spec" : "reconstructed")
+          : "compiled";
         send({
           type: "debug",
           label: "brief",
@@ -196,9 +226,12 @@ export async function POST(request: Request) {
             dish_family: effectiveBrief.dish.dish_family ?? null,
             centerpiece: effectiveBrief.ingredients.centerpiece ?? null,
             required: effectiveBrief.ingredients.required,
+            dish_family_source: lockedSession?.build_spec?.dish_family_source ?? null,
+            anchor_source: lockedSession?.build_spec?.anchor_source ?? null,
             forbidden: effectiveBrief.ingredients.forbidden,
             style_tags: [...effectiveBrief.style.tags, ...effectiveBrief.style.texture_tags, ...effectiveBrief.style.format_tags].filter(Boolean),
             confidence: effectiveBrief.confidence,
+            brief_source: briefSource,
           },
         });
         const resolvedIdeaTitle = effectiveBrief.dish.normalized_name?.trim() || body.ideaTitle.trim();
@@ -316,6 +349,8 @@ export async function POST(request: Request) {
 
             if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
               lastAttemptModel = modelOverride ?? taskSetting.primaryModel;
+              // If retries keep failing with brief_source=reconstructed, the root cause is
+              // a missing BuildSpec — the model is being retried from an unstable spec.
               send({
                 type: "debug",
                 label: "attempt_failed",
@@ -326,6 +361,8 @@ export async function POST(request: Request) {
                   model: lastAttemptModel,
                   reasons: failure.reasons,
                   checks: failure.verification?.checks ?? null,
+                  brief_source: briefSource,
+                  spec_stable: briefSource === "build_spec",
                 },
               });
               attemptNumber += 1;

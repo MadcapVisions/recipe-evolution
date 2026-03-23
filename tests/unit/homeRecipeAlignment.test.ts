@@ -10,6 +10,13 @@ test("detectRequestedDishFamily prioritizes pasta over bowl when pasta is explic
   assert.equal(detectRequestedDishFamily("I want a pasta dish, not a bowl."), "pasta");
 });
 
+test("detectRequestedDishFamily keeps braises out of sauce_condiment", () => {
+  assert.equal(
+    detectRequestedDishFamily("Spanish-style braised chicken with tomato sauce, peppers, and mushrooms."),
+    "braised"
+  );
+});
+
 test("deriveIdeaTitleFromConversationContext keeps pasta direction from chef conversation", () => {
   assert.equal(
     deriveIdeaTitleFromConversationContext(

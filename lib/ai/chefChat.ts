@@ -120,7 +120,15 @@ function buildStructuredMessages(
 {
   "mode": "options" | "refine",
   "reply": string,
-  "options": [{ "id": string, "title": string, "summary": string, "tags": string[] }],
+  "options": [{
+    "id": string,
+    "title": string,
+    "summary": string,
+    "tags": string[],
+    "dish_family": string | null,
+    "primary_anchor": string | null,
+    "primary_anchor_type": "dish" | "protein" | "ingredient" | "format" | null
+  }],
   "recommended_option_id": string | null
 }
 
@@ -134,6 +142,7 @@ Rules:
 - In refine mode, "reply" is the full chef response.
 - In options mode, "reply" is a 1-2 sentence intro that frames the options (e.g. "Three strong directions for a bright chicken dinner:").
 - Keep reply concise and cooking-specific.
+- For each option: set dish_family to the recipe category (e.g. "pasta", "soup", "pizza", "tacos", "salad", "braised", "stir_fry"), primary_anchor to the main ingredient or protein (e.g. "chicken", "mushrooms", "salmon"), and primary_anchor_type to one of: "protein" (for meat/fish/eggs), "ingredient" (for produce/legumes), "dish" (when the format is the anchor, e.g. risotto), "format" (when the cooking method is the anchor, e.g. sheet-pan). Set to null when not applicable.
 - Do not include markdown fences or any text outside the JSON object.`,
     },
   ];

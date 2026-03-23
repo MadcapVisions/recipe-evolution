@@ -52,6 +52,11 @@ export type SelectedChefDirection = {
   title: string;
   summary: string;
   tags: string[];
+  /** Model-provided dish family (from enriched ChefDirectionOption). null for legacy options. */
+  dish_family?: string | null;
+  /** Model-provided primary anchor ingredient/protein/dish. null for legacy options. */
+  primary_anchor?: string | null;
+  primary_anchor_type?: "dish" | "protein" | "ingredient" | "format" | null;
 };
 
 export type { LockedDirectionSession };

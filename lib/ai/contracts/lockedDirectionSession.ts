@@ -1,4 +1,5 @@
 import type { CookingBrief, BriefFieldState } from "./cookingBrief";
+import type { BuildSpec } from "./buildSpec";
 
 export type LockedDirectionSelected = {
   id: string;
@@ -32,11 +33,18 @@ export type LockedDirectionSession = {
   selected_direction: LockedDirectionSelected | null;
   refinements: LockedDirectionRefinement[];
   brief_snapshot: CookingBrief | null;
+  /**
+   * Structured build specification derived once at lock time.
+   * When present, downstream stages read from this directly — they do not re-infer identity.
+   * null for sessions created before this field was introduced (legacy backward-compat path).
+   */
+  build_spec: BuildSpec | null;
 };
 
 export function createLockedDirectionSession(input: {
   conversationKey: string;
   selectedDirection: LockedDirectionSelected;
+  buildSpec?: BuildSpec | null;
 }): LockedDirectionSession {
   return {
     conversation_key: input.conversationKey,
@@ -44,5 +52,6 @@ export function createLockedDirectionSession(input: {
     selected_direction: input.selectedDirection,
     refinements: [],
     brief_snapshot: null,
+    build_spec: input.buildSpec ?? null,
   };
 }

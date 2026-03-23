@@ -218,7 +218,12 @@ export function detectRequestedDishFamily(context: string) {
   }
 
   // sauces / condiments / gravies (bolognese / ragu moved here)
-  if (includesAny(normalized, ["sauce", "gravy", "dressing", "marinade", "vinaigrette", "chimichurri", "béchamel", "bechamel", "hollandaise", "caramel sauce", "hot sauce", "ketchup", "relish", "bolognese", "ragu", "ragù", "meat sauce", "tomato sauce", "béarnaise", "velouté", "mornay", "romesco sauce", "mole sauce", "teriyaki sauce"])) {
+  // Do not let generic mentions of sauce inside a main-dish request override more
+  // specific lanes like braises, pastas, or pizzas.
+  if (
+    includesAny(normalized, ["sauce", "gravy", "dressing", "marinade", "vinaigrette", "chimichurri", "béchamel", "bechamel", "hollandaise", "caramel sauce", "hot sauce", "ketchup", "relish", "bolognese", "ragu", "ragù", "meat sauce", "tomato sauce", "béarnaise", "velouté", "mornay", "romesco sauce", "mole sauce", "teriyaki sauce"]) &&
+    !includesAny(normalized, ["braised", "braise", "pot roast", "tagine", "tajine", "coq au vin", "beef bourguignon", "boeuf bourguignon", "osso buco", "ossobuco"])
+  ) {
     return "sauce_condiment";
   }
 

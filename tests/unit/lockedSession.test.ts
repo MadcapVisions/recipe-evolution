@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { normalizeBuildSpec } from "../../lib/ai/contracts/buildSpec";
 import {
   appendLockedSessionRefinement,
   buildLockedBrief,
@@ -207,4 +208,200 @@ test("appendLockedSessionRefinementDelta caps the retained refinement stack", ()
   assert.equal(session.refinements.length, 12);
   assert.equal(session.refinements[0]?.user_text, "add thing 8");
   assert.equal(session.refinements[11]?.user_text, "add thing 19");
+});
+
+// --- normalizeBuildSpec (API-level payload validation) ---
+
+test("normalizeBuildSpec returns null for empty object — stale client payload falls back to legacy", () => {
+  assert.equal(normalizeBuildSpec({}), null);
+});
+
+test("normalizeBuildSpec returns null when required arrays are missing", () => {
+  assert.equal(normalizeBuildSpec({ derived_at: "lock_time" }), null);
+  assert.equal(normalizeBuildSpec({ derived_at: "lock_time", required_ingredients: [] }), null);
+  assert.equal(normalizeBuildSpec({ derived_at: "lock_time", required_ingredients: [], forbidden_ingredients: [] }), null);
+});
+
+test("normalizeBuildSpec returns null when derived_at sentinel is wrong or absent", () => {
+  assert.equal(normalizeBuildSpec({ required_ingredients: [], forbidden_ingredients: [], style_tags: [] }), null);
+  assert.equal(
+    normalizeBuildSpec({ required_ingredients: [], forbidden_ingredients: [], style_tags: [], derived_at: "runtime" }),
+    null
+  );
+});
+
+test("normalizeBuildSpec returns null for impossible enum values — the exact case it was failing", () => {
+  // Verified in compiled output: { dish_family: "stew", dish_family_source: "garbage", anchor_source: "oops" }
+  // passed the old guard because it only checked arrays and derived_at.
+  assert.equal(
+    normalizeBuildSpec({
+      derived_at: "lock_time",
+      required_ingredients: [],
+      forbidden_ingredients: [],
+      style_tags: [],
+      dish_family: "stew",            // not in DISH_FAMILIES
+      dish_family_source: "garbage",  // not a valid provenance enum
+      anchor_source: "oops",          // not a valid provenance enum
+      display_title: "x",
+      build_title: "x",
+      primary_anchor_type: null,
+      primary_anchor_value: null,
+      must_preserve_format: false,
+      confidence: 0.5,
+    }),
+    null
+  );
+});
+
+test("normalizeBuildSpec returns null when dish_family is a non-canonical string", () => {
+  assert.equal(
+    normalizeBuildSpec({
+      derived_at: "lock_time",
+      required_ingredients: [], forbidden_ingredients: [], style_tags: [],
+      dish_family: "stew",  // valid-looking but not in DISH_FAMILIES
+      dish_family_source: "inferred", anchor_source: "none",
+      display_title: "x", build_title: "x",
+      primary_anchor_type: null, primary_anchor_value: null,
+      must_preserve_format: false, confidence: 0.5,
+    }),
+    null
+  );
+});
+
+test("normalizeBuildSpec returns null when anchor_source is an unrecognized value", () => {
+  assert.equal(
+    normalizeBuildSpec({
+      derived_at: "lock_time",
+      required_ingredients: [], forbidden_ingredients: [], style_tags: [],
+      dish_family: null, dish_family_source: "inferred",
+      anchor_source: "unknown_value",  // not model/inferred/none
+      display_title: "x", build_title: "x",
+      primary_anchor_type: null, primary_anchor_value: null,
+      must_preserve_format: false, confidence: 0.5,
+    }),
+    null
+  );
+});
+
+test("normalizeBuildSpec returns null when primary_anchor_type is an unrecognized string", () => {
+  assert.equal(
+    normalizeBuildSpec({
+      derived_at: "lock_time",
+      required_ingredients: [], forbidden_ingredients: [], style_tags: [],
+      dish_family: null, dish_family_source: "inferred", anchor_source: "none",
+      display_title: "x", build_title: "x",
+      primary_anchor_type: "veggie",  // not dish/protein/ingredient/format
+      primary_anchor_value: "broccoli",
+      must_preserve_format: false, confidence: 0.5,
+    }),
+    null
+  );
+});
+
+test("normalizeBuildSpec returns null when required scalars have wrong types", () => {
+  const base = {
+    derived_at: "lock_time",
+    required_ingredients: [], forbidden_ingredients: [], style_tags: [],
+    dish_family: null, dish_family_source: "inferred", anchor_source: "none",
+    primary_anchor_type: null, primary_anchor_value: null,
+    must_preserve_format: false, confidence: 0.5,
+  };
+  assert.equal(normalizeBuildSpec({ ...base, build_title: 42 }), null);
+  assert.equal(normalizeBuildSpec({ ...base, display_title: null }), null);
+  assert.equal(normalizeBuildSpec({ ...base, must_preserve_format: "yes" }), null);
+  assert.equal(normalizeBuildSpec({ ...base, confidence: "high" }), null);
+});
+
+test("normalizeBuildSpec returns the object typed as BuildSpec when all fields are valid", () => {
+  const value = {
+    derived_at: "lock_time" as const,
+    required_ingredients: [],
+    forbidden_ingredients: [],
+    style_tags: [],
+    dish_family: null,
+    display_title: "Shrimp Tacos",
+    build_title: "Shrimp Tacos",
+    primary_anchor_type: "protein" as const,
+    primary_anchor_value: "shrimp",
+    must_preserve_format: true,
+    confidence: 0.92,
+    dish_family_source: "inferred" as const,
+    anchor_source: "inferred" as const,
+  };
+  assert.ok(normalizeBuildSpec(value) !== null);
+});
+
+// --- Malformed build_spec fallback in buildLockedBrief ---
+
+test("buildLockedBrief does not throw when build_spec is an empty object and falls back to legacy", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      summary: "Shredded chicken on tostadas with avocado crema.",
+      tags: ["Mexican"],
+    },
+  });
+  // Inject a malformed build_spec (stale client payload, corrupted storage).
+  const malformed = { ...session, build_spec: {} as never };
+
+  assert.doesNotThrow(() => buildLockedBrief({ session: malformed, conversationHistory: [] }));
+  const brief = buildLockedBrief({ session: malformed, conversationHistory: [] });
+  assert.equal(brief.request_mode, "locked");
+  // Legacy path note should appear — not the BuildSpec fast path note.
+  assert.ok(brief.compiler_notes.some((n) => n.toLowerCase().includes("legacy")));
+});
+
+test("buildLockedBrief does not throw when build_spec is missing required arrays and falls back to legacy", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      summary: "Shredded chicken on tostadas with avocado crema.",
+      tags: ["Mexican"],
+    },
+  });
+  // Partial spec: has derived_at sentinel but missing the array fields.
+  const partial = { ...session, build_spec: { derived_at: "lock_time" } as never };
+
+  assert.doesNotThrow(() => buildLockedBrief({ session: partial, conversationHistory: [] }));
+  const brief = buildLockedBrief({ session: partial, conversationHistory: [] });
+  assert.ok(brief.compiler_notes.some((n) => n.toLowerCase().includes("legacy")));
+});
+
+// --- Debug metadata regression (brief_source) ---
+
+test("buildLockedBrief uses the BuildSpec fast path and notes it in compiler_notes when spec is valid", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      summary: "Shredded chicken on tostadas with avocado crema.",
+      tags: ["Mexican"],
+    },
+    conversationHistory: [],
+  });
+  // Session created with conversationHistory — build_spec is populated.
+  assert.ok(session.build_spec !== null);
+  const brief = buildLockedBrief({ session, conversationHistory: [] });
+  assert.ok(brief.compiler_notes.some((n) => n.includes("BuildSpec")));
+});
+
+test("buildLockedBrief uses the legacy path and notes it in compiler_notes when spec is malformed", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Crispy Chicken Tostadas with Avocado Crema",
+      summary: "Shredded chicken on tostadas with avocado crema.",
+      tags: ["Mexican"],
+    },
+    conversationHistory: [],
+  });
+  const malformed = { ...session, build_spec: {} as never };
+  const brief = buildLockedBrief({ session: malformed, conversationHistory: [] });
+  assert.ok(brief.compiler_notes.some((n) => n.toLowerCase().includes("legacy")));
 });

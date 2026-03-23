@@ -3,6 +3,12 @@ export type ChefDirectionOption = {
   title: string;
   summary: string;
   tags: string[];
+  /** Dish family identifier provided by the model (Phase 3b). null/undefined for legacy options. */
+  dish_family?: string | null;
+  /** Primary anchor ingredient/protein/dish provided by the model. null/undefined for legacy options. */
+  primary_anchor?: string | null;
+  /** Type of the primary anchor. null/undefined for legacy options. */
+  primary_anchor_type?: "dish" | "protein" | "ingredient" | "format" | null;
 };
 
 export function optionsTooSimilar(options: ChefDirectionOption[]): boolean {
@@ -97,7 +103,7 @@ export function extractChefOptions(reply: string): ChefDirectionOption[] {
   const explicitMatches = Array.from(normalized.matchAll(/(?:^|\n)\s*(?:option\s*(\d+)|(\d+)[\).\]])\s*:\s*([\s\S]+?)(?=(?:\n\s*(?:option\s*\d+|\d+[\).\]])\s*:)|$)/gim));
   if (explicitMatches.length > 0) {
     return explicitMatches
-      .map((match, index) => {
+      .map((match, index): ChefDirectionOption | null => {
         const summary = cleanSentence(match[3] ?? "");
         if (!summary) {
           return null;
@@ -107,6 +113,9 @@ export function extractChefOptions(reply: string): ChefDirectionOption[] {
           title: deriveTitle(summary),
           summary,
           tags: deriveTags(summary),
+          dish_family: null,
+          primary_anchor: null,
+          primary_anchor_type: null,
         };
       })
       .filter((item): item is ChefDirectionOption => item !== null)
@@ -165,7 +174,7 @@ export function normalizeChefChatEnvelope(value: unknown): ChefChatEnvelope | nu
 
   const options = Array.isArray(raw.options)
     ? raw.options
-        .map((item, index) => {
+        .map((item, index): ChefDirectionOption | null => {
           if (!item || typeof item !== "object") {
             return null;
           }
@@ -175,6 +184,11 @@ export function normalizeChefChatEnvelope(value: unknown): ChefChatEnvelope | nu
           if (!title || !summary) {
             return null;
           }
+          const rawAnchorType = typeof option.primary_anchor_type === "string" ? option.primary_anchor_type : null;
+          const anchorType =
+            rawAnchorType === "dish" || rawAnchorType === "protein" || rawAnchorType === "ingredient" || rawAnchorType === "format"
+              ? rawAnchorType
+              : null;
           return {
             id: typeof option.id === "string" && option.id.trim() ? option.id.trim() : `option-${index + 1}`,
             title,
@@ -182,6 +196,9 @@ export function normalizeChefChatEnvelope(value: unknown): ChefChatEnvelope | nu
             tags: Array.isArray(option.tags)
               ? option.tags.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0).map((tag) => tag.trim()).slice(0, 4)
               : [],
+            dish_family: typeof option.dish_family === "string" && option.dish_family.trim() ? option.dish_family.trim() : null,
+            primary_anchor: typeof option.primary_anchor === "string" && option.primary_anchor.trim() ? option.primary_anchor.trim() : null,
+            primary_anchor_type: anchorType,
           };
         })
         .filter((item): item is ChefDirectionOption => item !== null)

@@ -658,6 +658,12 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
               summary: selectedDirectionOverride.summary,
               tags: selectedDirectionOverride.tags,
             },
+            conversationHistory: messages
+              .filter((m) => m.role === "user" || m.role === "ai")
+              .map((m) => ({ role: m.role === "ai" ? "assistant" as const : "user" as const, content: m.text })),
+            modelDishFamily: selectedDirectionOverride.dish_family ?? null,
+            modelAnchor: selectedDirectionOverride.primary_anchor ?? null,
+            modelAnchorType: selectedDirectionOverride.primary_anchor_type ?? null,
           });
     const { conversationText, ideaTitle, latestUserPrompt, ingredients, conversationHistory } = buildRecipeSeedFromConversation(
       messages,
@@ -889,14 +895,21 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     await createRecipeFromConversation(sliced, "chef-chat-reply", buildSelectedDirectionForMessages(sliced, replyDirection));
   };
 
-  const handleSelectChefDirection = (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => {
+  const handleSelectChefDirection = (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[]; dish_family?: string | null; primary_anchor?: string | null; primary_anchor_type?: "dish" | "protein" | "ingredient" | "format" | null }) => {
     setSelectedChefDirection({
       replyIndex,
       optionId: option.id,
       title: option.title,
       summary: option.summary,
       tags: option.tags,
+      dish_family: option.dish_family ?? null,
+      primary_anchor: option.primary_anchor ?? null,
+      primary_anchor_type: option.primary_anchor_type ?? null,
     });
+    // Convert chat messages to AIMessage format for BuildSpec derivation.
+    const conversationHistory = heroChatMessages
+      .filter((m) => m.role === "user" || m.role === "ai")
+      .map((m) => ({ role: m.role === "ai" ? "assistant" as const : "user" as const, content: m.text }));
     setLockedSession(
       createLockedSessionFromDirection({
         conversationKey: conversationKeyRef.current,
@@ -906,6 +919,10 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           summary: option.summary,
           tags: option.tags,
         },
+        conversationHistory,
+        modelDishFamily: option.dish_family ?? null,
+        modelAnchor: option.primary_anchor ?? null,
+        modelAnchorType: option.primary_anchor_type ?? null,
       })
     );
     setHeroChatReadyToApply(true);

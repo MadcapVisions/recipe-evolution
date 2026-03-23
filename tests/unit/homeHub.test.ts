@@ -45,3 +45,25 @@ test("normalizeGeneratedRecipeForTest explains when recognizable steps are missi
   assert.equal(normalized.recipe, null);
   assert.equal(normalized.reason, "Recipe JSON was missing recognizable steps.");
 });
+
+test("normalizeGeneratedRecipeForTest accepts multiline string ingredients and steps", () => {
+  const normalized = normalizeGeneratedRecipePayload(
+    {
+      title: "Spanish-Style Braise",
+      ingredients: "1 chicken leg quarter\n2 cups tomato pulp\n8 oz mushrooms",
+      steps: "1. Sear the chicken until browned.\n2. Braise with tomato pulp and mushrooms until tender.",
+    },
+    "Fallback Title"
+  );
+
+  assert.equal(normalized.reason, null);
+  assert.deepEqual(normalized.recipe?.ingredients.map((item) => item.name), [
+    "1 chicken leg quarter",
+    "2 cups tomato pulp",
+    "8 oz mushrooms",
+  ]);
+  assert.deepEqual(normalized.recipe?.steps.map((item) => item.text), [
+    "Sear the chicken until browned.",
+    "Braise with tomato pulp and mushrooms until tender.",
+  ]);
+});

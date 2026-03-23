@@ -12,9 +12,17 @@ export type HomeGeneratedRecipe = {
   chefTips: string[];
 };
 
+export type NormalizationLog = {
+  raw_top_level_keys: string[];
+  path_taken: "direct" | "unwrapped" | "failed";
+  missing_fields: string[];
+  repaired_fields: string[];
+};
+
 export type RecipeNormalizationResult = {
   recipe: HomeGeneratedRecipe | null;
   reason: string | null;
+  normalization_log: NormalizationLog;
 };
 
 const WRAPPER_KEYS = ["recipe", "data", "result", "output"] as const;
@@ -70,6 +78,22 @@ function getArrayByKeys(raw: Record<string, unknown>, keys: readonly string[]) {
     }
   }
   return [];
+}
+
+function splitTextList(value: string): string[] {
+  return value
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function getStringByKeys(raw: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    if (typeof raw[key] === "string" && raw[key]!.trim().length > 0) {
+      return raw[key] as string;
+    }
+  }
+  return null;
 }
 
 function parseFractionString(raw: string): number | null {
@@ -159,28 +183,65 @@ function normalizeStepItem(item: unknown): { text: string } | null {
 }
 
 export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: string): RecipeNormalizationResult {
+  const failedLog: NormalizationLog = {
+    raw_top_level_keys: [],
+    path_taken: "failed",
+    missing_fields: [],
+    repaired_fields: [],
+  };
+
   if (!value || typeof value !== "object") {
-    return { recipe: null, reason: "Recipe payload was not an object." };
+    return { recipe: null, reason: "Recipe payload was not an object.", normalization_log: failedLog };
   }
+
+  const topLevelKeys = Object.keys(value as Record<string, unknown>);
+  const isTopLevelDirect =
+    INGREDIENT_KEYS.some((k) => Array.isArray((value as Record<string, unknown>)[k])) ||
+    STEP_KEYS.some((k) => Array.isArray((value as Record<string, unknown>)[k]));
+  const pathTaken: NormalizationLog["path_taken"] = isTopLevelDirect ? "direct" : "unwrapped";
 
   const raw = unwrapRecipePayload(value);
   if (!raw) {
-    return { recipe: null, reason: "Recipe payload could not be unwrapped." };
+    return {
+      recipe: null,
+      reason: "Recipe payload could not be unwrapped.",
+      normalization_log: { ...failedLog, raw_top_level_keys: topLevelKeys, path_taken: "failed" },
+    };
   }
 
   const rawIngredients = getArrayByKeys(raw, INGREDIENT_KEYS);
   const rawSteps = getArrayByKeys(raw, STEP_KEYS);
-  const ingredients = rawIngredients.map(normalizeIngredientItem).filter((item): item is { name: string } => item !== null);
-  const steps = rawSteps.map(normalizeStepItem).filter((item): item is { text: string } => item !== null);
+  const ingredientBlock = getStringByKeys(raw, INGREDIENT_KEYS);
+  const stepBlock = getStringByKeys(raw, STEP_KEYS);
+
+  const repairedFields: string[] = [];
+  const ingredientSource = rawIngredients.length > 0 ? rawIngredients : ingredientBlock ? splitTextList(ingredientBlock) : [];
+  if (rawIngredients.length === 0 && ingredientBlock) repairedFields.push("ingredients_from_text");
+  const stepSource = rawSteps.length > 0 ? rawSteps : stepBlock ? splitTextList(stepBlock) : [];
+  if (rawSteps.length === 0 && stepBlock) repairedFields.push("steps_from_text");
+  if (typeof raw.title !== "string" || !raw.title.trim()) repairedFields.push("title_from_fallback");
+
+  const ingredients = ingredientSource
+    .map(normalizeIngredientItem)
+    .filter((item): item is { name: string } => item !== null);
+  const steps = stepSource
+    .map(normalizeStepItem)
+    .filter((item): item is { text: string } => item !== null);
+
+  const missingFields: string[] = [];
+  if (ingredients.length === 0) missingFields.push("ingredients");
+  if (steps.length === 0) missingFields.push("steps");
+
+  const log: NormalizationLog = {
+    raw_top_level_keys: topLevelKeys,
+    path_taken: pathTaken,
+    missing_fields: missingFields,
+    repaired_fields: repairedFields,
+  };
 
   if (ingredients.length === 0 || steps.length === 0) {
-    const missingParts = [
-      ingredients.length === 0 ? "ingredients" : null,
-      steps.length === 0 ? "steps" : null,
-    ]
-      .filter(Boolean)
-      .join(" and ");
-    return { recipe: null, reason: `Recipe JSON was missing recognizable ${missingParts}.` };
+    const missingParts = missingFields.join(" and ");
+    return { recipe: null, reason: `Recipe JSON was missing recognizable ${missingParts}.`, normalization_log: log };
   }
 
   const title = typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : fallbackTitle;
@@ -206,5 +267,6 @@ export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: s
       chefTips,
     },
     reason: null,
+    normalization_log: log,
   };
 }

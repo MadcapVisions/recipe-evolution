@@ -16,6 +16,7 @@ import { getCookingBrief, upsertCookingBrief } from "@/lib/ai/briefStore";
 import { appendLockedSessionRefinementDelta, buildLockedBrief } from "@/lib/ai/lockedSession";
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
+import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
 import { normalizeChefChatEnvelope } from "@/lib/ai/chefOptions";
 import { looksLikePivotRequest } from "@/lib/ai/briefStateMachine";
 import { extractRefinementDeltaWithFallback } from "@/lib/ai/refinementExtraction.server";
@@ -58,6 +59,27 @@ const lockedSessionSchema = z.object({
     })
   ),
   brief_snapshot: z.any().nullable(),
+  // Invalid or partial objects (e.g. stale client, empty {}) fall back to null via .catch(null)
+  // so the session degrades to legacy reconstruction rather than throwing a 500.
+  build_spec: z
+    .object({
+      dish_family: z.string().nullable(),
+      display_title: z.string(),
+      build_title: z.string(),
+      primary_anchor_type: z.enum(["dish", "protein", "ingredient", "format"]).nullable(),
+      primary_anchor_value: z.string().nullable(),
+      required_ingredients: z.array(z.string()),
+      forbidden_ingredients: z.array(z.string()),
+      style_tags: z.array(z.string()),
+      must_preserve_format: z.boolean(),
+      confidence: z.number(),
+      derived_at: z.literal("lock_time"),
+      dish_family_source: z.enum(["model", "inferred"]).optional().default("inferred"),
+      anchor_source: z.enum(["model", "inferred", "none"]).optional().default("none"),
+    })
+    .nullable()
+    .optional()
+    .catch(null),
 });
 
 const recipeContextSchema = z
@@ -207,7 +229,10 @@ export async function POST(request: Request) {
             scope: "home_hub",
           })
         : null;
-      const currentSession: LockedDirectionSession | null = isSessionReset ? null : (body.lockedSession ?? persistedSession?.session_json ?? null);
+      const rawCurrentSession = isSessionReset ? null : (body.lockedSession ?? persistedSession?.session_json ?? null);
+      const currentSession: LockedDirectionSession | null = rawCurrentSession
+        ? { ...rawCurrentSession, build_spec: normalizeBuildSpec(rawCurrentSession.build_spec) }
+        : null;
       const pivotedAwayFromLockedSession =
         Boolean(currentSession?.selected_direction) && looksLikePivotRequest(userMessage);
       const refinedDelta =
