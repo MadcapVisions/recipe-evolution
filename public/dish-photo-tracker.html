@@ -50,141 +50,137 @@ const STORAGE_KEY = "dish-photo-tracker-v1";
 
 const sections = [
   {
-    title: "Baked Goods",
+    title: "Sweets",
     families: [
-      { id: "brownies_bars", triggers: "brownie, brownies, blondie, blondies, lemon bar, lemon bars, nanaimo bar, rice krispie treat, traybake, flapjack, granola bar, cereal bar, energy bar" },
-      { id: "muffins_scones", triggers: "muffin, muffins, scone, scones, quick bread" },
-      { id: "cookies", triggers: "cookie, cookies, biscotti, snickerdoodle, shortbread, macaroon, macaron, linzer cookie, thumbprint cookie, springerle, pizzelle, tuile, florentine, rugelach, hamantaschen, sandwich cookie" },
-      { id: "cake", triggers: "cupcake, cheesecake, pound cake, bundt cake, layer cake, coffee cake, upside-down cake, sponge cake, carrot cake, red velvet, angel food, swiss roll, roulade, chiffon cake, genoise, opera cake, dobos torte, black forest; also bare 'cake'" },
-      { id: "pastry", triggers: "croissant, danish, puff pastry, pain au chocolat, strudel, palmier, eclair, profiterole, choux, mille-feuille, napoleon pastry, vol-au-vent, paris-brest, phyllo, filo pastry, baklava, baklawa" },
-      { id: "fried_pastry", triggers: "donut, doughnut, beignet, churro, churros, funnel cake, zeppole, sopapilla, loukoumades, struffoli" },
-      { id: "dessert_bread", triggers: "cinnamon roll, cinnamon bun, monkey bread, babka, kolache, stollen, panettone, cardamom bun, morning bun, sticky bun" },
-      { id: "bread", triggers: "banana bread, zucchini bread, pumpkin bread, cornbread, sandwich bread, sourdough bread, whole wheat bread, bread loaf, bread roll, dinner roll, brioche, challah, baguette, ciabatta, naan bread, pita bread, pretzel, bagel, english muffin, pull-apart bread" },
-      { id: "pie", triggers: "apple pie, cherry pie, pumpkin pie, pecan pie, key lime pie, lemon meringue, tarte tatin, galette, cream pie, chess pie, sweet potato pie, banoffee pie, mississippi mud pie" },
-      { id: "tart", triggers: "tart, tartlet, fruit tart, custard tart, lemon tart, chocolate tart, quiche, savory tart" },
-      { id: "frozen_dessert", triggers: "ice cream, gelato, sorbet, sherbet, popsicle, semifreddo, frozen yogurt, granita, ice lolly, frozen custard, kulfi, mochi ice cream" },
-      { id: "custard_pudding", triggers: "pudding, mousse, custard, panna cotta, crème brûlée, flan, crème caramel, pot de creme, blancmange, posset, syllabub, bread pudding, rice pudding, sticky toffee pudding, chia pudding" },
-      { id: "candy_confection", triggers: "fudge, brittle, toffee candy, chocolate truffle, caramel candy, marshmallow, praline, chocolate bark, nougat, peanut brittle, butterscotch candy, confection, marzipan, fondant candy, candy bar, caramel apple" },
-      { id: "dessert", triggers: "tiramisu, trifle, parfait, apple/berry/fruit crumble, apple/berry crisp, cobbler, eton mess, affogato, pavlova, banoffee, baked alaska, profiteroles, dessert" },
+      { id: "bars_slices", triggers: "brownie bar, blondie, lemon bar, nanaimo bar, rice krispie treat, flapjack, traybake" },
+      { id: "muffins", triggers: "muffin, scone" },
+      { id: "cookies", triggers: "cookie, sandwich cookie, biscotti, macaron, thumbprint cookie, linzer cookie" },
+      { id: "cake_slice", triggers: "layer cake, pound cake, bundt cake, sponge cake, cheesecake, swiss roll" },
+      { id: "cupcakes", triggers: "cupcake" },
+      { id: "pastries", triggers: "croissant, danish, pain au chocolat, strudel, mille-feuille, éclair, cream puff, baklava, palmier" },
+      { id: "fried_dough_sweets", triggers: "donut, churro, beignet, funnel cake, zeppole" },
+      { id: "sweet_breads_buns", triggers: "cinnamon roll, sticky bun, babka, panettone, stollen" },
+      { id: "bread_loaf_sweet", triggers: "banana bread, pumpkin bread, zucchini bread, cornbread" },
+      { id: "pie_slice", triggers: "fruit pie, pumpkin pie, pecan pie, cream pie" },
+      { id: "tarts", triggers: "fruit tart, lemon tart, custard tart, tartlet" },
+      { id: "frozen_desserts", triggers: "ice cream, popsicle, sorbet, frozen yogurt, kulfi, mochi ice cream" },
+      { id: "custards_puddings", triggers: "pudding, mousse, panna cotta, crème brûlée, flan, rice pudding, bread pudding" },
+      { id: "candy_confections", triggers: "fudge, brittle, truffle, marshmallow, bark, candy bar, caramel apple" },
+      { id: "layered_plated_desserts", triggers: "tiramisu, trifle, parfait, pavlova, crumble, cobbler, affogato" },
     ]
   },
   {
-    title: "Pizza & Flatbread",
+    title: "Bread, Pizza & Flatbread",
     families: [
       { id: "pizza", triggers: "pizza, calzone, stromboli" },
-      { id: "flatbread", triggers: "flatbread, focaccia, naan, pita, lavash, manakish, khachapuri, lahmacun, tarte flambée, flammkuchen" },
+      { id: "flatbreads", triggers: "flatbread, focaccia, naan, pita, lavash, manakish, lahmacun" },
+      { id: "artisan_bread", triggers: "sourdough loaf, sandwich loaf, baguette, ciabatta, brioche, challah" },
+      { id: "bread_rolls", triggers: "dinner roll, bread roll, pull-apart bread" },
+      { id: "bagels_pretzels", triggers: "bagel, pretzel, english muffin" },
     ]
   },
   {
-    title: "Pasta, Noodles & Rice",
+    title: "Pasta, Noodles, Rice & Grains",
     families: [
-      { id: "noodle_soup", triggers: "ramen, pho, laksa, wonton noodle soup, chicken noodle soup, udon soup, soba soup, tantanmen" },
-      { id: "pasta", triggers: "pasta, linguine, fettuccine, spaghetti, penne, rigatoni, fusilli, farfalle, tortellini, pappardelle, tagliatelle, orzo, gnocchi, macaroni, mac and cheese, lasagna, cannelloni, bucatini, cacio e pepe, amatriciana, carbonara, ravioli, orecchiette, paccheri" },
-      { id: "stir_fry", triggers: "stir-fry, stir fry, pad thai, pad see ew, chow mein, lo mein, yakisoba, japchae, hokkien noodles" },
-      { id: "rice", triggers: "risotto, paella, biryani, pilaf, fried rice, jollof rice, arroz con, nasi goreng, arancini, rice pilaf, dirty rice, rice casserole" },
-      { id: "grains", triggers: "quinoa, couscous, farro, barley, bulgur, polenta, millet, freekeh, wheat berry, spelt, grain dish" },
+      { id: "noodle_soup", triggers: "ramen, pho, laksa, udon soup, soba soup, chicken noodle soup" },
+      { id: "long_pasta", triggers: "spaghetti, linguine, fettuccine, pappardelle, tagliatelle, bucatini" },
+      { id: "short_pasta", triggers: "penne, rigatoni, fusilli, farfalle, macaroni, orecchiette, paccheri" },
+      { id: "stuffed_pasta", triggers: "ravioli, tortellini, cannelloni, lasagna" },
+      { id: "mac_cheese_bakes", triggers: "mac and cheese, baked ziti, pasta bake" },
+      { id: "stir_fried_noodles", triggers: "pad thai, chow mein, lo mein, yakisoba, japchae" },
+      { id: "rice_dishes", triggers: "risotto, paella, biryani, fried rice, pilaf, jollof rice, nasi goreng" },
+      { id: "grain_bowls_sides", triggers: "quinoa, couscous, farro, barley, bulgur, polenta" },
     ]
   },
   {
-    title: "Mexican / Handhelds / Wraps",
+    title: "Handhelds, Wraps & Dumplings",
     families: [
-      { id: "tamales", triggers: "tamale, tamales" },
-      { id: "tacos", triggers: "taco, tacos, tostada, burrito, burritos, quesadilla, enchilada, fajita, nachos, chimichanga, chalupa, huevos rancheros, birria" },
-      { id: "burger", triggers: "burger, burgers, slider, sliders, veggie burger, turkey burger, lamb burger, smash burger, patty melt" },
-      { id: "sandwich", triggers: "sandwich, grilled cheese, panini, hoagie, sub sandwich, club sandwich, banh mi, torta, cubano, muffuletta, po' boy, croque monsieur, croque madame, sloppy joe" },
-      { id: "wraps", triggers: "wrap, wraps, shawarma, gyro, gyros, falafel wrap, lettuce wrap, roll-up, pinwheel, lavash wrap, chapati wrap" },
-      { id: "spring_rolls", triggers: "spring roll, egg roll, summer roll, lumpia, rice paper roll, nem cuon, chả giò" },
-      { id: "dumplings", triggers: "dumpling, gyoza, pierogi, potsticker, wonton, dim sum, bao, baozi, manti, momos, xiao long bao, har gow, shumai, ravioli, agnolotti" },
-      { id: "savory_pastry", triggers: "samosa, spanakopita, börek, sausage roll, hand pie, pasty, cornish pasty, empanada, knish, piroshki, tiropita, gozleme" },
+      { id: "tamales", triggers: "tamale" },
+      { id: "tacos", triggers: "taco, tostada, birria taco" },
+      { id: "burritos_quesadillas", triggers: "burrito, quesadilla, chimichanga" },
+      { id: "enchiladas_fajitas_nachos", triggers: "enchilada, fajita, nachos" },
+      { id: "burgers", triggers: "burger, slider, patty melt" },
+      { id: "sandwiches", triggers: "sandwich, grilled cheese, panini, sub, banh mi, torta, cubano, po' boy" },
+      { id: "wraps_gyros", triggers: "wrap, shawarma, gyro, falafel wrap, lettuce wrap" },
+      { id: "spring_rolls", triggers: "spring roll, egg roll, summer roll, lumpia" },
+      { id: "dumplings", triggers: "dumpling, gyoza, pierogi, potsticker, wonton, shumai, bao" },
+      { id: "savory_hand_pies", triggers: "samosa, empanada, pasty, sausage roll, börek, spanakopita, knish, piroshki" },
     ]
   },
   {
-    title: "Soups & Stews",
+    title: "Soups, Stews & Curries",
     families: [
-      { id: "chili", triggers: "chili, chilli, chili con carne, white bean chili, turkey chili" },
-      { id: "soup", triggers: "soup, stew, chowder, bisque, gazpacho, minestrone, pozole, bouillabaisse, gumbo, congee, moqueca, hot pot, shabu shabu, sukiyaki, dal soup, lentil soup, feijoada, scotch broth, mulligatawny" },
-      { id: "curry", triggers: "curry, tikka masala, butter chicken, korma, vindaloo, saag, palak paneer, coconut curry, thai curry, massaman, japanese curry, dal, lentil curry, chana masala, aloo gobi, rendang, roghan josh, karahi" },
+      { id: "chili", triggers: "chili" },
+      { id: "soups", triggers: "soup, chowder, bisque, gazpacho, minestrone, lentil soup" },
+      { id: "stews_braises", triggers: "stew, gumbo, bouillabaisse, tagine, feijoada, hot pot" },
+      { id: "curries", triggers: "curry, tikka masala, butter chicken, korma, thai curry, dal, chana masala, rendang" },
     ]
   },
   {
     title: "Salads, Dips & Sauces",
     families: [
-      { id: "salad", triggers: "salad, slaw, coleslaw, tabbouleh, fattoush, caprese, niçoise, caesar salad, greek salad, cobb salad, waldorf, grain salad, pasta salad, potato salad" },
-      { id: "dips_spreads", triggers: "dip, spread, hummus, guacamole, tzatziki, baba ghanoush, salsa, pesto, aioli, tapenade, muhammara, romesco, whipped feta, bean dip, spinach dip, artichoke dip" },
-      { id: "sauce_condiment", triggers: "sauce, gravy, dressing, marinade, vinaigrette, chimichurri, béchamel, hollandaise, caramel sauce, hot sauce, ketchup, relish, bolognese, ragù, tomato sauce, mole sauce, teriyaki sauce" },
+      { id: "salads", triggers: "green salad, caesar salad, greek salad, cobb salad, caprese, grain salad, pasta salad, potato salad, slaw" },
+      { id: "dips_spreads", triggers: "hummus, guacamole, tzatziki, baba ghanoush, salsa, pesto, whipped feta, bean dip" },
+      { id: "sauces_condiments", triggers: "sauce, gravy, dressing, vinaigrette, chimichurri, béchamel, hollandaise, caramel sauce, hot sauce, tomato sauce" },
     ]
   },
   {
-    title: "Egg & Breakfast",
+    title: "Breakfast & Eggs",
     families: [
-      { id: "egg_dish", triggers: "omelet, omelette, scrambled eggs, fried eggs, baked eggs, shakshuka, frittata, eggs benedict, deviled eggs, cloud eggs, egg bake, egg casserole, huevos" },
-      { id: "pancakes_crepes", triggers: "pancake, pancakes, waffle, waffles, crepe, crepes, dutch baby, blini, blintze, pfannkuchen" },
-      { id: "savory_pancake", triggers: "okonomiyaki, scallion pancake, socca, injera, dosa, uttapam, appam, pajeon, bindaetteok" },
-      { id: "porridge_cereal", triggers: "oatmeal, porridge, overnight oats, muesli, cream of wheat, congee porridge" },
-      { id: "breakfast", triggers: "french toast, granola, hash browns, home fries, breakfast hash, breakfast sandwich, breakfast burrito, full breakfast, english breakfast, brunch" },
+      { id: "egg_dishes", triggers: "omelet, scrambled eggs, fried eggs, shakshuka, frittata, eggs benedict, deviled eggs" },
+      { id: "pancakes_waffles_crepes", triggers: "pancake, waffle, crepe, dutch baby, blini" },
+      { id: "savory_pancakes_flatcakes", triggers: "okonomiyaki, scallion pancake, dosa, pajeon, uttapam" },
+      { id: "porridge_cereal", triggers: "oatmeal, porridge, overnight oats, muesli, congee" },
+      { id: "breakfast_plates", triggers: "french toast, hash browns, breakfast hash, breakfast sandwich, breakfast burrito, full breakfast" },
     ]
   },
   {
-    title: "Baked / Braised Mains",
+    title: "Baked, Braised & Stuffed",
     families: [
-      { id: "pot_pie", triggers: "pot pie, shepherd's pie, shepherds pie, cottage pie, chicken pie, fish pie, steak pie" },
-      { id: "casserole", triggers: "casserole, gratin, dauphinoise, moussaka, baked ziti, pasta bake, tuna bake, chicken bake, green bean casserole, au gratin, scalloped potatoes" },
-      { id: "braised", triggers: "pot roast, braised, osso buco, coq au vin, beef bourguignon, short ribs, carnitas, adobo chicken, slow cooker, crockpot, confit, duck confit, tagine, kleftiko, daube" },
-      { id: "stuffed", triggers: "stuffed pepper, stuffed mushroom, stuffed squash, stuffed chicken, stuffed eggplant, stuffed tomato, dolma, grape leaves, cabbage roll, golabki, chile relleno, twice baked potato, hasselback" },
+      { id: "savory_pies", triggers: "pot pie, shepherd's pie, cottage pie, fish pie" },
+      { id: "casseroles_bakes", triggers: "casserole, gratin, moussaka, scalloped potatoes, green bean casserole" },
+      { id: "braised_meats", triggers: "pot roast, osso buco, coq au vin, beef bourguignon, short ribs, carnitas, duck confit" },
+      { id: "stuffed_vegetables", triggers: "stuffed peppers, stuffed mushrooms, stuffed squash, cabbage rolls, dolma, chile relleno, twice-baked potato" },
     ]
   },
   {
-    title: "Grilled, Fried & Roasted",
+    title: "Grilled, Fried, Roasted & Steamed",
     families: [
-      { id: "grilled_bbq", triggers: "steak, pork chop, lamb chop, kebab, skewer, bbq ribs, spare ribs, baby back ribs, rack of lamb, brisket, pulled pork, smoked chicken, chicken wings, buffalo wings, satay, yakitori, lamb shank, souvlaki, kofta skewer, carne asada, grilled salmon, grilled fish" },
-      { id: "fried", triggers: "fried chicken, chicken tenders, chicken nuggets, fish and chips, fried fish, fried shrimp, tempura, katsu, schnitzel, tonkatsu, calamari, onion rings, corn dog, hush puppies, deep fried, beer battered, panko chicken, breaded chicken" },
-      { id: "roasted", triggers: "roasted, sheet pan" },
-      { id: "steamed", triggers: "steamed buns, steamed fish, steamed chicken, idli, dhokla, chawanmushi" },
-      { id: "fritters_patties", triggers: "fritter, fritters, latke, latkes, potato pancake, zucchini fritter, corn fritter, vegetable fritter, pakora, pakoras, bhaji, bhajis, akara" },
+      { id: "grilled_meats_bbq", triggers: "steak, kebab, ribs, brisket, pulled pork, wings, satay, souvlaki, carne asada" },
+      { id: "grilled_fish_seafood", triggers: "grilled salmon, grilled fish, grilled shrimp" },
+      { id: "fried_proteins", triggers: "fried chicken, tenders, nuggets, fish and chips, fried shrimp, tempura, katsu, schnitzel, calamari" },
+      { id: "fried_sides_snacks", triggers: "onion rings, hush puppies, corn dog" },
+      { id: "roasted_sheet_pan", triggers: "roasted vegetables, roasted chicken pieces, sheet pan meal" },
+      { id: "steamed_dishes", triggers: "steamed buns, steamed fish, idli, dhokla, chawanmushi" },
+      { id: "fritters_patties", triggers: "fritter, latke, pakora, bhaji, corn fritter, zucchini fritter" },
     ]
   },
   {
-    title: "Ground Meat & Raw",
+    title: "Meat, Seafood & Plant Proteins",
     families: [
-      { id: "meatballs_ground_meat", triggers: "meatball, meatballs, meatloaf, meat loaf, kofta, köfte, swedish meatball, italian meatball, turkey meatball, lamb meatball" },
-      { id: "sushi_raw", triggers: "sushi, sashimi, maki roll, hand roll, temaki, onigiri, nigiri, sushi roll, sushi rice" },
-      { id: "raw_cured", triggers: "ceviche, tartare, carpaccio, crudo, poke bowl, gravlax, lox" },
+      { id: "meatballs_meatloaf", triggers: "meatballs, meatloaf, kofta" },
+      { id: "sushi", triggers: "sushi roll, nigiri, sashimi, hand roll, onigiri" },
+      { id: "raw_cured_seafood", triggers: "ceviche, tartare, carpaccio, crudo, poke bowl, gravlax, lox" },
+      { id: "seafood_mains", triggers: "fish fillet, scallops, mussels, clams, lobster, crab, shrimp dish" },
+      { id: "chicken_poultry_mains", triggers: "roast chicken, chicken breast, chicken thigh, duck breast, roast turkey, cornish hen" },
+      { id: "sausage_dishes", triggers: "sausage, bratwurst, chorizo, kielbasa, sausage and peppers, bangers and mash" },
+      { id: "tofu_tempeh", triggers: "tofu, crispy tofu, silken tofu, tempeh, mapo tofu" },
+      { id: "beans_legumes", triggers: "baked beans, refried beans, chickpea dish, lentil dish, falafel, edamame" },
     ]
   },
   {
-    title: "Proteins",
+    title: "Sides, Bowls, Drinks & Preserves",
     families: [
-      { id: "seafood_fish", triggers: "salmon fillet, cod fillet, halibut, trout fillet, tilapia, snapper, shrimp scampi, prawns, scallops, mussels, clams, lobster, crab, seafood, fishcakes, fish stew, shrimp dish, prawn dish" },
-      { id: "chicken_poultry", triggers: "roast chicken, chicken breast, chicken thigh, chicken drumstick, turkey breast, roast turkey, duck breast, duck legs, cornish hen, quail, goose, chicken piccata, chicken marsala, chicken parmesan, chicken milanese, chicken saltimbocca" },
-      { id: "sausage", triggers: "sausage dish, bratwurst, italian sausage, chorizo sausage, kielbasa, andouille, merguez, weisswurst, currywurst, sausage and pepper, toad in the hole, bangers and mash, sausage casserole" },
-      { id: "tofu_tempeh", triggers: "tofu, tempeh, agedashi tofu, mapo tofu, hiyayakko, silken tofu, crispy tofu" },
-      { id: "beans_legumes", triggers: "baked beans, black beans, white beans, cannellini beans, pinto beans, kidney beans, refried beans, edamame, falafel, bean stew, chickpea dish, lentil dish, split peas" },
-    ]
-  },
-  {
-    title: "Sides & Vegetables",
-    families: [
-      { id: "potato", triggers: "mashed potatoes, baked potato, potato wedges, home fries, dauphinoise potatoes, duchess potatoes, potato gratin, patatas bravas, aloo, potato dish" },
-      { id: "vegetable_side", triggers: "roasted carrots, glazed carrots, green beans, roasted asparagus, sautéed spinach, creamed spinach, creamed corn, succotash, ratatouille, caponata, braised greens, collard greens, roasted vegetables" },
-      { id: "skillet", triggers: "skillet, one-pan, one pan" },
-      { id: "bowl", triggers: "rice bowl, grain bowl, poke bowl, burrito bowl, acai bowl, smoothie bowl, buddha bowl, noodle bowl, bowl" },
-    ]
-  },
-  {
-    title: "Beverages & Preserves",
-    families: [
-      { id: "beverage", triggers: "smoothie, milkshake, lemonade, cocktail, mocktail, iced tea, latte, hot chocolate, juice, shake, slushie, frappuccino, sangria, mulled wine, eggnog, horchata, agua fresca, lassi, chai" },
-      { id: "preserve", triggers: "jam, jelly, marmalade, chutney, compote, fruit butter, preserves, conserve, mostarda, fruit curd, lemon curd" },
-      { id: "pickled_fermented", triggers: "pickles, pickled, kimchi, sauerkraut, quick pickles, escabeche, fermented, lacto-fermented, kvass" },
-    ]
-  },
-  {
-    title: "Snacks & Sharing",
-    families: [
-      { id: "appetizer_snack", triggers: "appetizer, snack, bruschetta, crostini, finger food, party food, canape, amuse-bouche, nibbles, antipasto, tapas, mezze" },
-      { id: "board_platter", triggers: "charcuterie board, cheese board, mezze platter, antipasto platter, grazing board, charcuterie, crudités, platter" },
-      { id: "souffle", triggers: "soufflé, souffle" },
-      { id: "fondue", triggers: "fondue" },
+      { id: "potato_sides", triggers: "mashed potatoes, baked potato, wedges, potato gratin, patatas bravas" },
+      { id: "vegetable_sides", triggers: "green beans, roasted carrots, asparagus, sautéed spinach, creamed corn, ratatouille, caponata" },
+      { id: "skillet_one_pan", triggers: "skillet meal, one-pan meal" },
+      { id: "bowls", triggers: "grain bowl, rice bowl, noodle bowl, burrito bowl, poke bowl, smoothie bowl, acai bowl" },
+      { id: "beverages", triggers: "smoothie, milkshake, lemonade, cocktail, mocktail, iced tea, latte, hot chocolate, chai" },
+      { id: "preserves_spreads", triggers: "jam, marmalade, chutney, compote, lemon curd" },
+      { id: "pickled_fermented", triggers: "pickles, kimchi, sauerkraut, escabeche" },
+      { id: "appetizers_snacks", triggers: "bruschetta, crostini, canapés, antipasto, tapas, mezze" },
+      { id: "boards_platters", triggers: "charcuterie board, cheese board, mezze platter, crudités platter" },
+      { id: "souffle_fondue", triggers: "soufflé, fondue" },
     ]
   },
 ];
