@@ -25,6 +25,7 @@ import { buildHomeRecipeAiMetadata } from "./homeRecipeMetadata";
 import { normalizeGeneratedRecipePayload, type HomeGeneratedRecipe, type RecipeNormalizationResult } from "./recipeNormalization";
 import { buildFallbackRecipeOutline, normalizeRecipeOutlinePayload, validateRecipeOutline } from "./recipeOutline";
 import { HOME_RECIPE_JSON_SCHEMA, RECIPE_OUTLINE_JSON_SCHEMA } from "./recipeJsonSchemas";
+import { isLikelyTruncatedRecipePayload } from "./recipeTruncation";
 import { validateRecipeStructure } from "./recipeStructuralValidation";
 
 type HomeIdea = {
@@ -707,6 +708,14 @@ ${input.rawText}`,
   };
 }
 
+function buildExpandedRecipeCallOptions(options: AICallOptions): AICallOptions {
+  const current = typeof options.max_tokens === "number" ? options.max_tokens : 1600;
+  return {
+    ...options,
+    max_tokens: Math.min(current + 1200, 4000),
+  };
+}
+
 export async function generateHomeRecipe(input: {
   ideaTitle: string;
   prompt?: string;
@@ -939,10 +948,41 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     totalEstimatedCostUsd += result.usage.estimated_cost_usd ?? 0;
     hasUsageMetrics = true;
   }
-  const { parsed } = result;
+  let parsed = result.parsed;
   let normalizedResult: RecipeNormalizationResult = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
   let recipe = normalizedResult.recipe;
   let repairFailureContext: Record<string, unknown> | null = null;
+
+  if (!recipe && isLikelyTruncatedRecipePayload({
+    resultText: result.text,
+    finishReason: result.finishReason,
+    parsed,
+    normalized: normalizedResult,
+  })) {
+    try {
+      onStage?.("recipe_generate", "Retrying with more room for the recipe...");
+      const expandedResult = await callAIForJson(messages, buildExpandedRecipeCallOptions(aiCallOptions));
+      if (
+        expandedResult.usage.input_tokens != null ||
+        expandedResult.usage.output_tokens != null ||
+        expandedResult.usage.estimated_cost_usd != null
+      ) {
+        totalInputTokens += expandedResult.usage.input_tokens ?? 0;
+        totalOutputTokens += expandedResult.usage.output_tokens ?? 0;
+        totalEstimatedCostUsd += expandedResult.usage.estimated_cost_usd ?? 0;
+        hasUsageMetrics = true;
+      }
+      result = expandedResult;
+      parsed = expandedResult.parsed;
+      normalizedResult = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
+      recipe = normalizedResult.recipe;
+    } catch (expandedError) {
+      repairFailureContext = {
+        ...(repairFailureContext ?? {}),
+        truncation_retry_error: expandedError instanceof Error ? expandedError.message : String(expandedError),
+      };
+    }
+  }
 
   if (!recipe) {
     // Log normalization telemetry before attempting repair so we capture the raw failure.

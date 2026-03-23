@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeGeneratedRecipePayload } from "../../lib/ai/recipeNormalization";
+import { isLikelyTruncatedRecipePayload } from "../../lib/ai/recipeTruncation";
 
 test("normalizeGeneratedRecipeForTest accepts alternate instruction and ingredient key shapes", () => {
   const normalized = normalizeGeneratedRecipePayload(
@@ -146,4 +147,55 @@ test("normalizeGeneratedRecipeForTest unwraps embedded recipe JSON from nested w
     "Cook the pork until tender and crisp it before serving.",
   ]);
   assert.ok(normalized.normalization_log.repaired_fields.includes("embedded_json_unwrapped"));
+});
+
+test("isLikelyTruncatedRecipePayloadForTest flags length-truncated wrapped recipe payloads", () => {
+  const normalized = normalizeGeneratedRecipePayload(
+    {
+      text: '{ "title": "Spicy Pineapple Chicken Tacos", "ingredients": [ { "name": "chicken", "quantity": 1, "unit": "lb", "prep": null } ], "steps": [ { "text": "Cook',
+    },
+    "Fallback Title"
+  );
+
+  assert.equal(
+    isLikelyTruncatedRecipePayload({
+      resultText:
+        '{ "text": "{ \\"title\\": \\"Spicy Pineapple Chicken Tacos\\", \\"ingredients\\": [ { \\"name\\": \\"chicken\\", \\"quantity\\": 1, \\"unit\\": \\"lb\\", \\"prep\\": null } ], \\"steps\\": [ { \\"text\\": \\"Cook" }',
+      finishReason: "length",
+      parsed: {
+        text: '{ "title": "Spicy Pineapple Chicken Tacos", "ingredients": [ { "name": "chicken", "quantity": 1, "unit": "lb", "prep": null } ], "steps": [ { "text": "Cook',
+      },
+      normalized,
+    }),
+    true
+  );
+});
+
+test("isLikelyTruncatedRecipePayloadForTest ignores valid normalized recipes", () => {
+  const normalized = normalizeGeneratedRecipePayload(
+    {
+      title: "Pineapple Chicken Tacos",
+      ingredients: [{ name: "chicken", quantity: 1, unit: "lb", prep: null }],
+      steps: [{ text: "Cook the chicken and serve in tortillas." }],
+    },
+    "Fallback Title"
+  );
+
+  assert.equal(
+    isLikelyTruncatedRecipePayload({
+      resultText: JSON.stringify({
+        title: "Pineapple Chicken Tacos",
+        ingredients: [{ name: "chicken", quantity: 1, unit: "lb", prep: null }],
+        steps: [{ text: "Cook the chicken and serve in tortillas." }],
+      }),
+      finishReason: "stop",
+      parsed: {
+        title: "Pineapple Chicken Tacos",
+        ingredients: [{ name: "chicken", quantity: 1, unit: "lb", prep: null }],
+        steps: [{ text: "Cook the chicken and serve in tortillas." }],
+      },
+      normalized,
+    }),
+    false
+  );
 });

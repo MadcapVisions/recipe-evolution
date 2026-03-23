@@ -3,6 +3,7 @@ import { getAdminAiDebugEvents } from "@/lib/admin/aiDebugData";
 
 export default async function AdminLogsPage() {
   const [data, aiDebug] = await Promise.all([getAdminDashboardData(), getAdminAiDebugEvents()]);
+  const recentSuccessfulAttempts = aiDebug.generationAttempts.filter((attempt) => attempt.outcome === "passed").slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -49,6 +50,36 @@ export default async function AdminLogsPage() {
           <AiStatCard label="Chat repairs" value={String(aiDebug.stats.repairsLogged)} severity="low" />
           <AiStatCard label="Generation failures" value={String(aiDebug.stats.recentGenerationFailures)} severity="medium" />
         </div>
+
+        <ErrorGroup
+          title="Recent successful runs"
+          description="Most recent recipe generations that passed verification. Use this to confirm which model and attempt count are succeeding in production."
+          severity="low"
+          count={recentSuccessfulAttempts.length}
+          empty="No successful generation attempts logged recently."
+        >
+          {recentSuccessfulAttempts.map((attempt) => {
+            const normalizedSummary = summarizeNormalizedRecipe(attempt.normalized_recipe_json);
+            const totalCost = (attempt.stage_metrics_json ?? []).reduce(
+              (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
+              0
+            );
+            return (
+              <ErrorRow key={attempt.id} timestamp={attempt.created_at} severity="low">
+                <p className="text-sm font-medium text-[color:var(--text)]">
+                  {attempt.scope} · passed · attempt {attempt.attempt_number}
+                </p>
+                <p className="text-sm text-[color:var(--muted)]">
+                  {attempt.provider ?? "unknown"}{attempt.model ? ` · ${attempt.model}` : ""}
+                  {totalCost > 0 ? ` · $${totalCost.toFixed(4)}` : ""}
+                </p>
+                {normalizedSummary ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Normalized: {normalizedSummary}</p>
+                ) : null}
+              </ErrorRow>
+            );
+          })}
+        </ErrorGroup>
 
         {/* Route failures — highest severity */}
         <ErrorGroup
@@ -119,6 +150,7 @@ export default async function AdminLogsPage() {
               const failureContext = attempt.verification_json?.failure_context ?? null;
               const rawPreview = summarizeRawModelOutput(attempt.raw_model_output_json);
               const rawText = extractRawModelText(attempt.raw_model_output_json);
+              const finishReason = extractFinishReason(attempt.raw_model_output_json);
               const normalizedSummary = summarizeNormalizedRecipe(attempt.normalized_recipe_json);
               const totalCost = (attempt.stage_metrics_json ?? []).reduce(
                 (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
@@ -133,6 +165,7 @@ export default async function AdminLogsPage() {
                     {attempt.provider ?? "unknown"}{attempt.model ? ` · ${attempt.model}` : ""}
                     {failureStage ? ` · stage: ${failureStage}` : ""}
                     {retryStrategy ? ` · retry: ${retryStrategy}` : ""}
+                    {finishReason ? ` · finish: ${finishReason}` : ""}
                     {totalCost > 0 ? ` · $${totalCost.toFixed(4)}` : ""}
                   </p>
                   {firstReason ? <p className="mt-1 text-sm text-amber-600">{firstReason}</p> : null}
@@ -334,6 +367,15 @@ function extractRawModelText(value: unknown): string | null {
   }
 
   return JSON.stringify(value);
+}
+
+function extractFinishReason(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  return typeof raw.finishReason === "string" && raw.finishReason.trim().length > 0 ? raw.finishReason : null;
 }
 
 function summarizeNormalizedRecipe(
