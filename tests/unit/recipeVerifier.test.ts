@@ -115,3 +115,36 @@ test("verifyRecipeAgainstBrief fails mismatched named dishes even when family is
   assert.equal(result.passes, false);
   assert.equal(result.checks.dish_family_match, false);
 });
+
+test("verifyRecipeAgainstBrief matches normalized required ingredients semantically", () => {
+  const brief = compileCookingBrief({
+    userMessage: "make garlic butter shrimp pasta",
+    recipeContext: {
+      title: "Garlic Butter Shrimp Pasta",
+      ingredients: ["shrimp", "white beans"],
+      steps: ["Cook the pasta and toss it with shrimp and white beans."],
+    },
+  });
+
+  brief.ingredients.required = ["white beans", "shrimp"];
+  brief.ingredients.centerpiece = "shrimp";
+  brief.directives.must_have = ["pasta", "white beans", "shrimp"];
+
+  const result = verifyRecipeAgainstBrief({
+    brief,
+    recipe: {
+      title: "Quick Garlic Butter Shrimp Pasta with White Beans",
+      description: "A quick pasta with shrimp, white beans, and garlic butter sauce.",
+      ingredients: [
+        { name: "12 oz linguine" },
+        { name: "1 lb shrimp" },
+        { name: "1 can canned white beans" },
+        { name: "4 tbsp butter" },
+      ],
+      steps: [{ text: "Cook the pasta, saute the shrimp, and toss with canned white beans and butter." }],
+    },
+  });
+
+  assert.equal(result.checks.required_ingredients_present, true);
+  assert.equal(result.passes, true);
+});

@@ -45,6 +45,14 @@ const lockedSessionSchema = z.object({
       assistant_text: z.string().nullable(),
       confidence: z.number(),
       ambiguity_reason: z.string().nullable(),
+      ambiguous_notes: z.array(z.string()).optional(),
+      distilled_intents: z
+        .object({
+          ingredient_additions: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
+          ingredient_preferences: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
+          ingredient_removals: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
+        })
+        .optional(),
       extracted_changes: z.object({
         required_ingredients: z.array(z.string()),
         preferred_ingredients: z.array(z.string()),
@@ -111,6 +119,23 @@ function eventLine(event: StreamEvent) {
   return `${JSON.stringify(event)}\n`;
 }
 
+function latestDistilledIntents(session: LockedDirectionSession | null) {
+  return session?.refinements.at(-1)?.distilled_intents ?? null;
+}
+
+function latestRefinementSummary(session: LockedDirectionSession | null) {
+  const latest = session?.refinements.at(-1);
+  if (!latest) {
+    return null;
+  }
+
+  return {
+    confidence: latest.confidence,
+    ambiguity_reason: latest.ambiguity_reason,
+    ambiguous_notes: latest.ambiguous_notes ?? [],
+  };
+}
+
 export async function POST(request: Request) {
   const access = await requireAuthenticatedAiAccess({
     route: "home-hub-build",
@@ -170,6 +195,7 @@ export async function POST(request: Request) {
       let currentAttemptModel: string | undefined;
       let resolvedTaskPrimaryModel: string | undefined;
       let terminalFailureStored = false;
+      let lockedSession: LockedDirectionSession | null = null;
 
       try {
         send({ type: "status", message: "Understanding your request...", stage: "brief_compile" });
@@ -195,7 +221,7 @@ export async function POST(request: Request) {
         // Normalize build_spec: malformed/stale objects become null so the session
         // falls back to legacy reconstruction rather than crashing the fast path.
         const rawSession = body.lockedSession ?? persistedSession?.session_json ?? null;
-        const lockedSession: LockedDirectionSession | null = rawSession
+        lockedSession = rawSession
           ? { ...rawSession, build_spec: normalizeBuildSpec(rawSession.build_spec) }
           : null;
         // Use the persisted (locked) brief when available — it was compiled from
@@ -386,6 +412,8 @@ export async function POST(request: Request) {
                     ideaTitle: resolvedIdeaTitle,
                     prompt: prompt ?? null,
                     ingredients: ingredients ?? [],
+                    refinement_summary: latestRefinementSummary(lockedSession),
+                    distilled_intents: latestDistilledIntents(lockedSession),
                     recipe_outline: null,
                     outline_source: null,
                   },
@@ -489,6 +517,8 @@ export async function POST(request: Request) {
                 ideaTitle: resolvedIdeaTitle,
                 prompt: prompt ?? null,
                 ingredients: ingredients ?? [],
+                refinement_summary: latestRefinementSummary(lockedSession),
+                distilled_intents: latestDistilledIntents(lockedSession),
                 recipe_outline: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
                   ? (result.recipe.ai_metadata_json as { recipe_outline?: unknown }).recipe_outline ?? null
                   : null,
@@ -537,6 +567,8 @@ export async function POST(request: Request) {
                 ideaTitle: body.ideaTitle,
                 prompt: prompt ?? null,
                 ingredients: ingredients ?? [],
+                refinement_summary: latestRefinementSummary(lockedSession),
+                distilled_intents: latestDistilledIntents(lockedSession),
                 recipe_outline: null,
                 outline_source: null,
                 generation_path: failure.verification?.failure_context && typeof failure.verification.failure_context === "object"

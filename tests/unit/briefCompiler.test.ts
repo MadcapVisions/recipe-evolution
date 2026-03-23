@@ -91,3 +91,21 @@ test("compileCookingBrief keeps tostada directions in the taco lane", () => {
   assert.equal(brief.dish.normalized_name, "Chicken Tostadas");
   assert.equal(brief.ingredients.centerpiece, "Chicken Tostadas");
 });
+
+test("compileCookingBrief sanitizes conversational ingredient phrases before they enter the brief", () => {
+  const brief = compileCookingBrief({
+    userMessage: "can we add white beans to this",
+    assistantReply: "White beans would work well here.",
+    conversationHistory: [
+      { role: "user", content: "make garlic butter shrimp pasta" },
+    ],
+    recipeContext: {
+      title: "Garlic Butter Shrimp Pasta",
+      ingredients: ["shrimp", "pasta"],
+      steps: ["Cook the pasta and toss with shrimp in garlic butter."],
+    },
+  });
+
+  assert.deepEqual(brief.ingredients.required, ["white beans"]);
+  assert.ok(!brief.directives.must_have.includes("white beans to this"));
+});

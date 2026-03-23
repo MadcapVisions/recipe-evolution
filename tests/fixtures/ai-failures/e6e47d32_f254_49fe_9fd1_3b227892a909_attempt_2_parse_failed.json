@@ -1,0 +1,48 @@
+{
+  "id": "e6e47d32_f254_49fe_9fd1_3b227892a909_attempt_2_parse_failed",
+  "raw_text": "{\n  \"title\": \"Spicy Pineapple Chicken Tacos\",\n  \"description\": \"Spicy chicken tacos with a vibrant pineapple salsa, featuring jalapeños for an extra kick.\",\n  \"servings\": 4,\n  \"prep_time_min\": 20,\n  \"cook_time_min\": 15,\n  \"difficulty\": \"intermediate\",\n  \"ingredients\": [\n    {\n      \"name\": \"chicken breast or thighs\",\n      \"quantity\": 1.5,\n      \"unit\": \"lb\",\n      \"prep\": \"cut into 1/2-inch pieces\"\n    },\n    {\n      \"name\": \"lime juice\",\n      \"quantity\": 2,\n      \"unit\": \"tbsp\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"garlic\",\n      \"quantity\": 3,\n      \"unit\": \"cloves\",\n      \"prep\": \"minced\"\n    },\n    {\n      \"name\": \"chili powder\",\n      \"quantity\": 1,\n      \"unit\": \"tsp\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"smoked paprika\",\n      \"quantity\": 1,\n      \"unit\": \"tsp\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"jalapeño\",\n      \"quantity\": 1,\n      \"unit\": null,\n      \"prep\": \"finely diced (for chicken)\"\n    },\n    {\n      \"name\": \"olive oil\",\n      \"quantity\": 1,\n      \"unit\": \"tbsp\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"fresh pineapple\",\n      \"quantity\": 1.5,\n      \"unit\": \"cups\",\n      \"prep\": \"diced\"\n    },\n    {\n      \"name\": \"red onion\",\n      \"quantity\": 0.25,\n      \"unit\": \"cup\",\n      \"prep\": \"finely diced\"\n    },\n    {\n      \"name\": \"cilantro\",\n      \"quantity\": 0.25,\n      \"unit\": \"cup\",\n      \"prep\": \"chopped\"\n    },\n    {\n      \"name\": \"lime juice\",\n      \"quantity\": 1,\n      \"unit\": \"tbsp\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"jalapeño\",\n      \"quantity\": 0.5,\n      \"unit\": null,\n      \"prep\": \"minced (for salsa, adjust to taste)\"\n    },\n    {\n      \"name\": \"salt\",\n      \"quantity\": 0.5,\n      \"unit\": \"tsp\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"corn or flour tortillas\",\n      \"quantity\": 8,\n      \"unit\": null,\n      \"prep\": null\n    },\n    {\n      \"name\": \"avocado or guacamole\",\n      \"quantity\": 1,\n      \"unit\": null,\n      \"prep\": \"sliced or prepared\"\n    },\n    {\n      \"name\": \"cotija cheese\",\n      \"quantity\": 0.25,\n      \"unit\": \"cup\",\n      \"prep\": \"crumbled (optional)\"\n    },\n    {\n      \"name\": \"sour cream or crema\",\n      \"quantity\": 0.25,\n      \"unit\": \"cup\",\n      \"prep\": \"(optional)\"\n    }\n  ],\n  \"steps\": [\n    {\n      \"text\": \"In a medium bowl, combine the diced chicken with 2 tablespoons of lime juice, minced garlic, chili powder, smoked paprika, and 1 finely diced jalapeño. Stir well to coat the chicken and let marinate for at least 15 minutes, or up to 30 minutes in the refrigerator.\"\n    },\n    {\n      \"text\": \"While the chicken is marinating,",
+  "fallback_title": "Pineapple Chicken Tacos",
+  "source": {
+    "attempt_id": "2ba01ea1-fbba-4315-98cc-af42035f4bbf",
+    "created_at": "2026-03-23T13:34:18.47215+00:00",
+    "conversation_key": "e6e47d32-f254-49fe-9fd1-3b227892a909",
+    "attempt_number": 2
+  },
+  "observed": {
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": {
+      "repair_failure": {
+        "repair_error": "Recipe JSON was missing recognizable ingredients and steps."
+      },
+      "normalization_log": {
+        "path_taken": "unwrapped",
+        "missing_fields": [
+          "ingredients",
+          "steps"
+        ],
+        "repaired_fields": [
+          "title_from_fallback"
+        ],
+        "raw_top_level_keys": [
+          "text"
+        ]
+      },
+      "raw_top_level_keys": [
+        "text"
+      ],
+      "parsed_top_level_keys": [
+        "text"
+      ]
+    }
+  },
+  "expected": {
+    "parse_success": true,
+    "normalization_reason": "Recipe JSON was missing recognizable ingredients and steps.",
+    "structural_passes": null,
+    "title": null,
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": null
+  }
+}

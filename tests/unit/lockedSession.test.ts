@@ -138,6 +138,53 @@ test("appendLockedSessionRefinement keeps ambiguous refinements out of structure
   assert.equal(refined.refinements[0]?.field_state.notes, "locked");
 });
 
+test("appendLockedSessionRefinement keeps low-confidence style phrasing out of structured style fields", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Chicken Tostadas",
+      summary: "Crunchy tostadas with chicken.",
+      tags: ["Crunchy"],
+    },
+  });
+
+  const refined = appendLockedSessionRefinement(session, {
+    userText: "maybe make it a little brighter",
+    assistantText: "A brighter finish could help.",
+  });
+
+  assert.deepEqual(refined.refinements[0]?.extracted_changes.style_tags, []);
+  assert.equal(refined.refinements[0]?.field_state.style, "unknown");
+  assert.equal(refined.refinements[0]?.field_state.notes, "locked");
+  assert.deepEqual(refined.refinements[0]?.ambiguous_notes, [
+    "maybe make it a little brighter",
+    "A brighter finish could help.",
+  ]);
+});
+
+test("appendLockedSessionRefinement stores distilled ingredient intents without conversational filler", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Garlic Butter Shrimp Pasta",
+      summary: "Shrimp pasta in a garlic butter sauce.",
+      tags: ["Pasta"],
+    },
+  });
+
+  const refined = appendLockedSessionRefinement(session, {
+    userText: "can we add white beans to this",
+    assistantText: "White beans would make it heartier.",
+  });
+
+  assert.deepEqual(refined.refinements[0]?.extracted_changes.required_ingredients, ["white beans"]);
+  assert.deepEqual(refined.refinements[0]?.distilled_intents?.ingredient_additions, [
+    { label: "white beans", canonical_key: "white_bean" },
+  ]);
+});
+
 test("removeLastLockedSessionRefinement drops only the newest refinement", () => {
   const base = createLockedSessionFromDirection({
     conversationKey: "conv-1",

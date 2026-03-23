@@ -59,6 +59,16 @@ test("extractRefinementDelta captures natural preference language", () => {
   assert.ok(result.extracted_changes.preferred_ingredients.includes("garlic"));
 });
 
+test("extractRefinementDelta strips conversational filler from required ingredient phrases", () => {
+  const result = extractRefinementDelta({
+    userText: "can we add white beans to this",
+    assistantText: "White beans would make it a little heartier.",
+  });
+
+  assert.deepEqual(result.extracted_changes.required_ingredients, ["white beans"]);
+  assert.equal(result.extracted_changes.required_ingredients.includes("white beans to this"), false);
+});
+
 test("extractRefinementDelta maps semantic style changes into structured tags", () => {
   const result = extractRefinementDelta({
     userText: "make it feel authentic and a bit heartier",
@@ -67,4 +77,32 @@ test("extractRefinementDelta maps semantic style changes into structured tags", 
 
   assert.ok(result.extracted_changes.style_tags.includes("traditional"));
   assert.ok(result.extracted_changes.style_tags.includes("richer"));
+});
+
+test("extractRefinementDelta keeps weak conversational phrasing out of structured ingredient fields", () => {
+  const result = extractRefinementDelta({
+    userText: "maybe something a little brighter",
+    assistantText: "We could brighten it with acid or herbs.",
+  });
+
+  assert.deepEqual(result.extracted_changes.required_ingredients, []);
+  assert.deepEqual(result.extracted_changes.preferred_ingredients, []);
+  assert.equal(result.field_state.ingredients, "unknown");
+  assert.ok(result.ambiguity_reason);
+});
+
+test("extractRefinementDelta demotes low-confidence style hints into notes only", () => {
+  const result = extractRefinementDelta({
+    userText: "maybe make it a little brighter",
+    assistantText: "A brighter finish could help.",
+  });
+
+  assert.deepEqual(result.extracted_changes.style_tags, []);
+  assert.equal(result.field_state.style, "unknown");
+  assert.equal(result.field_state.notes, "locked");
+  assert.ok(result.ambiguity_reason);
+  assert.deepEqual(result.ambiguous_notes, [
+    "maybe make it a little brighter",
+    "A brighter finish could help.",
+  ]);
 });

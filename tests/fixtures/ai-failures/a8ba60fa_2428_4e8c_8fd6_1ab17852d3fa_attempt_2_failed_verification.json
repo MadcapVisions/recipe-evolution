@@ -1,0 +1,38 @@
+{
+  "id": "a8ba60fa_2428_4e8c_8fd6_1ab17852d3fa_attempt_2_failed_verification",
+  "raw_text": "{\n  \"title\": \"Quick Garlic Butter Shrimp Pasta with White Beans\",\n  \"description\": \"A quick and flavorful pasta dish featuring succulent shrimp, creamy white beans, and a rich garlic butter sauce, perfect for a weeknight meal.\",\n  \"servings\": 4,\n  \"prep_time_min\": 10,\n  \"cook_time_min\": 20,\n  \"difficulty\": \"intermediate\",\n  \"ingredients\": [\n    {\n      \"name\": \"Spaghetti or Linguine\",\n      \"quantity\": 12,\n      \"unit\": \"ounce\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"Shrimp\",\n      \"quantity\": 1,\n      \"unit\": \"lb\",\n      \"prep\": \"peeled, deveined, tails on or off\"\n    },\n    {\n      \"name\": \"Canned White Beans\",\n      \"quantity\": 15,\n      \"unit\": \"ounce\",\n      \"prep\": \"drained and rinsed\"\n    },\n    {\n      \"name\": \"Unsalted Butter\",\n      \"quantity\": 4,\n      \"unit\": \"tablespoon\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"Olive Oil\",\n      \"quantity\": 2,\n      \"unit\": \"tablespoon\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"Garlic\",\n      \"quantity\": 4,\n      \"unit\": \"clove\",\n      \"prep\": \"minced\"\n    },\n    {\n      \"name\": \"Red Pepper Flakes\",\n      \"quantity\": 0.5,\n      \"unit\": \"teaspoon\",\n      \"prep\": null\n    },\n    {\n      \"name\": \"Lemon\",\n      \"quantity\": 1,\n      \"unit\": null,\n      \"prep\": \"juiced\"\n    },\n    {\n      \"name\": \"Fresh Parsley\",\n      \"quantity\": 0.25,\n      \"unit\": \"cup\",\n      \"prep\": \"chopped\"\n    },\n    {\n      \"name\": \"Salt\",\n      \"quantity\": 0.5,\n      \"unit\": \"teaspoon\",\n      \"prep\": \"or to taste\"\n    },\n    {\n      \"name\": \"Black Pepper\",\n      \"quantity\": 0.25,\n      \"unit\": \"teaspoon\",\n      \"prep\": \"freshly ground\"\n    }\n  ],\n  \"steps\": [\n    {\n      \"text\": \"Cook pasta according to package directions in a large pot of generously salted water. Before draining, reserve 1 cup of pasta water.\"\n    },\n    {\n      \"text\": \"While the pasta cooks, pat the shrimp dry with paper towels and season with 1/4 teaspoon salt and 1/4 teaspoon black pepper.\"\n    },\n    {\n      \"text\": \"In a large skillet, melt the butter with the olive oil over medium heat. Add the minced garlic and red pepper flakes, and cook for 1 minute until fragrant, being careful not to burn the garlic.\"\n    },\n    {\n      \"text\": \"Add the seasoned shrimp to the skillet and cook for 2-3 minutes per side, until pink and opaque. Do not overcook.\"\n    },\n    {\n      \"text\": \"Add the drained and rinsed white beans to the skillet with the shrimp, stirring gently to combine and heat through for 1-2 minutes.\"\n    },\n    {\n      \"text\": \"Drain the cooked pasta and add it directly to the skillet with the shrimp and beans. Toss everything together, adding 1/2 cup of the reserved pasta water to create a light sauce. Add more pasta water, a tablespoon at a time, if needed to reach your desired consistency.\"\n    },\n    {\n      \"text\": \"Stir in the fresh lemon juice and chopped parsley. Taste and adjust seasoning with additional salt and pepper if necessary.\"\n    },\n    {\n      \"text\": \"Serve immediately, garnished with extra fresh parsley if desired.\"\n    }\n  ],\n  \"chefTips\": [\n    \"To prevent rubbery shrimp, cook them quickly over medium-high heat until they just turn pink and opaque. They will continue to cook slightly from residual heat.\",\n    \"The starchy pasta water is essential for creating a cohesive sauce that clings to the pasta. Don't skip reserving it!\",\n    \"Rinsing canned beans thoroughly removes excess sodium and any canning liquid, ensuring a cleaner flavor in your dish.\"\n  ]\n}",
+  "fallback_title": "Garlic Butter Shrimp Pasta",
+  "source": {
+    "attempt_id": "d9d27097-3c0e-4e9a-9a93-9cb6221cc6c7",
+    "created_at": "2026-03-23T15:17:02.725227+00:00",
+    "conversation_key": "a8ba60fa-2428-4e8c-8fd6-1ab17852d3fa",
+    "attempt_number": 2
+  },
+  "observed": {
+    "outcome": "failed_verification",
+    "failure_stage": "semantic",
+    "failure_context": {
+      "checks": {
+        "style_match": true,
+        "centerpiece_match": true,
+        "dish_family_match": true,
+        "title_quality_pass": true,
+        "recipe_completeness_pass": true,
+        "required_ingredients_present": false,
+        "forbidden_ingredients_avoided": true
+      },
+      "reasons": [
+        "Recipe is missing one or more required ingredients from the brief."
+      ]
+    }
+  },
+  "expected": {
+    "parse_success": true,
+    "normalization_reason": null,
+    "structural_passes": true,
+    "title": "Quick Garlic Butter Shrimp Pasta with White Beans",
+    "outcome": "passed",
+    "failure_stage": null,
+    "failure_context": null
+  }
+}

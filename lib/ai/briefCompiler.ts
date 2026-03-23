@@ -1,8 +1,11 @@
 import type { AIMessage, RecipeContext } from "./chatPromptBuilder";
 import { createEmptyCookingBrief, type CookingBrief } from "./contracts/cookingBrief";
 import type { LockedDirectionSession } from "./contracts/lockedDirectionSession";
+import { sanitizeCookingBriefIngredients } from "./briefSanitization";
+import { parseIngredientPhrase } from "./ingredientParsing";
 import { deriveIdeaTitleFromConversationContext, detectRequestedDishFamily } from "./homeRecipeAlignment";
 import { deriveBriefRequestMode } from "./briefStateMachine";
+import { extractRefinementDelta } from "./refinementExtractor";
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -93,7 +96,8 @@ function splitIngredientCandidates(value: string) {
   return value
     .split(/,|\band\b/gi)
     .map((item) => item.trim().replace(/^with\s+/i, ""))
-    .filter((item) => item.length > 0)
+    .map((item) => parseIngredientPhrase(item))
+    .filter((item): item is string => Boolean(item))
     .filter((item) => item.split(/\s+/).length <= 4)
     .filter((item) => {
       const normalized = normalizeText(item);
@@ -105,7 +109,9 @@ function extractExplicitRequiredIngredients(text: string) {
   const normalized = normalizeText(text);
   const results: string[] = [];
   const patterns = [
-    /\bmake sure (?:it|this|the dish|the recipe) has ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:\s+and\s+(?:make|keep|stay|be)\b|[.!?]|$))/gu,
+    /\bcan we add ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:\s+and\s+(?:make|keep|stay|be|skip|leave out|remove|avoid)\b|[.!?]|$))/gu,
+    /\badd ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:\s+and\s+(?:make|keep|stay|be|skip|leave out|remove|avoid)\b|[.!?]|$))/gu,
+    /\bmake sure (?:it|this|the dish|the recipe) has ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:\s+and\s+(?:make|keep|stay|be|skip|leave out|remove|avoid)\b|[.!?]|$))/gu,
     /\bmust have ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
     /\bneeds? ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
     /\binclude ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
@@ -126,11 +132,16 @@ function extractExplicitRequiredIngredients(text: string) {
 function extractForbiddenIngredients(text: string) {
   const normalized = normalizeText(text);
   const results: string[] = [];
-  const noMatches = Array.from(normalized.matchAll(/\bno\s+([a-z][a-z\s-]{1,30}?)(?=(?:,| and | but | with |$))/g));
+  const noMatches = Array.from(
+    normalized.matchAll(/\bno\s+([a-z][a-z\s-]{1,30}?)(?=(?:\s*,|\s+and\s+no\b|\s+but\b|\s+with\b|$))/g)
+  );
   for (const match of noMatches) {
     const candidate = (match[1] ?? "").trim();
     if (candidate.length > 1) {
-      results.push(candidate);
+      const parsed = parseIngredientPhrase(candidate);
+      if (parsed) {
+        results.push(parsed);
+      }
     }
   }
   return unique(results);
@@ -233,7 +244,20 @@ export function compileCookingBrief(input: {
   const dishFamily = detectRequestedDishFamily(conversationText);
   const normalizedName = deriveIdeaTitleFromConversationContext(conversationText);
   const forbiddenIngredients = extractForbiddenIngredients(userOnlyText);
-  const requiredIngredients = extractExplicitRequiredIngredients(userOnlyText);
+  const latestUserDelta = input.userMessage
+    ? extractRefinementDelta({
+        userText: input.userMessage,
+        assistantText: assistantReply || null,
+      })
+    : null;
+  const requiredIngredients = unique([
+    ...extractExplicitRequiredIngredients(userOnlyText),
+    ...(latestUserDelta?.extracted_changes.required_ingredients ?? []),
+  ]);
+  const mergedForbiddenIngredients = unique([
+    ...forbiddenIngredients,
+    ...(latestUserDelta?.extracted_changes.forbidden_ingredients ?? []),
+  ]);
   const brief = createEmptyCookingBrief();
   const hasDishSignal = Boolean(
     dishFamily ||
@@ -282,7 +306,7 @@ export function compileCookingBrief(input: {
   brief.ingredients = {
     required: requiredIngredients,
     preferred: unique(recipeContext?.ingredients ?? []),
-    forbidden: forbiddenIngredients,
+    forbidden: mergedForbiddenIngredients,
     centerpiece: deriveCanonicalCenterpiece({
       normalizedName: brief.dish.normalized_name,
       recipeTitle: recipeContext?.title,
@@ -299,7 +323,7 @@ export function compileCookingBrief(input: {
   brief.directives = {
     must_have: unique([...(dishFamily ? [dishFamily] : []), ...brief.style.tags, ...brief.ingredients.required]),
     nice_to_have: [],
-    must_not_have: forbiddenIngredients,
+    must_not_have: mergedForbiddenIngredients,
     required_techniques: dishFamily === "pizza" ? ["bake"] : [],
   };
   brief.field_state = {
@@ -321,5 +345,5 @@ export function compileCookingBrief(input: {
     `Resolved request mode: ${requestMode}.`,
   ];
 
-  return brief;
+  return sanitizeCookingBriefIngredients(brief);
 }

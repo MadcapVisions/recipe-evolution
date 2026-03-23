@@ -1,0 +1,28 @@
+{
+  "id": "a8ba60fa_2428_4e8c_8fd6_1ab17852d3fa_attempt_1_parse_failed",
+  "raw_text": "{\n  \"title\":",
+  "fallback_title": "Garlic Butter Shrimp Pasta",
+  "source": {
+    "attempt_id": "0917d96a-4e5c-4a8a-a571-17d75427788c",
+    "created_at": "2026-03-23T15:16:27.087519+00:00",
+    "conversation_key": "a8ba60fa-2428-4e8c-8fd6-1ab17852d3fa",
+    "attempt_number": 1
+  },
+  "observed": {
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": {
+      "model": "google/gemini-2.5-flash",
+      "provider": "openrouter"
+    }
+  },
+  "expected": {
+    "parse_success": false,
+    "normalization_reason": null,
+    "structural_passes": null,
+    "title": null,
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": null
+  }
+}

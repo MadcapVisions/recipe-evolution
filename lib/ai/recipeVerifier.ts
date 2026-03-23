@@ -1,6 +1,9 @@
 import type { CookingBrief } from "./contracts/cookingBrief";
 import type { VerificationResult } from "./contracts/verificationResult";
 import { recipeMatchesRequestedDirection } from "./homeRecipeAlignment";
+import { ingredientPhraseMatches } from "./ingredientCanonicalization";
+import { createCachedResolver } from "./ingredientResolver";
+import { ingredientsMatch } from "./ingredientMatching";
 
 type RecipeLike = {
   title: string;
@@ -61,16 +64,44 @@ function titleQualityPass(title: string) {
   return !GENERIC_TITLE_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
-function requiredIngredientsPresent(recipe: RecipeLike, brief: CookingBrief) {
+function requiredIngredientsPresent(
+  recipe: RecipeLike,
+  brief: CookingBrief,
+  resolve: ReturnType<typeof createCachedResolver>
+) {
   if (brief.ingredients.required.length === 0) return true;
-  const text = recipe.ingredients.map((item) => item.name.toLowerCase()).join(" ");
-  return brief.ingredients.required.every((ingredient) => text.includes(ingredient.toLowerCase()));
+  return brief.ingredients.required.every((constraint) => {
+    const resolvedConstraint = resolve(constraint);
+    return recipe.ingredients.some((item) => {
+      const resolvedCandidate = resolve(item.name);
+      // Primary: canonical matching
+      if (ingredientsMatch(resolvedConstraint, resolvedCandidate, "canonical_with_family_fallback")) {
+        return true;
+      }
+      // Fallback: legacy token overlap (preserves existing behavior for unresolved phrases)
+      return ingredientPhraseMatches(constraint, item.name);
+    });
+  });
 }
 
-function forbiddenIngredientsAvoided(recipe: RecipeLike, brief: CookingBrief) {
+function forbiddenIngredientsAvoided(
+  recipe: RecipeLike,
+  brief: CookingBrief,
+  resolve: ReturnType<typeof createCachedResolver>
+) {
   if (brief.ingredients.forbidden.length === 0) return true;
-  const text = recipe.ingredients.map((item) => item.name.toLowerCase()).join(" ");
-  return brief.ingredients.forbidden.every((ingredient) => !text.includes(ingredient.toLowerCase()));
+  return brief.ingredients.forbidden.every((constraint) => {
+    const resolvedConstraint = resolve(constraint);
+    return !recipe.ingredients.some((item) => {
+      const resolvedCandidate = resolve(item.name);
+      // Primary: strict canonical matching for forbidden
+      if (ingredientsMatch(resolvedConstraint, resolvedCandidate, "strict_canonical")) {
+        return true;
+      }
+      // Fallback: legacy token overlap
+      return ingredientPhraseMatches(constraint, item.name);
+    });
+  });
 }
 
 function centerpieceMatch(recipe: RecipeLike, brief: CookingBrief) {
@@ -192,10 +223,11 @@ export function verifyRecipeAgainstBrief(input: {
   }
 
   const context = buildVerificationContext(brief, input.fallbackContext);
+  const resolve = createCachedResolver();
   const dishFamilyMatch = recipeMatchesRequestedDirection(input.recipe, context) && specificDishNameMatch(input.recipe, brief);
   const titlePass = titleQualityPass(input.recipe.title);
-  const requiredPass = requiredIngredientsPresent(input.recipe, brief);
-  const forbiddenPass = forbiddenIngredientsAvoided(input.recipe, brief);
+  const requiredPass = requiredIngredientsPresent(input.recipe, brief, resolve);
+  const forbiddenPass = forbiddenIngredientsAvoided(input.recipe, brief, resolve);
   const centerpiecePass = centerpieceMatch(input.recipe, brief);
   const stylePass = styleMatch(input.recipe, brief);
   const completenessPass = input.recipe.ingredients.length > 0 && input.recipe.steps.length > 0;

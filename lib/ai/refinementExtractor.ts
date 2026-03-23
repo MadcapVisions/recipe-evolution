@@ -1,5 +1,10 @@
 import type { BriefFieldState } from "./contracts/cookingBrief";
 import type { LockedDirectionRefinement } from "./contracts/lockedDirectionSession";
+import type { ResolvedIngredientIntent } from "./ingredientResolutionTypes";
+import { buildDistilledIngredientIntent } from "./ingredientCanonicalization";
+import { parseIngredientPhrase } from "./ingredientParsing";
+import { resolveIngredientPhrase } from "./ingredientResolver";
+import { isHardConstraintConfident, isSoftPreferenceConfident } from "./ingredientResolutionPolicy";
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -40,14 +45,7 @@ function extractDelimitedIngredients(text: string) {
 }
 
 function cleanIngredientCandidate(value: string) {
-  const cleaned = value
-    .trim()
-    .replace(/^(?:some|extra|more|a bit of|a little|just)\s+/i, "")
-    .replace(/\bplease\b/gi, "")
-    .replace(/\b(?:for me|for us)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
+  const cleaned = parseIngredientPhrase(value);
   if (!cleaned) {
     return null;
   }
@@ -97,7 +95,9 @@ function extractSwapIngredients(text: string) {
 function extractRequiredIngredients(text: string) {
   const normalized = normalizeText(text);
   const matches = Array.from(
-    normalized.matchAll(/\b(?:add|include|make sure (?:it|this|the dish|the recipe) has)\s+([\p{L}][\p{L}\s-]{1,60}?)(?=(?:[.!?,]|$))/gu)
+    normalized.matchAll(
+      /\b(?:add|include|make sure (?:it|this|the dish|the recipe) has)\s+([\p{L}][\p{L}\s-]{1,60}?)(?=(?:\s+and\s+(?:skip|leave out|remove|without|no)\b|[.!?,]|$))/gu
+    )
   );
   const longingMatches = Array.from(
     normalized.matchAll(/\b(?:i(?:'d| would)?\s+love|need|craving)\s+(?:some\s+)?([\p{L}][\p{L}\s-]{1,40}?)(?=(?:[.!?,]|$))/gu)
@@ -114,7 +114,11 @@ function extractRequiredIngredients(text: string) {
 
 function extractForbiddenIngredients(text: string) {
   const normalized = normalizeText(text);
-  const matches = Array.from(normalized.matchAll(/\b(?:no|without|skip|leave out|remove)\s+([\p{L}][\p{L}\s-]{1,60}?)(?=(?:[.!?]|$))/gu));
+  const matches = Array.from(
+    normalized.matchAll(
+      /\b(?:no|without|skip|leave out|remove)\s+([\p{L}][\p{L}\s-]{1,60}?)(?=(?:\s*(?:,|\band\b)\s+(?:no|without|skip|leave out|remove)\b|[.!?,]|$))/gu
+    )
+  );
   return normalizeIngredientList(matches.map((match) => match[1] ?? ""));
 }
 
@@ -205,6 +209,69 @@ function inferAmbiguityReason(input: {
   return "Refinement was only partially structured.";
 }
 
+function buildResolvedIngredientIntents(phrases: string[]): ResolvedIngredientIntent[] {
+  return phrases
+    .map((phrase) => {
+      const resolved = resolveIngredientPhrase(phrase);
+      return {
+        raw_phrase: phrase,
+        label: resolved.display_label ?? resolved.core_phrase ?? phrase,
+        canonical_key: resolved.canonical_key,
+        canonical_id: resolved.canonical_id,
+        family_key: resolved.family_key,
+        confidence: resolved.confidence,
+        resolution_method: resolved.resolution_method,
+      } satisfies ResolvedIngredientIntent;
+    })
+    .filter((intent) => isHardConstraintConfident(intent.confidence) || isSoftPreferenceConfident(intent.confidence));
+}
+
+function buildAmbiguousNoteFromLowConfidence(phrases: string[]): string[] {
+  return phrases
+    .map((phrase) => {
+      const resolved = resolveIngredientPhrase(phrase);
+      if (resolved.confidence < 0.75) {
+        const method = resolved.resolution_method;
+        const candidate = resolved.display_label ?? resolved.core_phrase ?? phrase;
+        return `low-confidence ingredient: "${phrase}" → "${candidate}" (${method}, confidence ${resolved.confidence.toFixed(2)})`;
+      }
+      return null;
+    })
+    .filter((note): note is string => note !== null);
+}
+
+function sanitizeLowConfidenceRefinement(refinement: LockedDirectionRefinement): LockedDirectionRefinement {
+  if (refinement.confidence >= 0.7) {
+    return refinement;
+  }
+
+  return {
+    ...refinement,
+    ambiguous_notes: unique([
+      ...(refinement.ambiguous_notes ?? []),
+      refinement.user_text,
+      ...(refinement.assistant_text ? [refinement.assistant_text] : []),
+    ]),
+    extracted_changes: {
+      ...refinement.extracted_changes,
+      required_ingredients: [],
+      preferred_ingredients: [],
+      forbidden_ingredients: [],
+      style_tags: [],
+    },
+    resolved_ingredient_intents: {
+      required: [],
+      preferred: [],
+      forbidden: [],
+    },
+    field_state: {
+      ...refinement.field_state,
+      ingredients: "unknown",
+      style: "unknown",
+    },
+  };
+}
+
 export function extractRefinementDelta(input: {
   userText: string;
   assistantText: string | null;
@@ -231,7 +298,17 @@ export function extractRefinementDelta(input: {
     styleTags,
   });
 
-  return {
+  // Resolve each extracted phrase and collect ambiguous notes for low-confidence ones
+  const resolvedRequired = buildResolvedIngredientIntents(requiredIngredients);
+  const resolvedPreferred = buildResolvedIngredientIntents(preferredIngredients);
+  const resolvedForbidden = buildResolvedIngredientIntents(forbiddenIngredients);
+  const lowConfidenceNotes = [
+    ...buildAmbiguousNoteFromLowConfidence(requiredIngredients),
+    ...buildAmbiguousNoteFromLowConfidence(preferredIngredients),
+    ...buildAmbiguousNoteFromLowConfidence(forbiddenIngredients),
+  ];
+
+  return sanitizeLowConfidenceRefinement({
     user_text: input.userText.trim(),
     assistant_text: input.assistantText?.trim() || null,
     confidence,
@@ -243,6 +320,23 @@ export function extractRefinementDelta(input: {
       styleTags,
       userText: input.userText,
     }),
+    ambiguous_notes: lowConfidenceNotes,
+    distilled_intents: {
+      ingredient_additions: requiredIngredients
+        .map((value) => buildDistilledIngredientIntent(value))
+        .filter((value): value is NonNullable<LockedDirectionRefinement["distilled_intents"]>["ingredient_additions"][number] => Boolean(value)),
+      ingredient_preferences: preferredIngredients
+        .map((value) => buildDistilledIngredientIntent(value))
+        .filter((value): value is NonNullable<LockedDirectionRefinement["distilled_intents"]>["ingredient_preferences"][number] => Boolean(value)),
+      ingredient_removals: forbiddenIngredients
+        .map((value) => buildDistilledIngredientIntent(value))
+        .filter((value): value is NonNullable<LockedDirectionRefinement["distilled_intents"]>["ingredient_removals"][number] => Boolean(value)),
+    },
+    resolved_ingredient_intents: {
+      required: resolvedRequired,
+      preferred: resolvedPreferred,
+      forbidden: resolvedForbidden,
+    },
     extracted_changes: {
       required_ingredients: requiredIngredients,
       preferred_ingredients: preferredIngredients,
@@ -259,5 +353,5 @@ export function extractRefinementDelta(input: {
       style: styleTags.length > 0 ? "inferred" : "unknown",
       notes: input.userText.trim().length > 0 ? "locked" : "unknown",
     },
-  };
+  });
 }

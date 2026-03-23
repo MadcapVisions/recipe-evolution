@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { resolveIngredientPhrase } from "@/lib/ai/ingredientResolver";
 
 type ProductEventRow = {
   id: string;
@@ -21,6 +22,13 @@ type GenerationAttemptRow = {
   attempt_number: number;
   conversation_key: string;
   generator_payload_json: Record<string, unknown> | null;
+  cooking_brief_json: {
+    ingredients?: {
+      required?: string[] | null;
+      preferred?: string[] | null;
+      forbidden?: string[] | null;
+    } | null;
+  } | null;
   verification_json: {
     retry_strategy?: string | null;
     reasons?: string[] | null;
@@ -42,6 +50,63 @@ type GenerationAttemptRow = {
   }> | null;
 };
 
+export type IngredientResolutionChainEntry = {
+  slot: "required" | "preferred" | "forbidden";
+  raw_phrase: string;
+  core_phrase: string | null;
+  display_label: string | null;
+  canonical_key: string | null;
+  family_key: string | null;
+  confidence: number;
+  resolution_method: string;
+  applied_as: "hard_constraint" | "soft_preference" | "note_only";
+};
+
+function buildIngredientResolutionChain(
+  cookingBrief: {
+    ingredients?: {
+      required?: string[] | null;
+      preferred?: string[] | null;
+      forbidden?: string[] | null;
+    } | null;
+  } | null
+): IngredientResolutionChainEntry[] {
+  if (!cookingBrief?.ingredients) return [];
+
+  const chain: IngredientResolutionChainEntry[] = [];
+
+  const slots: Array<{ slot: "required" | "preferred" | "forbidden"; phrases: string[] | null | undefined }> = [
+    { slot: "required", phrases: cookingBrief.ingredients.required },
+    { slot: "preferred", phrases: cookingBrief.ingredients.preferred },
+    { slot: "forbidden", phrases: cookingBrief.ingredients.forbidden },
+  ];
+
+  for (const { slot, phrases } of slots) {
+    for (const phrase of phrases ?? []) {
+      const resolved = resolveIngredientPhrase(phrase);
+      const applied_as: IngredientResolutionChainEntry["applied_as"] =
+        resolved.confidence >= 0.9
+          ? "hard_constraint"
+          : resolved.confidence >= 0.75
+          ? "soft_preference"
+          : "note_only";
+      chain.push({
+        slot,
+        raw_phrase: phrase,
+        core_phrase: resolved.core_phrase,
+        display_label: resolved.display_label,
+        canonical_key: resolved.canonical_key,
+        family_key: resolved.family_key,
+        confidence: resolved.confidence,
+        resolution_method: resolved.resolution_method,
+        applied_as,
+      });
+    }
+  }
+
+  return chain;
+}
+
 export async function getAdminAiDebugEvents() {
   const admin = createSupabaseAdminClient();
   const [eventsResult, attemptsResult] = await Promise.all([
@@ -53,7 +118,7 @@ export async function getAdminAiDebugEvents() {
       .limit(50),
     admin
       .from("ai_generation_attempts")
-      .select("id, created_at, owner_id, scope, outcome, provider, model, attempt_number, conversation_key, generator_payload_json, verification_json, raw_model_output_json, normalized_recipe_json, stage_metrics_json")
+      .select("id, created_at, owner_id, scope, outcome, provider, model, attempt_number, conversation_key, generator_payload_json, cooking_brief_json, verification_json, raw_model_output_json, normalized_recipe_json, stage_metrics_json")
       .order("created_at", { ascending: false })
       .limit(25),
   ]);
@@ -84,9 +149,16 @@ export async function getAdminAiDebugEvents() {
   );
   const generationFailures = generationAttempts.filter((attempt) => attempt.outcome !== "passed");
 
+  // Build ingredient resolution chains for each attempt (derived at display time from stored brief)
+  const attemptsWithResolution = generationAttempts.map((attempt) => {
+    const brief = attempt.cooking_brief_json;
+    const resolutionChain = buildIngredientResolutionChain(brief);
+    return { ...attempt, ingredient_resolution_chain: resolutionChain };
+  });
+
   return {
     events,
-    generationAttempts,
+    generationAttempts: attemptsWithResolution,
     repairedEvents,
     failedEvents,
     blockedEvents,

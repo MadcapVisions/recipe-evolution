@@ -1,0 +1,42 @@
+{
+  "id": "c1eb11ca_1d38_46ea_9f35_5607ab6776f7_attempt_2_parse_failed",
+  "raw_text": "{\n  \"title\": \"Spicy Pineapple Carnitas Tacos\",\n  \"description\": \"Tender, juicy pork carnitas slow-cooked with sweet pineapple and spicy peppers, then crisped and served in warm corn tortillas with fresh toppings for a bold, vibrant taco night.\",\n  \"servings\": 6,\n  \"prep_time_min\": 25,\n  \"cook_time_min\": 180,\n  \"difficulty\": \"Intermediate\",\n  \"ingredients\": [\n    { \"name\": \"Pork shoulder (boneless)\", \"quantity\": 2, \"unit\": \"lb\", \"prep\": \"cut into large chunks\" },\n    { \"name\": \"Fresh pineapple\", \"quantity\": 2, \"unit\": \"cups\", \"prep\": \"diced, divided\" },\n    { \"name\": \"Jalapeños\", \"quantity\": 2, \"unit\": null, \"prep\": \"sliced, plus extra for topping\" },\n    { \"name\": \"Onion\", \"quantity\": 1, \"unit\": null, \"prep\": \"chopped\" },\n    { \"name\": \"Garlic cloves\", \"quantity\": 4, \"unit\": null, \"prep\": \"minced\" },\n    { \"name\": \"Orange juice\", \"quantity\": 0.5, \"unit\": \"cup\", \"prep\": null },\n    { \"name\": \"Lime juice\", \"quantity\": 0.25, \"unit\": \"cup\", \"prep\": \"plus extra wedges for serving\" },\n    { \"name\": \"Chipotle peppers in adobo\", \"quantity\": 1, \"unit\": \"tbsp\", \"prep\": \"minced (optional, for extra heat)\" },\n    { \"name\": \"Salt\", \"quantity\": 2, \"unit\": \"tsp\", \"prep\": null },\n    { \"name\": \"Black pepper\", \"quantity\": 1, \"unit\": \"tsp\", \"prep\": null },\n    { \"name\": \"Dried oregano\", \"quantity\": 1, \"unit\": \"tsp\", \"prep\": null },\n    { \"name\": \"Olive oil\", \"quantity\": 2, \"unit\": \"tbsp\", \"prep\": null },\n    { \"name\": \"Corn tortillas\", \"quantity\": 12, \"unit\": null, \"prep\": null },\n    { \"name\": \"Fresh cilantro\", \"quantity\": 0.5, \"unit\": \"cup\", \"prep\": \"chopped\" },\n    { \"name\": \"Pickled red onions\", \"quantity\": 0.5, \"unit\": \"cup\", \"prep\": null },\n    { \"name\": \"Lime wedges\", \"quantity\": 1, \"unit\": null, \"prep\": \"for serving\" }\n  ],\n  \"steps\": [\n    { \"text\": \"Preheat oven to 325°F (165°C). Pat pork shoulder dry and season generously with salt, black pepper, and dried oregano.\" },\n    { \"text\": \"In a large Dutch oven or oven-safe pot, heat olive oil over medium-high. Sear pork pieces until browned on all sides, working in batches if necessary.\" },\n    { \"text\": \"Add onion, garlic, and sliced jalapeños to the pot. Sauté for 2–3 minutes until fragrant.\" },\n    { \"text\": \"Stir in 1.5 cups of diced pineapple (reserve 0.5 cup for caramelizing), orange juice, lime juice, and chipotle peppers in adobo (if using). Mix well, scraping up any browned bits.\" },\n    { \"text\": \"Cover and transfer the pot to the oven. Cook for 2.5–3 hours, turning pork pieces once or twice, until pork is very tender and shreds easily.\" },\n    { \"text\": \"Remove pork from pot and shred with two forks. Skim excess fat from the cooking liquid and return shredded pork to the pot, mixing with juices.\" },\n    { \"text\": \"Optional: For crispy edges, spread shredded pork on a baking sheet and broil on high for 3–5 minutes, or pan-fry in batches until crisp.\" },\n    { \"text\": \"While pork crisps, heat a nonstick pan over medium-high. Add reserved 0.5 cup diced pineapple and cook",
+  "fallback_title": "Pineapple Carnitas Tacos",
+  "source": {
+    "attempt_id": "14cec9e3-027b-4aae-ae1d-526652c2476d",
+    "created_at": "2026-03-23T13:09:50.229801+00:00",
+    "conversation_key": "c1eb11ca-1d38-46ea-9f35-5607ab6776f7",
+    "attempt_number": 2
+  },
+  "observed": {
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": {
+      "normalization_log": {
+        "path_taken": "unwrapped",
+        "missing_fields": [
+          "ingredients",
+          "steps"
+        ],
+        "repaired_fields": [
+          "title_from_fallback"
+        ],
+        "raw_top_level_keys": [
+          "text"
+        ]
+      },
+      "raw_top_level_keys": [
+        "text"
+      ]
+    }
+  },
+  "expected": {
+    "parse_success": true,
+    "normalization_reason": "Recipe JSON was missing recognizable ingredients and steps.",
+    "structural_passes": null,
+    "title": null,
+    "outcome": "parse_failed",
+    "failure_stage": "parse",
+    "failure_context": null
+  }
+}

@@ -9,6 +9,7 @@ import {
 } from "./contracts/lockedDirectionSession";
 import { normalizeBuildSpec, type BuildSpec } from "./contracts/buildSpec";
 import { compileCookingBrief, isGenericCenterpieceTitle } from "./briefCompiler";
+import { sanitizeCookingBriefIngredients } from "./briefSanitization";
 import {
   deriveIdeaTitleFromConversationContext,
   detectRequestedAnchorIngredient,
@@ -166,7 +167,7 @@ export function buildLockedBrief(input: {
     brief.field_state.dish_family = spec.dish_family ? "locked" : "unknown";
     brief.field_state.normalized_name = spec.build_title ? "locked" : "unknown";
     brief.compiler_notes = [`Built from BuildSpec (lock_time). Family: ${spec.dish_family ?? "none"}.`];
-    return brief;
+    return sanitizeCookingBriefIngredients(brief);
   }
 
   // --- Legacy path (sessions without BuildSpec) ---
@@ -251,7 +252,7 @@ export function buildLockedBrief(input: {
   brief.field_state.normalized_name = brief.dish.normalized_name ? "locked" : brief.field_state.normalized_name;
   brief.compiler_notes.push("Built from locked direction session (legacy — no BuildSpec).");
 
-  return brief;
+  return sanitizeCookingBriefIngredients(brief);
 }
 
 export function createLockedSessionFromDirection(input: {

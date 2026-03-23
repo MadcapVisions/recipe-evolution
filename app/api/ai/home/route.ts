@@ -44,6 +44,14 @@ const lockedSessionSchema = z.object({
       assistant_text: z.string().nullable(),
       confidence: z.number(),
       ambiguity_reason: z.string().nullable(),
+      ambiguous_notes: z.array(z.string()).optional(),
+      distilled_intents: z
+        .object({
+          ingredient_additions: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
+          ingredient_preferences: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
+          ingredient_removals: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
+        })
+        .optional(),
       extracted_changes: z.object({
         required_ingredients: z.array(z.string()),
         preferred_ingredients: z.array(z.string()),

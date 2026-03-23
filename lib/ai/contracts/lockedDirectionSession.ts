@@ -1,5 +1,6 @@
 import type { CookingBrief, BriefFieldState } from "./cookingBrief";
 import type { BuildSpec } from "./buildSpec";
+import type { ResolvedIngredientIntent } from "../ingredientResolutionTypes";
 
 export type LockedDirectionSelected = {
   id: string;
@@ -13,6 +14,23 @@ export type LockedDirectionRefinement = {
   assistant_text: string | null;
   confidence: number;
   ambiguity_reason: string | null;
+  ambiguous_notes?: string[];
+  distilled_intents?: {
+    ingredient_additions: Array<{ label: string; canonical_key: string }>;
+    ingredient_preferences: Array<{ label: string; canonical_key: string }>;
+    ingredient_removals: Array<{ label: string; canonical_key: string }>;
+  };
+  /**
+   * Structured resolved ingredient intents — the authoritative source for downstream logic.
+   * Populated after resolver runs on each extracted phrase.
+   * Only contains phrases that passed the hard-constraint confidence threshold (>= 0.9).
+   * Lower-confidence resolutions are recorded in ambiguous_notes instead.
+   */
+  resolved_ingredient_intents?: {
+    required: ResolvedIngredientIntent[];
+    preferred: ResolvedIngredientIntent[];
+    forbidden: ResolvedIngredientIntent[];
+  };
   extracted_changes: {
     required_ingredients: string[];
     preferred_ingredients: string[];

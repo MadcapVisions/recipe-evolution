@@ -1,5 +1,5 @@
 import { getAdminDashboardData } from "@/lib/admin/adminData";
-import { getAdminAiDebugEvents } from "@/lib/admin/aiDebugData";
+import { getAdminAiDebugEvents, type IngredientResolutionChainEntry } from "@/lib/admin/aiDebugData";
 
 export default async function AdminLogsPage() {
   const [data, aiDebug] = await Promise.all([getAdminDashboardData(), getAdminAiDebugEvents()]);
@@ -69,6 +69,11 @@ export default async function AdminLogsPage() {
               (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
               0
             );
+            const promptRefinement = extractPromptRefinement(attempt.generator_payload_json);
+            const refinementSummary = extractRefinementSummary(attempt.generator_payload_json);
+            const distilledIngredients = summarizeDistilledIngredients(attempt.cooking_brief_json);
+            const distilledIntents = summarizeDistilledIntents(attempt.generator_payload_json);
+            const resolutionChain = attempt.ingredient_resolution_chain ?? [];
             return (
               <ErrorRow key={attempt.id} timestamp={attempt.created_at} severity="low">
                 <p className="text-sm font-medium text-[color:var(--text)]">
@@ -89,6 +94,21 @@ export default async function AdminLogsPage() {
                       : "Repairs: none"}
                     {generationDetails.monolithicFallbackUsed ? " · monolithic fallback used" : ""}
                   </p>
+                ) : null}
+                {promptRefinement ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Refinement: {promptRefinement}</p>
+                ) : null}
+                {refinementSummary ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Refinement summary: {refinementSummary}</p>
+                ) : null}
+                {distilledIntents ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Distilled intents: {distilledIntents}</p>
+                ) : null}
+                {distilledIngredients ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Brief ingredients: {distilledIngredients}</p>
+                ) : null}
+                {resolutionChain.length > 0 ? (
+                  <IngredientResolutionChain entries={resolutionChain} />
                 ) : null}
               </ErrorRow>
             );
@@ -168,6 +188,11 @@ export default async function AdminLogsPage() {
               const rawText = extractRawModelText(attempt.raw_model_output_json);
               const finishReason = extractFinishReason(attempt.raw_model_output_json);
               const normalizedSummary = summarizeNormalizedRecipe(attempt.normalized_recipe_json);
+              const promptRefinement = extractPromptRefinement(attempt.generator_payload_json);
+              const refinementSummary = extractRefinementSummary(attempt.generator_payload_json);
+              const distilledIngredients = summarizeDistilledIngredients(attempt.cooking_brief_json);
+              const distilledIntents = summarizeDistilledIntents(attempt.generator_payload_json);
+              const resolutionChain = attempt.ingredient_resolution_chain ?? [];
               const totalCost = (attempt.stage_metrics_json ?? []).reduce(
                 (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
                 0
@@ -203,6 +228,21 @@ export default async function AdminLogsPage() {
                         : "Repairs: none"}
                       {generationDetails.monolithicFallbackUsed ? " · monolithic fallback used" : ""}
                     </p>
+                  ) : null}
+                  {promptRefinement ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Refinement: {promptRefinement}</p>
+                  ) : null}
+                  {refinementSummary ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Refinement summary: {refinementSummary}</p>
+                  ) : null}
+                  {distilledIntents ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Distilled intents: {distilledIntents}</p>
+                  ) : null}
+                  {distilledIngredients ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Brief ingredients: {distilledIngredients}</p>
+                  ) : null}
+                  {resolutionChain.length > 0 ? (
+                    <IngredientResolutionChain entries={resolutionChain} />
                   ) : null}
                   <details className="mt-2 rounded-[16px] bg-[rgba(57,52,43,0.04)] px-3 py-2">
                     <summary className="cursor-pointer text-xs font-semibold text-[color:var(--text)]">
@@ -440,6 +480,150 @@ function extractGenerationDetails(
     monolithicFallbackUsed: details.monolithic_fallback_used === true,
     repairedSections,
   };
+}
+
+function extractPromptRefinement(generatorPayload: Record<string, unknown> | null | undefined): string | null {
+  const prompt = generatorPayload?.prompt;
+  return typeof prompt === "string" && prompt.trim().length > 0 ? prompt.trim() : null;
+}
+
+function summarizeDistilledIngredients(
+  cookingBrief:
+    | {
+        ingredients?: {
+          required?: string[] | null;
+          preferred?: string[] | null;
+          forbidden?: string[] | null;
+        } | null;
+      }
+    | null
+) {
+  const required = Array.isArray(cookingBrief?.ingredients?.required) ? cookingBrief?.ingredients?.required.filter(Boolean) : [];
+  const forbidden = Array.isArray(cookingBrief?.ingredients?.forbidden) ? cookingBrief?.ingredients?.forbidden.filter(Boolean) : [];
+  const preferred = Array.isArray(cookingBrief?.ingredients?.preferred) ? cookingBrief?.ingredients?.preferred.filter(Boolean) : [];
+
+  const parts = [
+    required.length > 0 ? `required ${required.join(", ")}` : null,
+    preferred.length > 0 ? `preferred ${preferred.join(", ")}` : null,
+    forbidden.length > 0 ? `forbidden ${forbidden.join(", ")}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function summarizeDistilledIntents(generatorPayload: Record<string, unknown> | null | undefined) {
+  const raw = generatorPayload?.distilled_intents;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const intents = raw as Record<string, unknown>;
+  const additions = summarizeIntentBucket(intents.ingredient_additions);
+  const preferences = summarizeIntentBucket(intents.ingredient_preferences);
+  const removals = summarizeIntentBucket(intents.ingredient_removals);
+  const parts = [
+    additions.length > 0 ? `add ${additions.join(", ")}` : null,
+    preferences.length > 0 ? `prefer ${preferences.join(", ")}` : null,
+    removals.length > 0 ? `remove ${removals.join(", ")}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function extractRefinementSummary(generatorPayload: Record<string, unknown> | null | undefined) {
+  const raw = generatorPayload?.refinement_summary;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const summary = raw as Record<string, unknown>;
+  const confidence = typeof summary.confidence === "number" ? summary.confidence : null;
+  const ambiguityReason =
+    typeof summary.ambiguity_reason === "string" && summary.ambiguity_reason.trim().length > 0
+      ? summary.ambiguity_reason.trim()
+      : null;
+  const ambiguousNotes = Array.isArray(summary.ambiguous_notes)
+    ? summary.ambiguous_notes.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+
+  const parts = [
+    confidence !== null ? `confidence ${confidence.toFixed(2)}` : null,
+    ambiguityReason ? ambiguityReason : null,
+    ambiguousNotes.length > 0 ? `notes ${ambiguousNotes.join(" | ")}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function IngredientResolutionChain({ entries }: { entries: IngredientResolutionChainEntry[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <details className="mt-2 rounded-[16px] bg-[rgba(57,52,43,0.04)] px-3 py-2">
+      <summary className="cursor-pointer text-xs font-semibold text-[color:var(--text)]">
+        Ingredient resolution chain ({entries.length})
+      </summary>
+      <div className="mt-2 space-y-1">
+        {entries.map((entry, i) => {
+          const methodColor =
+            entry.resolution_method === "unresolved"
+              ? "text-amber-600"
+              : entry.resolution_method === "family_inference"
+              ? "text-blue-600"
+              : "text-emerald-600";
+          const appliedColor =
+            entry.applied_as === "note_only"
+              ? "text-amber-600"
+              : entry.applied_as === "soft_preference"
+              ? "text-blue-600"
+              : "text-emerald-700";
+          return (
+            <div key={i} className="rounded-[10px] bg-white/60 px-3 py-1.5 text-xs leading-5">
+              <span className="font-semibold text-[color:var(--text)]">{entry.slot}</span>
+              {" · "}
+              <span className="font-mono text-[color:var(--text)]">&ldquo;{entry.raw_phrase}&rdquo;</span>
+              {entry.display_label && entry.display_label !== entry.raw_phrase ? (
+                <> → <span className="font-mono text-emerald-700">{entry.display_label}</span></>
+              ) : null}
+              {entry.canonical_key ? (
+                <> · <span className="font-mono text-[color:var(--muted)]">{entry.canonical_key}</span></>
+              ) : null}
+              {entry.family_key ? (
+                <> · <span className="text-[color:var(--muted)]">fam:{entry.family_key}</span></>
+              ) : null}
+              {" · "}
+              <span className={methodColor}>{entry.resolution_method}</span>
+              {" · "}
+              <span className="text-[color:var(--muted)]">{entry.confidence.toFixed(2)}</span>
+              {" · "}
+              <span className={appliedColor}>{entry.applied_as.replace(/_/g, " ")}</span>
+            </div>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
+function summarizeIntentBucket(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return null;
+      }
+      const intent = item as Record<string, unknown>;
+      if (typeof intent.label === "string" && intent.label.trim().length > 0) {
+        return intent.label.trim();
+      }
+      if (typeof intent.canonical_key === "string" && intent.canonical_key.trim().length > 0) {
+        return intent.canonical_key.trim().replaceAll("_", " ");
+      }
+      return null;
+    })
+    .filter((item): item is string => Boolean(item));
 }
 
 function summarizeNormalizedRecipe(
