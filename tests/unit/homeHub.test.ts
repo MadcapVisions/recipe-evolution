@@ -89,3 +89,61 @@ test("normalizeGeneratedRecipeForTest accepts capitalized and underscored key va
     "Simmer with peppers and paprika until tender.",
   ]);
 });
+
+test("normalizeGeneratedRecipeForTest unwraps embedded recipe JSON from a text field", () => {
+  const normalized = normalizeGeneratedRecipePayload(
+    {
+      text: JSON.stringify({
+        title: "Spicy Pineapple Carnitas Tacos",
+        description: "Sweet-spicy pork tacos with pineapple.",
+        ingredients: [
+          { name: "pork shoulder", quantity: 2, unit: "lb", prep: null },
+          { name: "pineapple", quantity: 2, unit: "cups", prep: "chopped" },
+        ],
+        steps: [
+          { text: "Braise the pork until tender." },
+          { text: "Crisp the carnitas and serve in tortillas with pineapple." },
+        ],
+      }),
+    },
+    "Fallback Title"
+  );
+
+  assert.equal(normalized.reason, null);
+  assert.deepEqual(normalized.recipe?.ingredients.map((item) => item.name), [
+    "2 lb pork shoulder",
+    "2 cups pineapple chopped",
+  ]);
+  assert.deepEqual(normalized.recipe?.steps.map((item) => item.text), [
+    "Braise the pork until tender.",
+    "Crisp the carnitas and serve in tortillas with pineapple.",
+  ]);
+  assert.ok(normalized.normalization_log.repaired_fields.includes("embedded_json_unwrapped"));
+});
+
+test("normalizeGeneratedRecipeForTest unwraps embedded recipe JSON from nested wrapper objects", () => {
+  const normalized = normalizeGeneratedRecipePayload(
+    {
+      result: {
+        content: [
+          {
+            type: "output_text",
+            text: JSON.stringify({
+              title: "Pineapple Carnitas Tacos",
+              ingredients: [{ name: "pork shoulder", quantity: 2, unit: "lb" }],
+              steps: [{ text: "Cook the pork until tender and crisp it before serving." }],
+            }),
+          },
+        ],
+      },
+    },
+    "Fallback Title"
+  );
+
+  assert.equal(normalized.reason, null);
+  assert.deepEqual(normalized.recipe?.ingredients.map((item) => item.name), ["2 lb pork shoulder"]);
+  assert.deepEqual(normalized.recipe?.steps.map((item) => item.text), [
+    "Cook the pork until tender and crisp it before serving.",
+  ]);
+  assert.ok(normalized.normalization_log.repaired_fields.includes("embedded_json_unwrapped"));
+});

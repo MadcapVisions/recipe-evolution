@@ -15,6 +15,49 @@ test("parseJsonResponse returns null for non-JSON text", () => {
   assert.equal(parseJsonResponse("not valid json"), null);
 });
 
+test("parseJsonResponse unwraps recipe JSON nested inside a text field", () => {
+  const parsed = parseJsonResponse(
+    JSON.stringify({
+      text: JSON.stringify({
+        title: "Spicy Pineapple Carnitas Tacos",
+        ingredients: [{ name: "1 lb pork shoulder" }],
+        steps: [{ text: "Cook the pork until tender." }],
+      }),
+    })
+  );
+
+  assert.deepEqual(parsed, {
+    title: "Spicy Pineapple Carnitas Tacos",
+    ingredients: [{ name: "1 lb pork shoulder" }],
+    steps: [{ text: "Cook the pork until tender." }],
+  });
+});
+
+test("parseJsonResponse unwraps recipe JSON nested inside wrapper objects and content arrays", () => {
+  const parsed = parseJsonResponse(
+    JSON.stringify({
+      result: {
+        content: [
+          {
+            type: "output_text",
+            text: JSON.stringify({
+              title: "Pineapple Carnitas Tacos",
+              ingredients: [{ name: "2 lb pork shoulder" }],
+              steps: [{ text: "Cook and crisp the pork." }],
+            }),
+          },
+        ],
+      },
+    })
+  );
+
+  assert.deepEqual(parsed, {
+    title: "Pineapple Carnitas Tacos",
+    ingredients: [{ name: "2 lb pork shoulder" }],
+    steps: [{ text: "Cook and crisp the pork." }],
+  });
+});
+
 test("validateJsonContract throws when parsed JSON fails the typed contract", () => {
   assert.throws(
     () =>

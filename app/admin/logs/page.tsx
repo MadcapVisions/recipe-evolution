@@ -118,6 +118,7 @@ export default async function AdminLogsPage() {
                 : null;
               const failureContext = attempt.verification_json?.failure_context ?? null;
               const rawPreview = summarizeRawModelOutput(attempt.raw_model_output_json);
+              const rawText = extractRawModelText(attempt.raw_model_output_json);
               const normalizedSummary = summarizeNormalizedRecipe(attempt.normalized_recipe_json);
               const totalCost = (attempt.stage_metrics_json ?? []).reduce(
                 (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
@@ -145,6 +146,33 @@ export default async function AdminLogsPage() {
                       Normalized: {normalizedSummary}
                     </p>
                   ) : null}
+                  <details className="mt-2 rounded-[16px] bg-[rgba(57,52,43,0.04)] px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-[color:var(--text)]">
+                      Full debug payload
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {rawText ? (
+                        <pre className="overflow-x-auto rounded-[12px] bg-white/70 p-3 text-xs leading-5 text-[color:var(--muted)]">
+                          {rawText}
+                        </pre>
+                      ) : null}
+                      {attempt.raw_model_output_json && !rawText ? (
+                        <pre className="overflow-x-auto rounded-[12px] bg-white/70 p-3 text-xs leading-5 text-[color:var(--muted)]">
+                          {JSON.stringify(attempt.raw_model_output_json, null, 2)}
+                        </pre>
+                      ) : null}
+                      {attempt.normalized_recipe_json ? (
+                        <pre className="overflow-x-auto rounded-[12px] bg-white/70 p-3 text-xs leading-5 text-[color:var(--muted)]">
+                          {JSON.stringify(attempt.normalized_recipe_json, null, 2)}
+                        </pre>
+                      ) : null}
+                      {attempt.generator_payload_json ? (
+                        <pre className="overflow-x-auto rounded-[12px] bg-white/70 p-3 text-xs leading-5 text-[color:var(--muted)]">
+                          {JSON.stringify(attempt.generator_payload_json, null, 2)}
+                        </pre>
+                      ) : null}
+                    </div>
+                  </details>
                   {failureContext && Object.keys(failureContext).length > 0 ? (
                     <pre className="mt-2 overflow-x-auto rounded-[16px] bg-[rgba(57,52,43,0.04)] p-3 text-xs leading-5 text-[color:var(--muted)]">
                       {JSON.stringify(failureContext, null, 2)}

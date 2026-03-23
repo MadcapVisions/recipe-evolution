@@ -942,6 +942,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
   const { parsed } = result;
   let normalizedResult: RecipeNormalizationResult = normalizeGeneratedRecipePayload(parsed, input.ideaTitle);
   let recipe = normalizedResult.recipe;
+  let repairFailureContext: Record<string, unknown> | null = null;
 
   if (!recipe) {
     // Log normalization telemetry before attempting repair so we capture the raw failure.
@@ -982,7 +983,10 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
           repaired_fields: recipe ? ["repair_succeeded"] : ["repair_failed"],
         },
       };
-    } catch {
+    } catch (repairError) {
+      repairFailureContext = {
+        repair_error: repairError instanceof Error ? repairError.message : String(repairError),
+      };
       recipe = null;
     }
   }
@@ -1001,6 +1005,9 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
         failure_context: {
           normalization_log: normalizedResult.normalization_log,
           raw_top_level_keys: normalizedResult.normalization_log.raw_top_level_keys,
+          parsed_top_level_keys:
+            parsed && typeof parsed === "object" && !Array.isArray(parsed) ? Object.keys(parsed as Record<string, unknown>) : [],
+          repair_failure: repairFailureContext,
         },
       }),
       reasons: [invalidPayloadReason],

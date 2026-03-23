@@ -68,6 +68,8 @@ const FRACTION_MAP: Record<string, string> = {
   "⅞": "7/8",
 };
 const JUNK_PREP = new Set(["none", "n/a", "-", "null", "na"]);
+const JSON_STRING_WRAPPER_KEYS = ["text", "content", "output_text", "response", "result"] as const;
+const JSON_TEXT_PART_KEYS = ["text", "output_text", "content"] as const;
 
 function normalizeLookupKey(value: string) {
   return value.toLowerCase().replace(/[\s_-]/g, "");
@@ -116,6 +118,67 @@ function unwrapRecipePayload(value: unknown): Record<string, unknown> | null {
   }
 
   return current;
+}
+
+function tryParseEmbeddedJsonString(value: string): Record<string, unknown> | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function unwrapEmbeddedJsonString(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const parsed = unwrapEmbeddedJsonString(item);
+      if (parsed) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  for (const key of JSON_STRING_WRAPPER_KEYS) {
+    const candidate = raw[key];
+    if (typeof candidate === "string") {
+      const parsed = tryParseEmbeddedJsonString(candidate);
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    if (candidate && typeof candidate === "object") {
+      const parsed = unwrapEmbeddedJsonString(candidate);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  for (const key of JSON_TEXT_PART_KEYS) {
+    const candidate = raw[key];
+    if (!Array.isArray(candidate)) {
+      continue;
+    }
+    const parsed = unwrapEmbeddedJsonString(candidate);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
 }
 
 function getArrayByKeys(raw: Record<string, unknown>, keys: readonly string[]) {
@@ -244,15 +307,17 @@ export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: s
     return { recipe: null, reason: "Recipe payload was not an object.", normalization_log: failedLog };
   }
 
+  const embeddedJson = unwrapEmbeddedJsonString(value);
+  const effectiveValue = embeddedJson ?? value;
   const topLevelKeys = Object.keys(value as Record<string, unknown>);
   const isTopLevelDirect =
-    Array.isArray(getMatchingValue(value as Record<string, unknown>, INGREDIENT_KEYS)) ||
-    Array.isArray(getMatchingValue(value as Record<string, unknown>, STEP_KEYS)) ||
-    typeof getMatchingValue(value as Record<string, unknown>, INGREDIENT_KEYS) === "string" ||
-    typeof getMatchingValue(value as Record<string, unknown>, STEP_KEYS) === "string";
+    Array.isArray(getMatchingValue(effectiveValue as Record<string, unknown>, INGREDIENT_KEYS)) ||
+    Array.isArray(getMatchingValue(effectiveValue as Record<string, unknown>, STEP_KEYS)) ||
+    typeof getMatchingValue(effectiveValue as Record<string, unknown>, INGREDIENT_KEYS) === "string" ||
+    typeof getMatchingValue(effectiveValue as Record<string, unknown>, STEP_KEYS) === "string";
   const pathTaken: NormalizationLog["path_taken"] = isTopLevelDirect ? "direct" : "unwrapped";
 
-  const raw = unwrapRecipePayload(value);
+  const raw = unwrapRecipePayload(effectiveValue);
   if (!raw) {
     return {
       recipe: null,
@@ -289,7 +354,7 @@ export function normalizeGeneratedRecipePayload(value: unknown, fallbackTitle: s
     raw_top_level_keys: topLevelKeys,
     path_taken: pathTaken,
     missing_fields: missingFields,
-    repaired_fields: repairedFields,
+    repaired_fields: embeddedJson ? [...repairedFields, "embedded_json_unwrapped"] : repairedFields,
   };
 
   if (ingredients.length === 0 || steps.length === 0) {
