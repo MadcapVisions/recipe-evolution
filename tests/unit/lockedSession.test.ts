@@ -117,6 +117,54 @@ test("buildLockedBrief preserves a specific selected title and ignores old conve
   assert.deepEqual(brief.directives.required_techniques, []);
 });
 
+test("buildLockedBrief repairs generic locked directions from the full conversation branch", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-1",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Chef Conversation Recipe",
+      summary: "A lovely tangy crumb with cinnamon, nutmeg, and fruit options.",
+      tags: [],
+    },
+    conversationHistory: [
+      { role: "user", content: "I would like to make a sourdough discard granny cake." },
+      {
+        role: "assistant",
+        content:
+          "A sourdough discard granny cake will have a lovely tang from the sourdough, complemented by a moist crumb and a slight sweetness.",
+      },
+      { role: "user", content: "I love cinnamon and nutmeg." },
+      {
+        role: "assistant",
+        content:
+          "Incorporating cinnamon and nutmeg will enhance the warmth and depth of the sourdough discard granny cake.",
+      },
+    ],
+  });
+
+  const brief = buildLockedBrief({
+    session,
+    conversationHistory: [
+      { role: "user", content: "I would like to make a sourdough discard granny cake." },
+      {
+        role: "assistant",
+        content:
+          "A sourdough discard granny cake will have a lovely tang from the sourdough, complemented by a moist crumb and a slight sweetness.",
+      },
+      { role: "user", content: "I love cinnamon and nutmeg." },
+      {
+        role: "assistant",
+        content:
+          "Incorporating cinnamon and nutmeg will enhance the warmth and depth of the sourdough discard granny cake.",
+      },
+    ],
+  });
+
+  assert.equal(brief.dish.normalized_name, "Sourdough Discard Granny Cake");
+  assert.equal(brief.dish.dish_family, "cake");
+  assert.equal(brief.ingredients.centerpiece, "cake");
+});
+
 test("appendLockedSessionRefinement keeps ambiguous refinements out of structured ingredient fields", () => {
   const session = createLockedSessionFromDirection({
     conversationKey: "conv-1",

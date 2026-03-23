@@ -33,6 +33,19 @@ test("deriveIdeaTitleFromConversationContext names focaccia pizza requests direc
   );
 });
 
+test("detectRequestedDishFamily catches cake at the end of a phrase", () => {
+  assert.equal(detectRequestedDishFamily("I would like to make a sourdough discard granny cake"), "cake");
+});
+
+test("deriveIdeaTitleFromConversationContext preserves descriptive cake names from conversation text", () => {
+  assert.equal(
+    deriveIdeaTitleFromConversationContext(
+      "I would like to make a sourdough discard granny cake. Incorporating cinnamon and nutmeg will enhance the warmth of the sourdough discard granny cake."
+    ),
+    "Sourdough Discard Granny Cake"
+  );
+});
+
 test("recipeMatchesRequestedDirection rejects rice bowl drift when pasta was requested", () => {
   assert.equal(
     recipeMatchesRequestedDirection(

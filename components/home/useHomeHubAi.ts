@@ -164,6 +164,28 @@ const buildSelectedDirectionForMessages = (messages: ChatMessage[], selectedDire
   };
 };
 
+const buildReplyDirectionFromMessages = (messages: ChatMessage[], replyIndex: number): SelectedChefDirection | null => {
+  const sliced = buildReplyBranch(messages, replyIndex);
+  if (sliced.length === 0) {
+    return null;
+  }
+
+  const branchConversation = buildHeroConversationContext(sliced);
+  const latestReply = [...sliced].reverse().find((message) => message.role === "ai")?.text.trim() ?? "";
+  const inferredTitle =
+    deriveIdeaTitleFromConversationContext(branchConversation) ||
+    deriveIdeaTitleFromConversationContext(latestReply) ||
+    "Chef Conversation Recipe";
+
+  return {
+    replyIndex,
+    optionId: `reply-${replyIndex}`,
+    title: inferredTitle,
+    summary: latestReply || branchConversation || "Chef direction",
+    tags: [],
+  };
+};
+
 type RecipeBuildStreamError = Error & {
   retryStrategy?: VerificationRetryStrategy;
   reasons?: string[];
@@ -302,6 +324,16 @@ function deriveSelectedDirectionFromSession(messages: ChatMessage[], session: Lo
     summary: selected.summary,
     tags: selected.tags,
   };
+}
+
+function isGenericSelectedDirectionTitle(title: string) {
+  const trimmed = title.trim();
+  return (
+    trimmed.length === 0 ||
+    trimmed === "Chef Conversation Recipe" ||
+    /^chef\s/i.test(trimmed) ||
+    /\sDish$/.test(trimmed)
+  );
 }
 
 export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
@@ -683,10 +715,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   ) => {
     const requestThread = threadIdentityRef.current;
     const requestConversationKey = conversationKeyRef.current;
+    const shouldRepairLockedSession =
+      selectedDirectionOverride != null &&
+      (isGenericSelectedDirectionTitle(selectedDirectionOverride.title) ||
+        isGenericSelectedDirectionTitle(lockedSession?.selected_direction?.title ?? ""));
     const effectiveLockedSession =
       selectedDirectionOverride == null
         ? null
-        : lockedSession?.selected_direction?.id === selectedDirectionOverride.optionId
+        : lockedSession?.selected_direction?.id === selectedDirectionOverride.optionId && !shouldRepairLockedSession
         ? lockedSession
         : createLockedSessionFromDirection({
             conversationKey: requestConversationKey,
@@ -963,20 +999,15 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       messageCount: sliced.length,
       conversation: buildHeroConversationContext(sliced).slice(0, 1200),
     });
-    const summary = buildDirectionSummary(sliced);
-    const replyDirection: SelectedChefDirection = {
-      replyIndex: sliced.findLastIndex((message) => message.role === "ai"),
-      optionId: `reply-${replyIndex}`,
-      title: deriveIdeaTitleFromConversationContext(summary || heroChatMessages[replyIndex]?.text || "Chef direction"),
-      summary: summary || heroChatMessages[replyIndex]?.text || "Chef direction",
-      tags: [],
-    };
+    const replyDirection = buildReplyDirectionFromMessages(heroChatMessages, replyIndex);
+    if (!replyDirection) {
+      setError("Chef needs one clear direction before building.");
+      setActiveChatRecipeIndex(null);
+      return;
+    }
 
     if (!selectedChefDirection || selectedChefDirection.replyIndex !== replyIndex) {
-      setSelectedChefDirection({
-        ...replyDirection,
-        replyIndex,
-      });
+      setSelectedChefDirection(replyDirection);
     }
     await createRecipeFromConversation(sliced, "chef-chat-reply", buildSelectedDirectionForMessages(sliced, replyDirection));
   };

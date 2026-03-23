@@ -56,6 +56,22 @@ function includesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
 }
 
+function extractFamilyPhrase(normalized: string, familyWord: string, fallback: string) {
+  const escaped = familyWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`\\b((?:[a-z]+\\s+){0,4}${escaped}s?)\\b`);
+  const match = normalized.match(pattern);
+  if (!match?.[1]) {
+    return fallback;
+  }
+
+  return match[1]
+    .replace(/^(a|an|the)\s+/i, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function detectRequestedDishFamily(context: string) {
   const normalized = normalizeText(context);
 
@@ -81,7 +97,7 @@ export function detectRequestedDishFamily(context: string) {
   if (includesAny(normalized, ["cupcake", "cupcakes", "cheesecake", "pound cake", "bundt cake", "layer cake", "coffee cake", "upside-down cake", "sponge cake", "carrot cake", "red velvet", "angel food", "swiss roll", "roulade", "chiffon cake", "genoise", "opera cake", "dobos torte", "black forest"])) {
     return "cake";
   }
-  if (includesAny(normalized, [" cake "])) {
+  if (/\bcake\b/.test(normalized)) {
     return "cake";
   }
 
@@ -996,9 +1012,12 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
   }
 
   if (family === "cake") {
+    if (normalized.includes("granny cake")) return extractFamilyPhrase(normalized, "cake", "Granny Cake");
+    if (normalized.includes("discard cake")) return extractFamilyPhrase(normalized, "cake", "Discard Cake");
+    if (normalized.includes("sourdough")) return extractFamilyPhrase(normalized, "cake", "Sourdough Cake");
     if (normalized.includes("cupcake") || normalized.includes("cupcakes")) return "Cupcakes";
     if (protein) return `${protein.charAt(0).toUpperCase() + protein.slice(1)} Cake`;
-    return "Cake";
+    return extractFamilyPhrase(normalized, "cake", "Cake");
   }
 
   if (family === "bread") {

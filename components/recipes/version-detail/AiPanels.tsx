@@ -72,6 +72,9 @@ export function ChefAiPanel({
   const [composerFocused, setComposerFocused] = useState(false);
   const shouldPrioritizeChat = composerFocused || aiConversation.length > 0 || Boolean(suggestedChange);
   const isRefining = selectedDirection != null;
+  const latestAssistantMessageId = [...aiConversation]
+    .reverse()
+    .find((message) => message.role === "assistant" && (message.options?.length ?? 0) === 0)?.id;
 
   return (
     <section className="app-panel flex flex-col p-4 sm:p-5">
@@ -260,6 +263,26 @@ export function ChefAiPanel({
                     </div>
                   )
                 ) : null}
+                {message.role === "assistant" && suggestedChange && !isAskingAi && message.id === latestAssistantMessageId ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={onApplySuggestedChange}
+                      disabled={isGeneratingVersion || isAskingAi}
+                      className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[14px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+                    >
+                      {isGeneratingVersion ? "Creating version..." : "Create Version"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onForkFromSuggestion}
+                      disabled={isGeneratingVersion || isAskingAi}
+                      className="rounded-full border border-[rgba(74,106,96,0.2)] bg-transparent px-4 py-2.5 text-[14px] font-medium text-[color:var(--muted)] transition hover:border-[rgba(74,106,96,0.4)] hover:text-[color:var(--text)] disabled:opacity-60"
+                    >
+                      Create Recipe
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
@@ -271,30 +294,6 @@ export function ChefAiPanel({
           {isAskingAi ? (
             <div className="self-start rounded-[22px] border border-[rgba(57,75,70,0.08)] bg-white px-4 py-3 text-[15px] text-[color:var(--muted)]">
               Thinking...
-            </div>
-          ) : null}
-          {suggestedChange && !isAskingAi ? (
-            <div className="self-start max-w-[92%] rounded-[24px] border border-[rgba(74,106,96,0.14)] bg-[rgba(250,248,242,0.94)] px-4 py-4 shadow-[inset_3px_0_0_var(--primary)]">
-              <p className="app-kicker text-[color:var(--primary)]">Ready to save</p>
-              <p className="mt-2 text-[15px] leading-7 text-[color:var(--text)]">
-                {suggestedChange.explanation?.trim() || "AI suggested a concrete recipe modification you can apply."}
-              </p>
-              <button
-                type="button"
-                onClick={onApplySuggestedChange}
-                disabled={isGeneratingVersion || isAskingAi}
-                className="mt-4 w-full rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
-              >
-                Save as New Version
-              </button>
-              <button
-                type="button"
-                onClick={onForkFromSuggestion}
-                disabled={isGeneratingVersion || isAskingAi}
-                className="mt-2 w-full rounded-full border border-[rgba(74,106,96,0.2)] bg-transparent px-4 py-2.5 text-[14px] font-medium text-[color:var(--muted)] transition hover:border-[rgba(74,106,96,0.4)] hover:text-[color:var(--text)] disabled:opacity-60"
-              >
-                Save as New Recipe (Fork)
-              </button>
             </div>
           ) : null}
           <div ref={conversationEndRef} />
