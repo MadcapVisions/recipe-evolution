@@ -394,8 +394,7 @@ export function HomeHeroPanel({
                     {(() => {
                       const distilled = distillRefinementLabels(appliedRefinements);
                       if (distilled) return distilled;
-                      const last = appliedRefinements[appliedRefinements.length - 1].user_text;
-                      return last.length > 48 ? `${last.slice(0, 45).trim()}…` : last;
+                      return "Base direction locked";
                     })()}
                   </p>
                 ) : (

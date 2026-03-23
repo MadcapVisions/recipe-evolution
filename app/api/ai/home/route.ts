@@ -13,7 +13,7 @@ import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import { getCookingBrief, upsertCookingBrief } from "@/lib/ai/briefStore";
-import { appendLockedSessionRefinementDelta, buildLockedBrief } from "@/lib/ai/lockedSession";
+import { appendLockedSessionRefinementDelta, buildLockedBrief, refinementHasRecipeChanges } from "@/lib/ai/lockedSession";
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
@@ -252,8 +252,9 @@ export async function POST(request: Request) {
               taskSetting,
             })
           : null;
+      const shouldApplyRefinement = refinedDelta ? refinementHasRecipeChanges(refinedDelta) : false;
       const refinedSession =
-        currentSession?.selected_direction && refinedDelta
+        currentSession?.selected_direction && refinedDelta && shouldApplyRefinement
           ? appendLockedSessionRefinementDelta(currentSession, refinedDelta)
           : null;
       const compiledBrief =
@@ -329,6 +330,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ...envelope,
         session_action: pivotedAwayFromLockedSession ? "clear_locked_direction" : null,
+        refinement_applied: shouldApplyRefinement,
         lockedSession: refinedSession,
       });
     }

@@ -6,6 +6,7 @@ import {
   buildLockedBrief,
   createLockedSessionFromDirection,
   markLockedSessionBuilt,
+  refinementHasRecipeChanges,
   removeLastLockedSessionRefinement,
 } from "../../lib/ai/lockedSession";
 
@@ -136,6 +137,26 @@ test("appendLockedSessionRefinement keeps ambiguous refinements out of structure
   assert.deepEqual(refined.refinements[0]?.extracted_changes.forbidden_ingredients, []);
   assert.equal(refined.refinements[0]?.field_state.ingredients, "unknown");
   assert.equal(refined.refinements[0]?.field_state.notes, "locked");
+});
+
+test("refinementHasRecipeChanges is false for question-like note-only turns", () => {
+  const refined = appendLockedSessionRefinement(
+    createLockedSessionFromDirection({
+      conversationKey: "conv-1",
+      selectedDirection: {
+        id: "dir-1",
+        title: "Classic Vanilla Flan with Strawberry Sauce",
+        summary: "Baked vanilla flan topped with strawberry sauce.",
+        tags: ["Dessert"],
+      },
+    }),
+    {
+      userText: "do I make this in the oven?",
+      assistantText: "Yes, flan is typically baked in a water bath.",
+    }
+  );
+
+  assert.equal(refinementHasRecipeChanges(refined.refinements[0]!), false);
 });
 
 test("appendLockedSessionRefinement keeps low-confidence style phrasing out of structured style fields", () => {

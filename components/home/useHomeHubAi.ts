@@ -874,6 +874,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }, controller.signal)) as ChefChatEnvelope & {
         message?: string;
         session_action?: "clear_locked_direction" | null;
+        refinement_applied?: boolean;
         lockedSession?: LockedDirectionSession | null;
       };
 
@@ -929,7 +930,11 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
             },
           ], canonicalLockedSession) ?? current);
         }
-        setTransientStatus("Direction refined. Build the recipe when it feels right.");
+        setTransientStatus(
+          data.refinement_applied
+            ? "Direction refined. Build the recipe when it feels right."
+            : "Chef answered without changing the direction."
+        );
       } else {
         setTransientStatus("Chef responded. Build the recipe when the direction feels right.");
       }

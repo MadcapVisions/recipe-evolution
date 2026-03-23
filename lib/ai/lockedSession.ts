@@ -72,6 +72,15 @@ export function appendLockedSessionRefinementDelta(
   };
 }
 
+export function refinementHasRecipeChanges(refinement: LockedDirectionRefinement): boolean {
+  return (
+    refinement.extracted_changes.required_ingredients.length > 0 ||
+    refinement.extracted_changes.preferred_ingredients.length > 0 ||
+    refinement.extracted_changes.forbidden_ingredients.length > 0 ||
+    refinement.extracted_changes.style_tags.length > 0
+  );
+}
+
 export function removeLastLockedSessionRefinement(session: LockedDirectionSession): LockedDirectionSession {
   const nextRefinements = session.refinements.slice(0, -1);
   return {
