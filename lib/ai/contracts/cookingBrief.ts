@@ -33,6 +33,20 @@ export type CookingBrief = {
     difficulty_target: string | null;
     dietary_tags: string[];
     equipment_limits: string[];
+    macroTargets?: {
+      caloriesMax?: number | null;
+      caloriesMin?: number | null;
+      proteinMinG?: number | null;
+      proteinMaxG?: number | null;
+      carbsMinG?: number | null;
+      carbsMaxG?: number | null;
+      fatMinG?: number | null;
+      fatMaxG?: number | null;
+      fiberMinG?: number | null;
+      fiberMaxG?: number | null;
+      sugarMaxG?: number | null;
+      sodiumMaxMg?: number | null;
+    } | null;
   };
   directives: {
     must_have: string[];

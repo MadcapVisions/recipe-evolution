@@ -22,6 +22,9 @@ import { getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/a
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
+import { orchestrateRecipeGeneration } from "@/lib/ai/recipeGenerationOrchestrator";
+import { buildGenerationDeps } from "@/lib/ai/repairAdapters";
+import { normalizeDietaryTags } from "@/lib/ai/normalizeDietaryTags";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -491,6 +494,47 @@ export async function POST(request: Request) {
 
         if (!result || !verification) {
           throw new Error("Recipe build loop completed without a verified result.");
+        }
+
+        // Shadow: run new generation orchestrator in parallel when macroTargets are set.
+        // Does NOT affect the served result — used only to collect telemetry for comparison.
+        if (effectiveBrief.constraints.macroTargets) {
+          try {
+            const shadowAiOptions = {
+              max_tokens: taskSetting.maxTokens,
+              temperature: taskSetting.temperature,
+              model: resolvedTaskPrimaryModel,
+            };
+            const shadowResult = await orchestrateRecipeGeneration(
+              {
+                userIntent: prompt ?? resolvedIdeaTitle,
+                titleHint: resolvedIdeaTitle,
+                dishHint: effectiveBrief.dish.dish_family ?? null,
+                dietaryConstraints: effectiveBrief.constraints.dietary_tags,
+                availableIngredients: effectiveBrief.ingredients.required,
+                preferredIngredients: effectiveBrief.ingredients.preferred,
+                forbiddenIngredients: effectiveBrief.ingredients.forbidden,
+                macroTargets: effectiveBrief.constraints.macroTargets,
+                servings: effectiveBrief.constraints.servings ?? null,
+                creativityMode: "safe",
+                requestId: `shadow_${access.userId}_${Date.now()}`,
+              },
+              buildGenerationDeps(shadowAiOptions)
+            );
+            send({
+              type: "debug",
+              label: "generation_orchestrator_telemetry",
+              data: {
+                shadow: true,
+                status: shadowResult.status,
+                success: shadowResult.success,
+                dishFamily: shadowResult.dishFamily?.key ?? null,
+                telemetry: shadowResult.telemetry.summary,
+              },
+            });
+          } catch {
+            // shadow failure never affects the served result
+          }
         }
 
         if (conversationKey) {

@@ -13,6 +13,8 @@
     "test:unit": "rm -rf .tmp-unit && tsc -p tsconfig.unit.json && node --test .tmp-unit/tests/unit/**/*.test.js",
     "fixtures:export:ai-failures": "node --import tsx scripts/export-ai-failure-fixtures.ts",
     "eval:seed:live": "rm -rf .tmp-eval && tsc -p tsconfig.eval.json && node scripts/test-recipe-gen.mjs",
+    "benchmark": "npx tsx --require ./scripts/_mock-server-only.cjs scripts/run-benchmark.ts",
+    "benchmark:all": "npx tsx --require ./scripts/_mock-server-only.cjs scripts/run-benchmark.ts --all",
     "e2e": "npm run build && playwright test"
   },
   "dependencies": {

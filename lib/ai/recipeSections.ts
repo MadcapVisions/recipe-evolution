@@ -51,6 +51,13 @@ export function buildRecipeSections(input: {
   };
 }
 
+/** Strip AI pipeline metadata before writing to DB. */
+export function stripStepMetadata(
+  steps: Array<{ text: string; methodTag?: string | null; [key: string]: unknown }>
+): Array<{ text: string }> {
+  return steps.map((step) => ({ text: step.text }));
+}
+
 export function assembleRecipeDraftFromSections(input: {
   sections: RecipeSections;
   ai_metadata_json?: unknown;
@@ -94,7 +101,9 @@ export function buildGeneratedRecipeFromSectionPayloads(input: {
           },
         ])[0]?.name ?? item.name,
     })),
-    steps: input.instructionSection.steps.map((item) => ({ text: item.text.trim() })).filter((item) => item.text.length > 0),
+    steps: input.instructionSection.steps
+      .map((item) => ({ text: item.text.trim(), methodTag: item.methodTag ?? null }))
+      .filter((item) => item.text.length > 0),
     chefTips: input.instructionSection.chefTips.length > 0 ? uniqueStrings(input.instructionSection.chefTips) : buildTipsFromOutline(input.outline),
   };
 }

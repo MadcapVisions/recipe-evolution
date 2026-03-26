@@ -192,6 +192,13 @@ type RecipeBuildStreamError = Error & {
   failureKind?: RecipeBuildFailureKind;
 };
 
+export type BuildFailureState = {
+  /** How to categorize this failure for UX purposes. */
+  kind: "infeasible" | "hard_failure" | "clarification_needed";
+  /** Human-readable reasons from the planner/verifier, if any. */
+  reasons: string[];
+};
+
 export type BuildDebugEntry =
   | { type: "status"; message: string; ts: number }
   | { type: "result"; title: string; ts: number }
@@ -348,6 +355,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const [generatingRecipe, setGeneratingRecipe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [buildFailureState, setBuildFailureState] = useState<BuildFailureState | null>(null);
+  const [isBuildLong, setIsBuildLong] = useState(false);
+  const buildLongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [buildDebugLog, setBuildDebugLog] = useState<BuildDebugEntry[]>([]);
 
@@ -492,6 +502,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     return () => {
       if (statusTimeoutRef.current) {
         clearTimeout(statusTimeoutRef.current);
+      }
+      if (buildLongTimeoutRef.current) {
+        clearTimeout(buildLongTimeoutRef.current);
       }
       hydrationAbortRef.current?.abort();
       chatAbortRef.current?.abort();
@@ -752,6 +765,10 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
 
     setGeneratingRecipe(true);
     setError(null);
+    setBuildFailureState(null);
+    setIsBuildLong(false);
+    if (buildLongTimeoutRef.current) clearTimeout(buildLongTimeoutRef.current);
+    buildLongTimeoutRef.current = setTimeout(() => setIsBuildLong(true), 35_000);
     setStatus("Understanding your request...");
     setBuildDebugLog([{ type: "status", message: "Understanding your request...", ts: Date.now() }]);
     buildAbortRef.current?.abort();
@@ -812,6 +829,16 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           },
         ]);
       }
+      const fkind = typedSaveError.failureKind;
+      const fstrat = typedSaveError.retryStrategy;
+      let failureStateKind: BuildFailureState["kind"] = "hard_failure";
+      if (fkind === "verification_failed") {
+        failureStateKind = fstrat === "ask_user" ? "clarification_needed" : "infeasible";
+      }
+      setBuildFailureState({
+        kind: failureStateKind,
+        reasons: typedSaveError.reasons ?? [],
+      });
       setError(
         getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe from this conversation. Please refine the direction and try again.")
       );
@@ -820,18 +847,23 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       if (buildAbortRef.current === controller) {
         buildAbortRef.current = null;
       }
+      if (buildLongTimeoutRef.current) {
+        clearTimeout(buildLongTimeoutRef.current);
+        buildLongTimeoutRef.current = null;
+      }
+      setIsBuildLong(false);
       setGeneratingRecipe(false);
       setActiveChatRecipeIndex(null);
       setStatus(null);
     }
   };
 
-  const handleAskChefInHero = async () => {
+  const handleAskChefInHero = async (promptOverride?: string) => {
     if (loading || heroSubmitLockRef.current) {
       return;
     }
 
-    const trimmedPrompt = promptInput.trim();
+    const trimmedPrompt = (promptOverride ?? promptInput).trim();
     if (!trimmedPrompt) {
       setError("Enter a dish direction first.");
       return;
@@ -1073,6 +1105,19 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setTransientStatus("Last refinement removed.");
   };
 
+  const handleRetryBuild = async () => {
+    setBuildFailureState(null);
+    setError(null);
+    await createRecipeFromConversation(heroChatMessages, "chef-chat-retry");
+  };
+
+  const handleClarificationQuickSelect = (option: string) => {
+    setBuildFailureState(null);
+    setError(null);
+    setPromptInput(option);
+    void handleAskChefInHero(option);
+  };
+
   const handleStartOver = () => {
     threadIdentityRef.current += 1;
     hydrationAbortRef.current?.abort();
@@ -1093,6 +1138,12 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setActiveChatRecipeIndex(null);
     setPromptInput("");
     setError(null);
+    setBuildFailureState(null);
+    setIsBuildLong(false);
+    if (buildLongTimeoutRef.current) {
+      clearTimeout(buildLongTimeoutRef.current);
+      buildLongTimeoutRef.current = null;
+    }
     setLoading(false);
     setGeneratingRecipe(false);
     setBuildDebugLog([]);
@@ -1115,6 +1166,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     generatingRecipe,
     error,
     status,
+    buildFailureState,
+    isBuildLong,
     buildDebugLog,
     heroChatMessages,
     selectedChefDirection,
@@ -1130,6 +1183,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handleClearChefDirection,
     handleRemoveLastRefinement,
     handleBuildSelectedDirection,
+    handleRetryBuild,
+    handleClarificationQuickSelect,
     handleStartOver,
   };
 }

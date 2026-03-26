@@ -44,3 +44,7 @@ next-env.d.ts
 
 # supabase cli temp files
 supabase/.temp/
+
+# benchmark and simulation run artifacts
+/benchmark-artifacts/
+/simulation-artifacts/

@@ -8,7 +8,8 @@ export type HomeGeneratedRecipe = {
   cook_time_min: number | null;
   difficulty: string | null;
   ingredients: Array<{ name: string }>;
-  steps: Array<{ text: string }>;
+  /** methodTag is AI pipeline only — stripped before DB write in assembleRecipeDraftFromSections. */
+  steps: Array<{ text: string; methodTag?: string | null }>;
   chefTips: string[];
 };
 

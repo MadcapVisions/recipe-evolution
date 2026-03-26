@@ -7,6 +7,7 @@ export const RECIPE_REPAIR_SCOPES = [
   "alignment_forbidden_ingredients",
   "alignment_title",
   "alignment_style",
+  "culinary_family",
   "quality_steps",
   "quality_taste",
   "quality_quantities",
@@ -82,6 +83,16 @@ export function buildVerificationRepairPlan(
     repairs.push(
       `Replace the recipe title with a specific, recognizable name a home cook would understand (e.g. "Garlic Butter Shrimp Tostadas", not "Chef Conversation Recipe" or "Chef Special").`
     );
+  }
+
+  if (checks.culinary_family_valid === false && verification.culinary_violations) {
+    const errorHints = verification.culinary_violations
+      .filter((v) => v.severity === "error")
+      .map((v) => v.repairHint);
+    if (errorHints.length > 0) {
+      scopes.push("culinary_family");
+      repairs.push(...errorHints);
+    }
   }
 
   if (!checks.style_match && brief?.style) {

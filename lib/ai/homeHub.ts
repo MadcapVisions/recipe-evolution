@@ -1,4 +1,5 @@
 import { AIJsonParseError, callAIForJson, callAIForJsonWithContract } from "./jsonResponse";
+import { inferMethodTag } from "./inferMethodTag";
 import type { AICallOptions } from "./aiClient";
 import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import type { AIMessage } from "./chatPromptBuilder";
@@ -34,6 +35,11 @@ import {
 import { assembleRecipeDraftFromSections, buildGeneratedRecipeFromSectionPayloads, buildRecipeSections } from "./recipeSections";
 import { isLikelyTruncatedRecipePayload } from "./recipeTruncation";
 import { validateRecipeStructure } from "./recipeStructuralValidation";
+import { orchestrateRecipeRepair } from "./repairOrchestrator";
+import { buildRepairDeps, buildPlannerDeps, buildStepDeps, resolveDishFamilyForRepair } from "./repairAdapters";
+import { normalizeDietaryTags } from "./normalizeDietaryTags";
+import { runIngredientPlanner } from "./ingredientPlanner";
+import { runStepGenerator } from "./stepGenerator";
 
 type HomeIdea = {
   title: string;
@@ -772,9 +778,17 @@ function normalizeRecipeInstructionSectionPayload(parsed: unknown): { value: Rec
           }
           const rawStep = item as Record<string, unknown>;
           const text = typeof rawStep.text === "string" ? rawStep.text.trim() : "";
-          return text ? { text } : null;
+          if (!text) return null;
+          const rawTag = typeof rawStep.methodTag === "string" ? rawStep.methodTag : null;
+          const methodTag = rawTag ?? inferMethodTag(text) ?? null;
+          const estimatedMinutes =
+            typeof rawStep.estimatedMinutes === "number" ? rawStep.estimatedMinutes : null;
+          return { text, methodTag, estimatedMinutes };
         })
-        .filter((item): item is { text: string } => item !== null)
+        .filter(
+          (item): item is { text: string; methodTag: string | null; estimatedMinutes: number | null } =>
+            item !== null
+        )
     : [];
   if (steps.length === 0) {
     return { value: null, error: "Instruction section was missing recognizable steps." };
@@ -898,7 +912,11 @@ Return ONLY a single JSON object with EXACTLY these fields:
 Rules:
 - Follow the provided outline exactly.
 - Include all core ingredients needed to execute the recipe cleanly.
-- Every ingredient should have a practical quantity whenever possible.
+- Every ingredient must have an explicit quantity (e.g. 2, 1.5, 0.5). Do not leave quantity null if a realistic amount exists.
+- Always provide realistic, non-null values for prep_time_min, cook_time_min, and difficulty. Do not return null for these fields.
+  - prep_time_min: active preparation time in minutes (e.g. 10, 15, 20)
+  - cook_time_min: cooking/baking time in minutes (e.g. 20, 30, 45)
+  - difficulty: one of "Easy", "Medium", or "Hard"
 - Do not include steps, chef tips, wrappers, or commentary.`,
     },
     {
@@ -930,9 +948,13 @@ Return ONLY a single JSON object with EXACTLY these fields:
 }
 Rules:
 - Follow the provided outline exactly.
-- Steps must be complete and practical for a home cook.
+- Always provide a non-null description (1–2 sentences): describe the flavor profile, texture, and what makes the dish appealing.
+- Steps must be complete and unambiguous. Each step must contain an actionable cooking verb.
+- Include timing, temperature, or doneness cues where relevant — e.g. "Sear over medium-high heat for 4–5 minutes until deep golden and releases easily."
+- Never write vague steps like "Cook until done", "Add ingredients", or "Continue cooking".
+- Maximum 10 steps.
+- chefTips: 2–3 short, practical tips. Not redundant with steps.
 - Keep the recipe format and dish identity locked.
-- chefTips should be short, practical tips, not repeated steps.
 - Do not include ingredients, wrapper keys, or commentary.`,
     },
     {
@@ -1617,6 +1639,122 @@ export async function generateHomeRecipe(input: {
       }
     }
 
+    // Macro-aware repair pass: only runs when the brief carries explicit macro targets.
+    // Fail soft throughout — any error reverts to the pre-repair recipe.
+    if (input.cookingBrief?.constraints.macroTargets) {
+      try {
+        const dishFamily = resolveDishFamilyForRepair(input.cookingBrief.dish.dish_family);
+        if (dishFamily) {
+          const dietaryConstraints = normalizeDietaryTags(
+            input.cookingBrief.constraints.dietary_tags ?? []
+          );
+          const orchestratorResult = await orchestrateRecipeRepair(
+            {
+              originalTitle: recipe.title,
+              originalIngredients: recipe.ingredients.map((ing) => ({
+                ingredientName: ing.name,
+              })),
+              originalSteps: recipe.steps.map((s) => ({
+                text: s.text,
+                methodTag: s.methodTag ?? null,
+              })),
+              originalValidation: { passed: true, score: 0.7, issues: [] },
+              dishFamily,
+              dietaryConstraints,
+              macroTargets: input.cookingBrief.constraints.macroTargets,
+              userIntent: input.prompt ?? null,
+            },
+            buildRepairDeps(aiCallOptions)
+          );
+
+          if (
+            orchestratorResult.success &&
+            orchestratorResult.final.status === "accepted_repair"
+          ) {
+            const repairedDraft = orchestratorResult.final.recipe;
+            const macroRepairedRecipe: HomeGeneratedRecipe = {
+              ...recipe,
+              title: repairedDraft.title ?? recipe.title,
+              ingredients: repairedDraft.ingredients.map((ing) => ({
+                name: ing.ingredientName,
+              })),
+              steps: repairedDraft.steps.map((s) => ({
+                text: s.text,
+                methodTag: s.methodTag ?? null,
+              })),
+            };
+            const macroRepairVerification = verifyRecipeAgainstBrief({
+              recipe: macroRepairedRecipe,
+              brief: input.cookingBrief,
+              fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+            });
+            if (macroRepairVerification.passes) {
+              recipe = macroRepairedRecipe;
+              verification = macroRepairVerification;
+              generationPath = "sectioned_repaired_macro";
+            }
+          } else if (
+            orchestratorResult.final.status === "regenerate_from_ingredients"
+          ) {
+            const planResult = await runIngredientPlanner(
+              {
+                userIntent: input.prompt ?? null,
+                titleHint: recipe.title,
+                dishFamily,
+                dietaryConstraints: input.cookingBrief.constraints.dietary_tags ?? [],
+                availableIngredients: [
+                  ...(input.cookingBrief.ingredients.required ?? []),
+                  ...(input.cookingBrief.ingredients.preferred ?? []),
+                ],
+                forbiddenIngredients: input.cookingBrief.ingredients.forbidden ?? [],
+                macroTargets: input.cookingBrief.constraints.macroTargets,
+                servings: input.cookingBrief.constraints.servings ?? null,
+              },
+              buildPlannerDeps(aiCallOptions)
+            );
+            if (planResult.validation.passed || planResult.validation.score >= 0.7) {
+              const stepResult = await runStepGenerator(
+                {
+                  userIntent: input.prompt ?? null,
+                  title: planResult.candidate.title ?? recipe.title,
+                  dishFamily,
+                  ingredients: planResult.candidate.ingredients,
+                  dietaryConstraints: input.cookingBrief.constraints.dietary_tags ?? [],
+                  servings: input.cookingBrief.constraints.servings ?? null,
+                },
+                buildStepDeps(aiCallOptions)
+              );
+              if (stepResult.validation.passed || stepResult.validation.score >= 0.65) {
+                const ingredientFirstRecipe: HomeGeneratedRecipe = {
+                  ...recipe,
+                  title: planResult.candidate.title ?? recipe.title,
+                  ingredients: planResult.candidate.ingredients.map((ing) => ({
+                    name: ing.ingredientName,
+                  })),
+                  steps: stepResult.candidate.steps.map((s) => ({
+                    text: s.text,
+                    methodTag: s.methodTag ?? null,
+                  })),
+                };
+                const ingredientFirstVerification = verifyRecipeAgainstBrief({
+                  recipe: ingredientFirstRecipe,
+                  brief: input.cookingBrief,
+                  fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+                });
+                if (ingredientFirstVerification.passes) {
+                  recipe = ingredientFirstRecipe;
+                  verification = ingredientFirstVerification;
+                  generationPath = "sectioned_ingredient_first";
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // fail soft — use pre-macro-repair recipe
+      }
+    }
+
     const aiMetadata = buildHomeRecipeAiMetadata({
       outline: recipeOutline,
       outlineSource: outlineBuild.source,
@@ -2049,6 +2187,120 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
       }
     } catch {
       // fail soft — use original recipe
+    }
+  }
+
+  // Macro-aware repair pass: only runs when the brief carries explicit macro targets.
+  // Fail soft throughout — any error reverts to the pre-repair recipe.
+  if (input.cookingBrief?.constraints.macroTargets) {
+    try {
+      const dishFamily = resolveDishFamilyForRepair(input.cookingBrief.dish.dish_family);
+      if (dishFamily) {
+        const dietaryConstraints = normalizeDietaryTags(
+          input.cookingBrief.constraints.dietary_tags ?? []
+        );
+        const orchestratorResult = await orchestrateRecipeRepair(
+          {
+            originalTitle: recipe.title,
+            originalIngredients: recipe.ingredients.map((ing) => ({
+              ingredientName: ing.name,
+            })),
+            originalSteps: recipe.steps.map((s) => ({
+              text: s.text,
+              methodTag: s.methodTag ?? null,
+            })),
+            originalValidation: { passed: true, score: 0.7, issues: [] },
+            dishFamily,
+            dietaryConstraints,
+            macroTargets: input.cookingBrief.constraints.macroTargets,
+            userIntent: input.prompt ?? null,
+          },
+          buildRepairDeps(aiCallOptions)
+        );
+
+        if (
+          orchestratorResult.success &&
+          orchestratorResult.final.status === "accepted_repair"
+        ) {
+          const repairedDraft = orchestratorResult.final.recipe;
+          const macroRepairedRecipe: HomeGeneratedRecipe = {
+            ...recipe,
+            title: repairedDraft.title ?? recipe.title,
+            ingredients: repairedDraft.ingredients.map((ing) => ({
+              name: ing.ingredientName,
+            })),
+            steps: repairedDraft.steps.map((s) => ({
+              text: s.text,
+              methodTag: s.methodTag ?? null,
+            })),
+          };
+          const macroRepairVerification = verifyRecipeAgainstBrief({
+            recipe: macroRepairedRecipe,
+            brief: input.cookingBrief,
+            fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+          });
+          if (macroRepairVerification.passes) {
+            recipe = macroRepairedRecipe;
+            verification = macroRepairVerification;
+          }
+        } else if (
+          orchestratorResult.final.status === "regenerate_from_ingredients"
+        ) {
+          const planResult = await runIngredientPlanner(
+            {
+              userIntent: input.prompt ?? null,
+              titleHint: recipe.title,
+              dishFamily,
+              dietaryConstraints: input.cookingBrief.constraints.dietary_tags ?? [],
+              availableIngredients: [
+                ...(input.cookingBrief.ingredients.required ?? []),
+                ...(input.cookingBrief.ingredients.preferred ?? []),
+              ],
+              forbiddenIngredients: input.cookingBrief.ingredients.forbidden ?? [],
+              macroTargets: input.cookingBrief.constraints.macroTargets,
+              servings: input.cookingBrief.constraints.servings ?? null,
+            },
+            buildPlannerDeps(aiCallOptions)
+          );
+          if (planResult.validation.passed || planResult.validation.score >= 0.7) {
+            const stepResult = await runStepGenerator(
+              {
+                userIntent: input.prompt ?? null,
+                title: planResult.candidate.title ?? recipe.title,
+                dishFamily,
+                ingredients: planResult.candidate.ingredients,
+                dietaryConstraints: input.cookingBrief.constraints.dietary_tags ?? [],
+                servings: input.cookingBrief.constraints.servings ?? null,
+              },
+              buildStepDeps(aiCallOptions)
+            );
+            if (stepResult.validation.passed || stepResult.validation.score >= 0.65) {
+              const ingredientFirstRecipe: HomeGeneratedRecipe = {
+                ...recipe,
+                title: planResult.candidate.title ?? recipe.title,
+                ingredients: planResult.candidate.ingredients.map((ing) => ({
+                  name: ing.ingredientName,
+                })),
+                steps: stepResult.candidate.steps.map((s) => ({
+                  text: s.text,
+                  methodTag: s.methodTag ?? null,
+                })),
+              };
+              const ingredientFirstVerification = verifyRecipeAgainstBrief({
+                recipe: ingredientFirstRecipe,
+                brief: input.cookingBrief,
+                fallbackContext: `${input.ideaTitle} ${input.prompt ?? ""} ${formatConversation(input.conversationHistory)}`,
+              });
+              if (ingredientFirstVerification.passes) {
+                recipe = ingredientFirstRecipe;
+                verification = ingredientFirstVerification;
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // fail soft — use pre-macro-repair recipe
     }
   }
 

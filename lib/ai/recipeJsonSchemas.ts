@@ -63,9 +63,18 @@ export const HOME_RECIPE_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text"],
+        required: ["text", "methodTag", "estimatedMinutes"],
         properties: {
           text: { type: "string" },
+          methodTag: {
+            type: ["string", "null"],
+            enum: [
+              "mix", "bake", "boil", "simmer", "saute", "grill", "fry",
+              "blend", "assemble", "chill", "rest", "toast", "reduce",
+              "steam", "whisk", "fold", "combine", "cook", "high_heat", null,
+            ],
+          },
+          estimatedMinutes: { type: ["number", "null"] },
         },
       },
     },
@@ -113,9 +122,18 @@ export const RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text"],
+        required: ["text", "methodTag", "estimatedMinutes"],
         properties: {
           text: { type: "string" },
+          methodTag: {
+            type: ["string", "null"],
+            enum: [
+              "mix", "bake", "boil", "simmer", "saute", "grill", "fry",
+              "blend", "assemble", "chill", "rest", "toast", "reduce",
+              "steam", "whisk", "fold", "combine", "cook", "high_heat", null,
+            ],
+          },
+          estimatedMinutes: { type: ["number", "null"] },
         },
       },
     },

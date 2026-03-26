@@ -29,8 +29,16 @@ export type RecipeIngredientSection = {
   ingredients: RecipeIngredientSectionItem[];
 };
 
+export type AIPipelineStep = {
+  text: string;
+  /** Structured method tag — AI pipeline only, stripped before DB write. */
+  methodTag?: string | null;
+  temperatureC?: number | null;
+  estimatedMinutes?: number | null;
+};
+
 export type RecipeInstructionSection = {
   description: string | null;
-  steps: Array<{ text: string }>;
+  steps: AIPipelineStep[];
   chefTips: string[];
 };

@@ -1,3 +1,5 @@
+import type { CulinaryViolation } from "../culinaryValidator";
+
 export const VERIFICATION_RETRY_STRATEGIES = [
   "none",
   "regenerate_same_model",
@@ -24,7 +26,9 @@ export type VerificationResult = {
     forbidden_ingredients_avoided: boolean;
     title_quality_pass: boolean;
     recipe_completeness_pass: boolean;
+    culinary_family_valid?: boolean;
   };
+  culinary_violations?: CulinaryViolation[];
   retry_strategy: VerificationRetryStrategy;
 };
 

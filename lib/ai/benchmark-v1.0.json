@@ -1,0 +1,559 @@
+{
+  "version": "1.0",
+  "snapshotDate": "2026-03-25",
+  "totalCases": 92,
+  "cases": [
+    {
+      "id": "flan_classic_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "custard_flan"
+    },
+    {
+      "id": "flan_coffee_02",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "custard_flan"
+    },
+    {
+      "id": "brownie_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "brownie"
+    },
+    {
+      "id": "brownie_high_protein_02",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "brownie"
+    },
+    {
+      "id": "cookie_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "cookie"
+    },
+    {
+      "id": "cheesecake_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "cheesecake"
+    },
+    {
+      "id": "muffin_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "muffin_quick_bread"
+    },
+    {
+      "id": "pancake_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "pancake_waffle"
+    },
+    {
+      "id": "risotto_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "risotto"
+    },
+    {
+      "id": "stir_fry_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "stir_fry"
+    },
+    {
+      "id": "fried_rice_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "fried_rice"
+    },
+    {
+      "id": "curry_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "curry"
+    },
+    {
+      "id": "pasta_high_protein_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "pasta"
+    },
+    {
+      "id": "soup_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "soup_stew"
+    },
+    {
+      "id": "smoothie_high_protein_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "smoothie"
+    },
+    {
+      "id": "salad_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "salad"
+    },
+    {
+      "id": "omelet_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "omelet_frittata"
+    },
+    {
+      "id": "tacos_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "tacos"
+    },
+    {
+      "id": "pizza_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "pizza_flatbread"
+    },
+    {
+      "id": "sandwich_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "sandwich_wrap"
+    },
+    {
+      "id": "vegan_curry_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "curry"
+    },
+    {
+      "id": "gluten_free_pancake_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "pancake_waffle"
+    },
+    {
+      "id": "nut_free_smoothie_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "smoothie"
+    },
+    {
+      "id": "low_carb_tacos_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "tacos"
+    },
+    {
+      "id": "impossible_dessert_macro_01",
+      "category": "reject",
+      "shouldPass": false,
+      "expectedDishFamily": "cheesecake"
+    },
+    {
+      "id": "baseline_pasta_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "pasta"
+    },
+    {
+      "id": "baseline_crepe_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "pancake_waffle"
+    },
+    {
+      "id": "baseline_bisque_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "soup_stew"
+    },
+    {
+      "id": "baseline_smoothie_02",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "smoothie"
+    },
+    {
+      "id": "baseline_grain_salad_01",
+      "category": "baseline",
+      "shouldPass": true,
+      "expectedDishFamily": "salad"
+    },
+    {
+      "id": "dietary_dairyfree_pasta_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "pasta"
+    },
+    {
+      "id": "dietary_vegetarian_stirfry_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "stir_fry"
+    },
+    {
+      "id": "dietary_vegan_tacos_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "tacos"
+    },
+    {
+      "id": "dietary_dairyfree_smoothie_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "smoothie"
+    },
+    {
+      "id": "dietary_glutenfree_cookie_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "cookie"
+    },
+    {
+      "id": "dietary_nutfree_salad_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "salad"
+    },
+    {
+      "id": "dietary_vegan_soup_01",
+      "category": "dietary",
+      "shouldPass": true,
+      "expectedDishFamily": "soup_stew"
+    },
+    {
+      "id": "macro_lowcalorie_soup_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "soup_stew"
+    },
+    {
+      "id": "macro_highprotein_stirfry_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "stir_fry"
+    },
+    {
+      "id": "macro_highprotein_omelet_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "omelet_frittata"
+    },
+    {
+      "id": "macro_lowcalorie_smoothie_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "smoothie"
+    },
+    {
+      "id": "macro_highprotein_curry_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "curry"
+    },
+    {
+      "id": "macro_lowcarb_salad_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "salad"
+    },
+    {
+      "id": "macro_highprotein_soup_01",
+      "category": "macro",
+      "shouldPass": true,
+      "expectedDishFamily": "soup_stew"
+    },
+    {
+      "id": "reject_brownie_highprotein_lowcal_01",
+      "category": "reject",
+      "shouldPass": false,
+      "expectedDishFamily": "brownie"
+    },
+    {
+      "id": "reject_smoothie_highprotein_lowcal_01",
+      "category": "reject",
+      "shouldPass": false,
+      "expectedDishFamily": "smoothie"
+    },
+    {
+      "id": "reject_cookie_lowcal_01",
+      "category": "reject",
+      "shouldPass": false,
+      "expectedDishFamily": "cookie"
+    },
+    {
+      "id": "reject_pasta_lowcarb_01",
+      "category": "reject",
+      "shouldPass": false,
+      "expectedDishFamily": "pasta"
+    },
+    {
+      "id": "messy_pantry_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_health_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_fast_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_combo_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_ambiguous_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_02",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_03",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_04",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_05",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_06",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_07",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_08",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_09",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_pantry_10",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_02",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_03",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_04",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_05",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_06",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_07",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_open_08",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_02",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_03",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_04",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_05",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_06",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_07",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_goal_08",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_01",
+      "category": "messy",
+      "shouldPass": false,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_02",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_03",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_04",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_05",
+      "category": "messy",
+      "shouldPass": false,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_06",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_conflict_07",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_01",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_02",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_03",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_04",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_05",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_06",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    },
+    {
+      "id": "messy_human_07",
+      "category": "messy",
+      "shouldPass": true,
+      "expectedDishFamily": ""
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { LockedDirectionRefinement } from "@/lib/ai/contracts/lockedDirectionSession";
 import type { ChatMessage, SelectedChefDirection } from "@/components/home/types";
+import type { BuildFailureState } from "@/components/home/useHomeHubAi";
 
 function distillRefinementLabels(refinements: LockedDirectionRefinement[]): string | null {
   const added: string[] = [];
@@ -111,6 +112,8 @@ type HomeHeroPanelProps = {
   activeChatRecipeIndex: number | null;
   error: string | null;
   status: string | null;
+  buildFailureState: BuildFailureState | null;
+  isBuildLong: boolean;
   onPromptInputChange: (value: string) => void;
   onPromptInputKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   onAskChef: () => void;
@@ -119,6 +122,8 @@ type HomeHeroPanelProps = {
   onSelectChefDirection: (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[] }) => void;
   onClearChefDirection: () => void;
   onRemoveLastRefinement: () => void;
+  onRetryBuild: () => void;
+  onClarificationQuickSelect: (option: string) => void;
   onStartOver: () => void;
   heroChatFrameRef: RefObject<HTMLDivElement | null>;
   heroChatViewportRef: RefObject<HTMLDivElement | null>;
@@ -135,6 +140,8 @@ export function HomeHeroPanel({
   activeChatRecipeIndex: _activeChatRecipeIndex,
   error,
   status,
+  buildFailureState,
+  isBuildLong,
   onPromptInputChange,
   onPromptInputKeyDown,
   onAskChef,
@@ -143,6 +150,8 @@ export function HomeHeroPanel({
   onSelectChefDirection,
   onClearChefDirection,
   onRemoveLastRefinement: _onRemoveLastRefinement,
+  onRetryBuild,
+  onClarificationQuickSelect,
   onStartOver,
   heroChatFrameRef,
   heroChatViewportRef,
@@ -456,11 +465,92 @@ export function HomeHeroPanel({
             <p className="mt-1 text-sm text-[color:var(--muted)]">Wait for Chef to finish refining before sending another message.</p>
           </div>
         ) : null}
-        {!heroChatReadyToApply && !hasConversation && !error && !loading ? (
+        {!heroChatReadyToApply && !hasConversation && !error && !buildFailureState && !loading ? (
           <p className="mt-3 text-sm text-[color:var(--muted)]">Talk to Chef first, then build the recipe when the direction feels right.</p>
         ) : null}
-        {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
-        {!error && status && !loading && !generatingRecipe ? <p className="mt-3 text-sm text-[color:var(--muted)]">{status}</p> : null}
+
+        {/* ── Build failure UX ─────────────────────────────────────────── */}
+        {buildFailureState?.kind === "clarification_needed" ? (
+          <div className="mt-3 rounded-[20px] border border-[rgba(181,123,77,0.2)] bg-[rgba(255,246,237,0.95)] px-4 py-4">
+            <p className="text-[15px] font-semibold text-[color:var(--text)]">What kind of meal are you in the mood for?</p>
+            <p className="mt-1 text-[13px] leading-5 text-[color:var(--muted)]">Give me a bit more direction and I&rsquo;ll build something for you.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {["Quick & easy", "Healthy", "Comfort food", "Something impressive"].map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onClarificationQuickSelect(opt)}
+                  className="rounded-full border border-[rgba(181,123,77,0.2)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(181,123,77,0.08)]"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : buildFailureState?.kind === "infeasible" ? (
+          <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.1)] bg-[rgba(255,255,255,0.9)] px-4 py-4">
+            <p className="text-[15px] font-semibold text-[color:var(--text)]">That combination is hard to make work</p>
+            <p className="mt-1 text-[13px] leading-5 text-[color:var(--muted)]">
+              {buildFailureState.reasons[0] ?? "Those constraints don\u2019t leave enough flexibility for a reliable result."}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void onRetryBuild()}
+                disabled={loading || generatingRecipe}
+                className="rounded-full bg-[color:var(--primary)] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+              >
+                Adjust it for me
+              </button>
+              <button
+                type="button"
+                onClick={onClearChefDirection}
+                disabled={loading || generatingRecipe}
+                className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-50"
+              >
+                Show me a close alternative
+              </button>
+            </div>
+          </div>
+        ) : buildFailureState?.kind === "hard_failure" ? (
+          <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.1)] bg-[rgba(255,255,255,0.9)] px-4 py-4">
+            <p className="text-[15px] font-semibold text-[color:var(--text)]">I couldn&rsquo;t build that recipe reliably</p>
+            <p className="mt-1 text-[13px] leading-5 text-[color:var(--muted)]">Let&rsquo;s try a simpler version or a different approach.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void onRetryBuild()}
+                disabled={loading || generatingRecipe}
+                className="rounded-full bg-[color:var(--primary)] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+              >
+                Try again
+              </button>
+              {["Quick meal", "Healthy option", "Comfort dish"].map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onClarificationQuickSelect(opt)}
+                  className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)]"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : error ? (
+          <p className="mt-3 text-sm text-red-600">{error}</p>
+        ) : null}
+
+        {/* ── Latency guardrail ─────────────────────────────────────────── */}
+        {generatingRecipe && isBuildLong ? (
+          <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.06)] bg-[rgba(255,255,255,0.7)] px-4 py-3">
+            <p className="text-[13px] text-[color:var(--muted)]">This is taking a bit longer than usual. Chef is still working — hang tight.</p>
+          </div>
+        ) : null}
+
+        {!buildFailureState && !error && status && !loading && !generatingRecipe ? (
+          <p className="mt-3 text-sm text-[color:var(--muted)]">{status}</p>
+        ) : null}
 
         {hasConversation ? (
           <div className="mt-4 flex justify-end">

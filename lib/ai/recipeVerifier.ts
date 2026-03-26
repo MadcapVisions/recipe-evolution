@@ -4,12 +4,14 @@ import { recipeMatchesRequestedDirection } from "./homeRecipeAlignment";
 import { ingredientPhraseMatches } from "./ingredientCanonicalization";
 import { createCachedResolver } from "./ingredientResolver";
 import { ingredientsMatch } from "./ingredientMatching";
+import { validateCulinaryFit } from "./culinaryValidator";
 
 type RecipeLike = {
   title: string;
   description: string | null;
   ingredients: Array<{ name: string }>;
-  steps: Array<{ text: string }>;
+  /** methodTag is optional — present in AI pipeline, absent after DB round-trip. */
+  steps: Array<{ text: string; methodTag?: string | null }>;
 };
 
 const GENERIC_TITLE_PATTERNS = [
@@ -231,6 +233,13 @@ export function verifyRecipeAgainstBrief(input: {
   const centerpiecePass = centerpieceMatch(input.recipe, brief);
   const stylePass = styleMatch(input.recipe, brief);
   const completenessPass = input.recipe.ingredients.length > 0 && input.recipe.steps.length > 0;
+
+  const culinary = validateCulinaryFit(
+    brief.dish.dish_family,
+    input.recipe.ingredients,
+    input.recipe.steps
+  );
+
   const checks = {
     dish_family_match: dishFamilyMatch,
     style_match: stylePass,
@@ -239,6 +248,7 @@ export function verifyRecipeAgainstBrief(input: {
     forbidden_ingredients_avoided: forbiddenPass,
     title_quality_pass: titlePass,
     recipe_completeness_pass: completenessPass,
+    culinary_family_valid: culinary.valid,
   };
   const reasons: string[] = [];
 
@@ -249,6 +259,9 @@ export function verifyRecipeAgainstBrief(input: {
   if (!forbiddenPass) reasons.push("Recipe includes an ingredient the user asked to avoid.");
   if (!titlePass) reasons.push("Recipe title is too generic to save as a final recipe.");
   if (!completenessPass) reasons.push("Recipe is incomplete.");
+  for (const v of culinary.violations) {
+    if (v.severity === "error") reasons.push(v.message);
+  }
 
   const passedChecks = Object.values(checks).filter(Boolean).length;
   const totalChecks = Object.keys(checks).length;
@@ -260,6 +273,7 @@ export function verifyRecipeAgainstBrief(input: {
     score,
     reasons,
     checks,
+    culinary_violations: culinary.violations,
     retry_strategy: reasons.length === 0 ? "none" : "regenerate_stricter",
   };
 }
