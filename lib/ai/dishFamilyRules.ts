@@ -204,6 +204,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
       "flour_grain is required — bread pudding is a bread-based custard dessert, not a flourless custard.",
       "Slow cooker is allowed if the user requests it; custard texture must still be soft and set, not scrambled.",
       "Texture inside should be soft, creamy, and pudding-like.",
+      "Do not add spicy ingredients such as cayenne, chili, or hot sauce unless the user explicitly asks for heat.",
     ],
     strictness: "medium",
     maxUncommonIngredients: 2,

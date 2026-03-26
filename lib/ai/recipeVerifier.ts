@@ -106,9 +106,34 @@ function forbiddenIngredientsAvoided(
   });
 }
 
+// Bread-type words that satisfy the "bread base" requirement for bread pudding.
+const BREAD_PUDDING_BREAD_WORDS = [
+  "bread", "brioche", "challah", "croissant", "panettone", "sourdough",
+  "baguette", "pullman", "pain", "stale", "loaf",
+];
+
+// Egg/dairy words that satisfy the "custard base" requirement for bread pudding.
+const BREAD_PUDDING_CUSTARD_WORDS = [
+  "egg", "eggs", "milk", "cream", "custard",
+];
+
 function centerpieceMatch(recipe: RecipeLike, brief: CookingBrief) {
   if (!brief.ingredients.centerpiece) return true;
+
   const text = `${recipe.title} ${recipe.description ?? ""} ${recipe.ingredients.map((item) => item.name).join(" ")}`.toLowerCase();
+
+  // Bread pudding is a composite dish — its "centerpiece" is a structural combination of
+  // bread + custard base, not a single ingredient. Token matching would fail for bread
+  // pudding made with brioche or challah because neither word contains "bread".
+  if (brief.dish.dish_family === "bread_pudding") {
+    const hasBreadBase = BREAD_PUDDING_BREAD_WORDS.some((w) => text.includes(w));
+    const hasCustardBase = BREAD_PUDDING_CUSTARD_WORDS.some((w) => text.includes(w));
+    if (!hasBreadBase || !hasCustardBase) {
+      return false;
+    }
+    return true;
+  }
+
   const normalizedCenterpiece = brief.ingredients.centerpiece.toLowerCase().trim();
   if (text.includes(normalizedCenterpiece)) {
     return true;
@@ -254,7 +279,13 @@ export function verifyRecipeAgainstBrief(input: {
 
   if (!dishFamilyMatch) reasons.push("Recipe drifted from the requested dish family or direction.");
   if (!stylePass) reasons.push("Recipe does not reflect the requested style or texture cues.");
-  if (!centerpiecePass) reasons.push("Recipe lost the intended centerpiece ingredient or dish.");
+  if (!centerpiecePass) {
+    if (brief.dish.dish_family === "bread_pudding") {
+      reasons.push("Bread pudding must retain bread plus a custard base with eggs and milk or cream.");
+    } else {
+      reasons.push("Recipe lost the intended centerpiece ingredient or dish.");
+    }
+  }
   if (!requiredPass) reasons.push("Recipe is missing one or more required ingredients from the brief.");
   if (!forbiddenPass) reasons.push("Recipe includes an ingredient the user asked to avoid.");
   if (!titlePass) reasons.push("Recipe title is too generic to save as a final recipe.");
