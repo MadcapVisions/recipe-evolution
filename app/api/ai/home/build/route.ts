@@ -25,6 +25,17 @@ import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { orchestrateRecipeGeneration } from "@/lib/ai/recipeGenerationOrchestrator";
 import { buildGenerationDeps } from "@/lib/ai/repairAdapters";
 import { normalizeDietaryTags } from "@/lib/ai/normalizeDietaryTags";
+import {
+  mapToLaunchDecision,
+  extractVerifierIssueCodes,
+  extractFailureKindCode,
+  type LaunchDecision,
+} from "@/lib/ai/launchDecisionMapper";
+import {
+  createRunIssueCollector,
+  collectIssueCodes,
+  collectReasons,
+} from "@/lib/ai/runIssueCollector";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -101,11 +112,15 @@ const buildRequestSchema = z.object({
   conversationHistory: z.array(aiMessageSchema).optional(),
   conversationKey: z.string().optional(),
   lockedSession: lockedSessionSchema.optional(),
+  // Retry action modifiers (from graceful failure card buttons)
+  retryMode: z.enum(["prioritize_required_ingredients", "simplify", "relax_required", "clarify"]).optional(),
+  relaxRequiredNamedIngredients: z.array(z.string()).optional(),
+  simplifyRequest: z.boolean().optional(),
 });
 
 type StreamEvent =
   | { type: "status"; message: string; stage?: string }
-  | { type: "result"; result: unknown }
+  | { type: "result"; result: unknown; launchDecision?: LaunchDecision }
   | { type: "debug"; label: string; data: Record<string, unknown> }
   | {
       type: "error";
@@ -116,6 +131,7 @@ type StreamEvent =
       model?: string;
       reasons?: string[];
       failure_context?: Record<string, unknown> | null;
+      launchDecision?: LaunchDecision;
     };
 
 function eventLine(event: StreamEvent) {
@@ -161,6 +177,11 @@ export async function POST(request: Request) {
   }
 
   const userTasteSummary = await tasteSummaryPromise;
+  const retryMode = body.retryMode ?? null;
+  const relaxIngredients: string[] = Array.isArray(body.relaxRequiredNamedIngredients)
+    ? body.relaxRequiredNamedIngredients.filter((s): s is string => typeof s === "string")
+    : [];
+  const simplifyRequest = body.simplifyRequest === true;
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;
   const ingredients = Array.isArray(body.ingredients)
     ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
@@ -199,6 +220,7 @@ export async function POST(request: Request) {
       let resolvedTaskPrimaryModel: string | undefined;
       let terminalFailureStored = false;
       let lockedSession: LockedDirectionSession | null = null;
+      const issueCollector = createRunIssueCollector();
 
       try {
         send({ type: "status", message: "Understanding your request...", stage: "brief_compile" });
@@ -248,6 +270,27 @@ export async function POST(request: Request) {
             })
           : compiledBrief;
         briefCompiledAt = new Date().toISOString();
+
+        // Apply retry modifiers from graceful failure card actions
+        if (relaxIngredients.length > 0 && effectiveBrief.ingredients.requiredNamedIngredients?.length) {
+          effectiveBrief = {
+            ...effectiveBrief,
+            ingredients: {
+              ...effectiveBrief.ingredients,
+              requiredNamedIngredients: effectiveBrief.ingredients.requiredNamedIngredients.filter(
+                (r) => !relaxIngredients.includes(r.normalizedName)
+              ),
+            },
+          };
+        }
+
+        // Collect required named ingredient names for LaunchDecision
+        for (const r of effectiveBrief.ingredients.requiredNamedIngredients ?? []) {
+          if (!issueCollector.requiredNamedIngredientNames.includes(r.normalizedName)) {
+            issueCollector.requiredNamedIngredientNames.push(r.normalizedName);
+          }
+        }
+
         const briefSource = lockedSession?.selected_direction
           ? (lockedSession.build_spec ? "build_spec" : "reconstructed")
           : "compiled";
@@ -442,6 +485,16 @@ export async function POST(request: Request) {
 
             if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
               lastAttemptModel = currentAttemptModel;
+              // Collect issues from this failed attempt
+              if (failure.verification?.checks) {
+                collectIssueCodes(issueCollector, extractVerifierIssueCodes(failure.verification.checks));
+              }
+              const fkCode = extractFailureKindCode(failure.kind);
+              if (fkCode) collectIssueCodes(issueCollector, [fkCode]);
+              collectReasons(issueCollector, failure.reasons);
+              issueCollector.plannerRetries += 1;
+              if (effectiveStrategy === "try_fallback_model") issueCollector.usedFallback = true;
+
               // If retries keep failing with brief_source=reconstructed, the root cause is
               // a missing BuildSpec — the model is being retried from an unstable spec.
               send({
@@ -486,6 +539,14 @@ export async function POST(request: Request) {
               );
               continue;
             }
+
+            // Collect issues from terminal failure
+            if (failure.verification?.checks) {
+              collectIssueCodes(issueCollector, extractVerifierIssueCodes(failure.verification.checks));
+            }
+            const termFkCode = extractFailureKindCode(failure.kind);
+            if (termFkCode) collectIssueCodes(issueCollector, [termFkCode]);
+            collectReasons(issueCollector, failure.reasons);
 
             terminalFailureStored = true;
             throw error;
@@ -589,7 +650,15 @@ export async function POST(request: Request) {
         }
 
         send({ type: "status", message: "Recipe is ready.", stage: "recipe_verify" });
-        send({ type: "result", result });
+        const successDecision = mapToLaunchDecision({
+          issueCodes: issueCollector.codes,
+          plannerRetries: issueCollector.plannerRetries,
+          repairAttempts: issueCollector.repairAttempts,
+          usedFallback: issueCollector.usedFallback,
+          reasons: issueCollector.reasons,
+          requiredNamedIngredientNames: issueCollector.requiredNamedIngredientNames,
+        });
+        send({ type: "result", result, launchDecision: successDecision });
       } catch (error) {
         const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
         if (conversationKey && !terminalFailureStored) {
@@ -653,6 +722,23 @@ export async function POST(request: Request) {
             failure_context: failure.failureContext,
           },
         });
+        // Ensure terminal failure is reflected even if issue collection happened before the throw
+        if (failure.verification?.checks) {
+          collectIssueCodes(issueCollector, extractVerifierIssueCodes(failure.verification.checks));
+        }
+        const outerFkCode = extractFailureKindCode(failure.kind);
+        if (outerFkCode && !issueCollector.codes.includes(outerFkCode)) {
+          collectIssueCodes(issueCollector, [outerFkCode]);
+        }
+
+        const terminalDecision = mapToLaunchDecision({
+          issueCodes: issueCollector.codes,
+          plannerRetries: issueCollector.plannerRetries,
+          repairAttempts: issueCollector.repairAttempts,
+          usedFallback: issueCollector.usedFallback,
+          reasons: issueCollector.reasons.length > 0 ? issueCollector.reasons : failure.reasons,
+          requiredNamedIngredientNames: issueCollector.requiredNamedIngredientNames,
+        });
         send({
           type: "error",
           message: failure.message,
@@ -662,6 +748,7 @@ export async function POST(request: Request) {
           model: currentAttemptModel ?? lastAttemptModel ?? resolvedTaskPrimaryModel,
           reasons: failure.reasons,
           failure_context: failure.failureContext,
+          launchDecision: terminalDecision,
         });
       } finally {
         controller.close();

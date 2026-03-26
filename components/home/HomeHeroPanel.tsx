@@ -3,7 +3,7 @@
 import type { RefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { LockedDirectionRefinement } from "@/lib/ai/contracts/lockedDirectionSession";
 import type { ChatMessage, SelectedChefDirection } from "@/components/home/types";
-import type { BuildFailureState } from "@/components/home/useHomeHubAi";
+import type { BuildFailureState, LaunchDecision, SuggestedAction } from "@/components/home/useHomeHubAi";
 
 function distillRefinementLabels(refinements: LockedDirectionRefinement[]): string | null {
   const added: string[] = [];
@@ -101,6 +101,120 @@ function getStatusPresentation(input: { loading: boolean; generatingRecipe: bool
   return null;
 }
 
+// ── Graceful failure card (rendered when graceful mode is enabled) ──────────
+
+const MODE_STYLES: Record<string, { border: string; bg: string; kicker: string }> = {
+  MISSING_REQUIRED_INGREDIENT: {
+    border: "border-[rgba(181,123,77,0.2)]",
+    bg: "bg-[rgba(255,246,237,0.95)]",
+    kicker: "text-[color:var(--amber)]",
+  },
+  CLARIFY_INTENT: {
+    border: "border-[rgba(181,123,77,0.2)]",
+    bg: "bg-[rgba(255,246,237,0.95)]",
+    kicker: "text-[color:var(--amber)]",
+  },
+  CONSTRAINT_CONFLICT: {
+    border: "border-[rgba(57,75,70,0.1)]",
+    bg: "bg-[rgba(255,255,255,0.9)]",
+    kicker: "text-[color:var(--muted)]",
+  },
+  GENERATION_RECOVERY: {
+    border: "border-[rgba(57,75,70,0.1)]",
+    bg: "bg-[rgba(255,255,255,0.9)]",
+    kicker: "text-[color:var(--muted)]",
+  },
+  HARD_FAIL: {
+    border: "border-[rgba(57,75,70,0.1)]",
+    bg: "bg-[rgba(255,255,255,0.9)]",
+    kicker: "text-[color:var(--muted)]",
+  },
+  SHOW_RECIPE_WITH_WARNING: {
+    border: "border-[rgba(181,123,77,0.12)]",
+    bg: "bg-[rgba(255,252,243,0.95)]",
+    kicker: "text-[color:var(--amber)]",
+  },
+};
+
+const MODE_TITLES: Record<string, string> = {
+  MISSING_REQUIRED_INGREDIENT: "Chef couldn\u2019t include that ingredient",
+  CLARIFY_INTENT: "Chef needs a bit more direction",
+  CONSTRAINT_CONFLICT: "Those constraints are hard to reconcile",
+  GENERATION_RECOVERY: "Chef had trouble building that recipe",
+  HARD_FAIL: "Chef couldn\u2019t build that reliably",
+  SHOW_RECIPE_WITH_WARNING: "Recipe built with extra effort",
+};
+
+function GracefulFailureCard({
+  launchDecision,
+  loading,
+  generatingRecipe,
+  onAction,
+  onClarify,
+  onClear,
+}: {
+  launchDecision: LaunchDecision;
+  loading: boolean;
+  generatingRecipe: boolean;
+  onAction: (action: SuggestedAction) => void;
+  onClarify: (option: string) => void;
+  onClear: () => void;
+}) {
+  const style = MODE_STYLES[launchDecision.mode] ?? MODE_STYLES.HARD_FAIL!;
+  const title = MODE_TITLES[launchDecision.mode] ?? "Chef ran into a problem";
+
+  const showClarifyOptions = launchDecision.mode === "CLARIFY_INTENT";
+  const showClearOption = launchDecision.mode === "CONSTRAINT_CONFLICT";
+
+  return (
+    <div className={`mt-3 rounded-[20px] border ${style.border} ${style.bg} px-4 py-4`}>
+      <p className={`app-kicker ${style.kicker}`}>{launchDecision.warningLabel ?? "Build issue"}</p>
+      <p className="mt-1 text-[15px] font-semibold text-[color:var(--text)]">{title}</p>
+      <p className="mt-1 text-[13px] leading-5 text-[color:var(--muted)]">{launchDecision.primaryMessage}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {launchDecision.suggestedActions.map((action, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onAction(action)}
+            disabled={loading || generatingRecipe}
+            className={`rounded-full px-4 py-2 text-[13px] font-semibold transition disabled:opacity-60 ${
+              i === 0
+                ? "bg-[color:var(--primary)] text-white hover:bg-[color:var(--primary-strong)]"
+                : "border border-[rgba(57,75,70,0.12)] bg-white text-[color:var(--text)] hover:bg-[rgba(74,106,96,0.08)]"
+            }`}
+          >
+            {action.label}
+          </button>
+        ))}
+        {showClarifyOptions
+          ? ["Quick & easy", "Comfort food", "Something simple"].map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => onClarify(opt)}
+                disabled={loading || generatingRecipe}
+                className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-50"
+              >
+                {opt}
+              </button>
+            ))
+          : null}
+        {showClearOption ? (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={loading || generatingRecipe}
+            className="rounded-full border border-[rgba(57,75,70,0.12)] bg-white px-4 py-2 text-[13px] font-semibold text-[color:var(--text)] transition hover:bg-[rgba(74,106,96,0.08)] disabled:opacity-50"
+          >
+            Change direction
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 type HomeHeroPanelProps = {
   heroChatMessages: ChatMessage[];
   selectedChefDirection: SelectedChefDirection | null;
@@ -113,6 +227,8 @@ type HomeHeroPanelProps = {
   error: string | null;
   status: string | null;
   buildFailureState: BuildFailureState | null;
+  launchDecision?: LaunchDecision | null;
+  gracefulMode?: boolean;
   isBuildLong: boolean;
   onPromptInputChange: (value: string) => void;
   onPromptInputKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
@@ -123,6 +239,7 @@ type HomeHeroPanelProps = {
   onClearChefDirection: () => void;
   onRemoveLastRefinement: () => void;
   onRetryBuild: () => void;
+  onRetryWithAction?: (action: SuggestedAction) => void;
   onClarificationQuickSelect: (option: string) => void;
   onStartOver: () => void;
   heroChatFrameRef: RefObject<HTMLDivElement | null>;
@@ -141,6 +258,8 @@ export function HomeHeroPanel({
   error,
   status,
   buildFailureState,
+  launchDecision,
+  gracefulMode,
   isBuildLong,
   onPromptInputChange,
   onPromptInputKeyDown,
@@ -151,6 +270,7 @@ export function HomeHeroPanel({
   onClearChefDirection,
   onRemoveLastRefinement: _onRemoveLastRefinement,
   onRetryBuild,
+  onRetryWithAction,
   onClarificationQuickSelect,
   onStartOver,
   heroChatFrameRef,
@@ -470,7 +590,16 @@ export function HomeHeroPanel({
         ) : null}
 
         {/* ── Build failure UX ─────────────────────────────────────────── */}
-        {buildFailureState?.kind === "clarification_needed" ? (
+        {gracefulMode && launchDecision && !generatingRecipe && (launchDecision.mode !== "SHOW_RECIPE") ? (
+          <GracefulFailureCard
+            launchDecision={launchDecision}
+            loading={loading}
+            generatingRecipe={generatingRecipe}
+            onAction={(action) => onRetryWithAction?.(action)}
+            onClarify={onClarificationQuickSelect}
+            onClear={onClearChefDirection}
+          />
+        ) : buildFailureState?.kind === "clarification_needed" ? (
           <div className="mt-3 rounded-[20px] border border-[rgba(181,123,77,0.2)] bg-[rgba(255,246,237,0.95)] px-4 py-4">
             <p className="text-[15px] font-semibold text-[color:var(--text)]">What kind of meal are you in the mood for?</p>
             <p className="mt-1 text-[13px] leading-5 text-[color:var(--muted)]">Give me a bit more direction and I&rsquo;ll build something for you.</p>

@@ -20,6 +20,7 @@ import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import type { ChatMessage, LockedDirectionSession, SelectedChefDirection, UserTasteProfile } from "@/components/home/types";
 import type { VerificationRetryStrategy } from "@/lib/ai/contracts/verificationResult";
 import type { RecipeBuildFailureKind } from "@/lib/ai/recipeBuildError";
+import type { LaunchDecision, SuggestedAction } from "@/lib/ai/launchDecisionMapper";
 
 const extractIngredientsFromPrompt = (prompt: string) =>
   prompt
@@ -190,6 +191,7 @@ type RecipeBuildStreamError = Error & {
   retryStrategy?: VerificationRetryStrategy;
   reasons?: string[];
   failureKind?: RecipeBuildFailureKind;
+  launchDecision?: LaunchDecision;
 };
 
 export type BuildFailureState = {
@@ -198,6 +200,8 @@ export type BuildFailureState = {
   /** Human-readable reasons from the planner/verifier, if any. */
   reasons: string[];
 };
+
+export type { LaunchDecision, SuggestedAction };
 
 export type BuildDebugEntry =
   | { type: "status"; message: string; ts: number }
@@ -360,6 +364,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   const buildLongTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [buildDebugLog, setBuildDebugLog] = useState<BuildDebugEntry[]>([]);
+  const [launchDecision, setLaunchDecision] = useState<LaunchDecision | null>(null);
 
   const [heroChatMessages, setHeroChatMessages] = useState<ChatMessage[]>([]);
   const [heroChatReadyToApply, setHeroChatReadyToApply] = useState(false);
@@ -624,6 +629,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     const decoder = new TextDecoder();
     let buffer = "";
     let finalResult: Record<string, unknown> | null = null;
+    let finalLaunchDecision: LaunchDecision | null = null;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -642,7 +648,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         }
         const event = JSON.parse(trimmed) as
           | { type: "status"; message: string }
-          | { type: "result"; result: Record<string, unknown> }
+          | { type: "result"; result: Record<string, unknown>; launchDecision?: LaunchDecision }
           | { type: "debug"; label: string; data: Record<string, unknown> }
           | {
               type: "error";
@@ -653,6 +659,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
               failure_stage?: string | null;
               failure_context?: Record<string, unknown> | null;
               model?: string;
+              launchDecision?: LaunchDecision;
             };
 
         if (event.type === "status") {
@@ -662,6 +669,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           handlers.onDebugEvent?.({ type: "debug", label: event.label, data: event.data, ts: Date.now() });
         } else if (event.type === "result") {
           finalResult = event.result;
+          finalLaunchDecision = event.launchDecision ?? null;
           const resultRecipe = event.result?.recipe as { title?: string } | undefined;
           handlers.onDebugEvent?.({ type: "result", title: resultRecipe?.title ?? "(no title)", ts: Date.now() });
         } else if (event.type === "error") {
@@ -678,6 +686,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           streamError.retryStrategy = event.retry_strategy;
           streamError.reasons = Array.isArray(event.reasons) ? event.reasons : [];
           streamError.failureKind = event.failure_kind;
+          streamError.launchDecision = event.launchDecision;
           throw streamError;
         }
       }
@@ -687,7 +696,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       throw new Error("Recipe build finished without a result.");
     }
 
-    return finalResult;
+    return { result: finalResult, launchDecision: finalLaunchDecision };
   };
 
   const describeAiOutage = (rawError: unknown, fallbackLabel: string) => {
@@ -766,6 +775,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setGeneratingRecipe(true);
     setError(null);
     setBuildFailureState(null);
+    setLaunchDecision(null);
     setIsBuildLong(false);
     if (buildLongTimeoutRef.current) clearTimeout(buildLongTimeoutRef.current);
     buildLongTimeoutRef.current = setTimeout(() => setIsBuildLong(true), 35_000);
@@ -776,7 +786,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     buildAbortRef.current = controller;
 
     try {
-      const data = await invokeRecipeBuildStream({
+      const { result: data, launchDecision: streamDecision } = await invokeRecipeBuildStream({
         ideaTitle,
         prompt: latestUserPrompt,
         ingredients,
@@ -795,6 +805,8 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       ) {
         return;
       }
+
+      if (streamDecision) setLaunchDecision(streamDecision);
 
       const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
         ? (data.result as { recipe: RecipeDraft }).recipe
@@ -828,6 +840,9 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
             ts: Date.now(),
           },
         ]);
+      }
+      if (typedSaveError.launchDecision) {
+        setLaunchDecision(typedSaveError.launchDecision);
       }
       const fkind = typedSaveError.failureKind;
       const fstrat = typedSaveError.retryStrategy;
@@ -1111,6 +1126,103 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     await createRecipeFromConversation(heroChatMessages, "chef-chat-retry");
   };
 
+  const handleRetryWithAction = async (action: SuggestedAction) => {
+    setBuildFailureState(null);
+    setError(null);
+    setLaunchDecision(null);
+    // Build request body with retry modifiers from the action
+    const requestThread = threadIdentityRef.current;
+    const requestConversationKey = conversationKeyRef.current;
+    const selectedDirectionOverride = selectedChefDirection;
+    const effectiveLockedSession = lockedSession;
+    const { conversationText, ideaTitle, latestUserPrompt, ingredients, conversationHistory } = buildRecipeSeedFromConversation(
+      heroChatMessages,
+      userTasteProfile,
+      selectedDirectionOverride,
+      effectiveLockedSession
+    );
+    if (!conversationText.trim()) return;
+
+    setGeneratingRecipe(true);
+    setLaunchDecision(null);
+    setIsBuildLong(false);
+    if (buildLongTimeoutRef.current) clearTimeout(buildLongTimeoutRef.current);
+    buildLongTimeoutRef.current = setTimeout(() => setIsBuildLong(true), 35_000);
+    setStatus("Retrying...");
+    setBuildDebugLog([{ type: "status", message: "Retrying with modifiers...", ts: Date.now() }]);
+    buildAbortRef.current?.abort();
+    const controller = new AbortController();
+    buildAbortRef.current = controller;
+
+    try {
+      const { result: data, launchDecision: streamDecision } = await invokeRecipeBuildStream(
+        {
+          ideaTitle,
+          prompt: latestUserPrompt,
+          ingredients,
+          conversationHistory,
+          conversationKey: requestConversationKey,
+          lockedSession: effectiveLockedSession,
+          retryMode: action.retryMode,
+          ...(action.retryParams?.relaxRequiredNamedIngredients?.length
+            ? { relaxRequiredNamedIngredients: action.retryParams.relaxRequiredNamedIngredients }
+            : {}),
+          ...(action.retryParams?.simplifyRequest ? { simplifyRequest: true } : {}),
+        },
+        {
+          onStatus: (message) => setStatus(message),
+          onDebugEvent: (entry) => setBuildDebugLog((prev) => [...prev, entry]),
+        },
+        controller.signal
+      );
+
+      if (
+        controller.signal.aborted ||
+        threadIdentityRef.current !== requestThread ||
+        conversationKeyRef.current !== requestConversationKey
+      ) {
+        return;
+      }
+
+      if (streamDecision) setLaunchDecision(streamDecision);
+
+      const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
+        ? (data.result as { recipe: RecipeDraft }).recipe
+        : (data.recipe as RecipeDraft);
+      setStatus("Saving your recipe...");
+      const created = await saveGeneratedRecipe(recipe, "chef-chat-graceful-retry");
+      if (
+        controller.signal.aborted ||
+        threadIdentityRef.current !== requestThread ||
+        conversationKeyRef.current !== requestConversationKey
+      ) {
+        return;
+      }
+      goToCreatedRecipe(created.recipeId, created.versionId);
+    } catch (saveError) {
+      if ((saveError instanceof DOMException && saveError.name === "AbortError") || controller.signal.aborted) {
+        return;
+      }
+      const typedSaveError = saveError as RecipeBuildStreamError;
+      if (typedSaveError.launchDecision) setLaunchDecision(typedSaveError.launchDecision);
+      const fkind = typedSaveError.failureKind;
+      const fstrat = typedSaveError.retryStrategy;
+      let failureStateKind: BuildFailureState["kind"] = "hard_failure";
+      if (fkind === "verification_failed") {
+        failureStateKind = fstrat === "ask_user" ? "clarification_needed" : "infeasible";
+      }
+      setBuildFailureState({ kind: failureStateKind, reasons: typedSaveError.reasons ?? [] });
+      setError(getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe. Please try again."));
+      setStatus(null);
+    } finally {
+      if (buildAbortRef.current === controller) buildAbortRef.current = null;
+      if (buildLongTimeoutRef.current) { clearTimeout(buildLongTimeoutRef.current); buildLongTimeoutRef.current = null; }
+      setIsBuildLong(false);
+      setGeneratingRecipe(false);
+      setStatus(null);
+    }
+  };
+
   const handleClarificationQuickSelect = (option: string) => {
     setBuildFailureState(null);
     setError(null);
@@ -1139,6 +1251,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     setPromptInput("");
     setError(null);
     setBuildFailureState(null);
+    setLaunchDecision(null);
     setIsBuildLong(false);
     if (buildLongTimeoutRef.current) {
       clearTimeout(buildLongTimeoutRef.current);
@@ -1167,6 +1280,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     error,
     status,
     buildFailureState,
+    launchDecision,
     isBuildLong,
     buildDebugLog,
     heroChatMessages,
@@ -1184,6 +1298,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     handleRemoveLastRefinement,
     handleBuildSelectedDirection,
     handleRetryBuild,
+    handleRetryWithAction,
     handleClarificationQuickSelect,
     handleStartOver,
   };
