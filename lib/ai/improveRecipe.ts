@@ -3,6 +3,8 @@ import { CHEF_SYSTEM_PROMPT } from "./chefSystemPrompt";
 import { validateRecipe } from "./schema/recipeValidator";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
+import { compileCookingBrief } from "./briefCompiler";
+import { validateRequiredNamedIngredientsInRecipe } from "./requiredNamedIngredientValidation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatIngredientLine } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
@@ -105,10 +107,27 @@ function verifyInstructionApplied(instruction: string, result: AiRecipeResult): 
   return matches.length >= Math.ceil(keyWords.length * 0.4);
 }
 
+function extractHardRequiredIngredients(input: ImproveRecipeInput) {
+  const brief = compileCookingBrief({
+    userMessage: input.instruction,
+    conversationHistory: [],
+    recipeContext: {
+      title: input.recipe.title,
+      ingredients: input.recipe.ingredients.map((item) => item.name),
+      steps: input.recipe.steps.map((item) => item.text),
+    },
+  });
+
+  return (brief.ingredients.requiredNamedIngredients ?? []).filter(
+    (ingredient) => ingredient.requiredStrength === "hard"
+  );
+}
+
 export async function improveRecipe(
   input: ImproveRecipeInput,
   cacheContext?: ImproveRecipeCacheContext
 ): Promise<AiRecipeResult> {
+  const hardRequiredIngredients = extractHardRequiredIngredients(input);
   const inputHash = cacheContext
     ? hashAiCacheInput({
         instruction: input.instruction,
@@ -168,6 +187,13 @@ Rules:
       role: "user" as const,
       content: `Instruction:
 ${input.instruction}
+
+${hardRequiredIngredients.length > 0
+  ? `Mandatory user-requested ingredients that must appear in the edited recipe and be used in the steps:
+${hardRequiredIngredients.map((ingredient) => `- ${ingredient.normalizedName}`).join("\n")}
+
+Do not substitute a related ingredient. If the user asked for "sourdough discard", "sourdough bread" does not satisfy the request.`
+  : ""}
 
 Current recipe:
 ${JSON.stringify(input.recipe, null, 2)}`,
@@ -248,6 +274,17 @@ ${JSON.stringify(input.recipe, null, 2)}`,
         steps,
       },
     });
+
+    const missingRequiredIngredientIssues = validateRequiredNamedIngredientsInRecipe({
+      ingredients: candidate.recipe.ingredients.map((item) => ({ ingredientName: item.name })),
+      steps: candidate.recipe.steps,
+      requiredNamedIngredients: hardRequiredIngredients,
+    });
+
+    if (missingRequiredIngredientIssues.length > 0) {
+      lastError = missingRequiredIngredientIssues.map((issue) => issue.message).join(" ");
+      continue;
+    }
 
     // Verify the instruction's key changes actually appear in the result.
     // If not on the first attempt, retry once; accept the second attempt regardless.

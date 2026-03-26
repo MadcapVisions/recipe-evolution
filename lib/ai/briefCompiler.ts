@@ -90,6 +90,22 @@ const REQUIRED_INGREDIENT_STOP_WORDS = new Set([
   "perfect",
   "balance",
   "quality",
+  "crisp",
+  "crispy",
+  "crunchy",
+  "edge",
+  "edges",
+  "spicy",
+  "smoky",
+  "bright",
+  "fresh",
+  "quick",
+  "easy",
+  "simple",
+  "lighter",
+  "light",
+  "richer",
+  "creamy",
   // Equipment / method words — "use a slow cooker" should not extract "slow cooker"
   "cooker",
   "crockpot",
@@ -132,6 +148,8 @@ function extractExplicitRequiredIngredients(text: string) {
     /\bwould like to use (?:some |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu,
     // "make it with X", "make this with X"
     /\bmake (?:it|this|the recipe|the dish) with ([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|and|or|while|instead|but)\b|[.,!?]|$)/gu,
+    // "I want bread pudding with sourdough discard", "make pasta with chicken and broccoli"
+    /\b(?:i want|i'd like|i would like|make|create|give me)\s+[\p{L}][\p{L}\s-]{1,80}?\s+with\s+([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:\s+and\s+(?:make|keep|stay|be|skip|leave out|remove|avoid)\b|[.!?]|$))/gu,
   ];
 
   for (const pattern of patterns) {

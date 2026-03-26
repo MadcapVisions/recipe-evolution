@@ -49,6 +49,23 @@ test("compileCookingBrief keeps recipe-context ingredients as preferred and only
   assert.deepEqual(brief.ingredients.required, ["jalapeños"]);
   assert.deepEqual(brief.ingredients.preferred, ["chicken", "bell peppers", "crispy rice"]);
   assert.equal(brief.ingredients.centerpiece, "Chicken Fajita Bowl");
+  assert.deepEqual(
+    (brief.ingredients.requiredNamedIngredients ?? []).map((ingredient) => ingredient.normalizedName),
+    ["jalapenos"]
+  );
+});
+
+test("compileCookingBrief treats 'with sourdough discard' as a hard required ingredient on initial create requests", () => {
+  const brief = compileCookingBrief({
+    userMessage: "I want bread pudding with sourdough discard",
+    conversationHistory: [],
+  });
+
+  assert.deepEqual(brief.ingredients.required, ["sourdough discard"]);
+  assert.deepEqual(
+    (brief.ingredients.requiredNamedIngredients ?? []).map((ingredient) => ingredient.normalizedName),
+    ["sourdough discard"]
+  );
 });
 
 test("compileCookingBrief preserves obscure named dishes instead of collapsing to fallback protein titles", () => {

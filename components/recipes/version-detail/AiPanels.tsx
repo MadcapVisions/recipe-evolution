@@ -44,6 +44,7 @@ export function ChefAiPanel({
   onSelectDirection,
   onClearDirection,
   onApplySuggestedChange,
+  onBuildLatestRequest,
   onForkFromSuggestion,
   onComposerFocus,
   conversationEndRef,
@@ -65,6 +66,7 @@ export function ChefAiPanel({
   onSelectDirection: (messageId: string, option: ChefDirectionOption) => void;
   onClearDirection: () => void;
   onApplySuggestedChange: () => void;
+  onBuildLatestRequest: () => void;
   onForkFromSuggestion: () => void;
   onComposerFocus?: () => void;
   conversationEndRef: RefObject<HTMLDivElement | null>;
@@ -75,6 +77,8 @@ export function ChefAiPanel({
   const latestAssistantMessageId = [...aiConversation]
     .reverse()
     .find((message) => message.role === "assistant" && (message.options?.length ?? 0) === 0)?.id;
+  const latestUserMessage = [...aiConversation].reverse().find((message) => message.role === "user") ?? null;
+  const showBuildLatestRequest = !suggestedChange && !isAskingAi && latestUserMessage !== null;
 
   return (
     <section className="app-panel flex flex-col p-4 sm:p-5">
@@ -271,7 +275,7 @@ export function ChefAiPanel({
                       disabled={isGeneratingVersion || isAskingAi}
                       className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[14px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
                     >
-                      {isGeneratingVersion ? "Creating version..." : "Create Version"}
+                      {isGeneratingVersion ? "Building recipe..." : "Build recipe"}
                     </button>
                     <button
                       type="button"
@@ -298,6 +302,38 @@ export function ChefAiPanel({
           ) : null}
           <div ref={conversationEndRef} />
         </div>
+        {suggestedChange && !isAskingAi ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onApplySuggestedChange}
+              disabled={isGeneratingVersion || isAskingAi}
+              className="rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+            >
+              {isGeneratingVersion ? "Building recipe..." : "Build recipe"}
+            </button>
+            <button
+              type="button"
+              onClick={onForkFromSuggestion}
+              disabled={isGeneratingVersion || isAskingAi}
+              className="rounded-full border border-[rgba(74,106,96,0.2)] bg-transparent px-4 py-3 text-[15px] font-medium text-[color:var(--muted)] transition hover:border-[rgba(74,106,96,0.4)] hover:text-[color:var(--text)] disabled:opacity-60"
+            >
+              Create Recipe
+            </button>
+          </div>
+        ) : null}
+        {showBuildLatestRequest ? (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={onBuildLatestRequest}
+              disabled={isGeneratingVersion || isAskingAi}
+              className="w-full rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
+            >
+              {isGeneratingVersion ? "Building recipe..." : "Build recipe from latest request"}
+            </button>
+          </div>
+        ) : null}
         {aiError ? <p className="mt-3 text-sm text-red-600">{aiError}</p> : null}
         <div className="mt-3 flex gap-2">
           <input

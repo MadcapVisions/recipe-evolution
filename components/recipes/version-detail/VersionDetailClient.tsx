@@ -784,6 +784,41 @@ export function VersionDetailClient({
     assistant.setIsGeneratingVersion(false);
   }
 
+  async function handleBuildLatestRequest() {
+    if (assistant.isGeneratingVersion || assistant.isAskingAi) return;
+    const latestUserInstruction = [...assistant.aiConversation]
+      .reverse()
+      .find((message) => message.role === "user")
+      ?.text.trim();
+
+    if (!latestUserInstruction) {
+      assistant.setAiError("Ask Chef for a concrete recipe change first.");
+      return;
+    }
+
+    assistant.setIsGeneratingVersion(true);
+    assistant.setAiError(null);
+
+    const suggestion = await requestAiSuggestion(latestUserInstruction);
+    if (!suggestion) {
+      assistant.setAiError("Could not build a recipe update from the latest request.");
+      assistant.setIsGeneratingVersion(false);
+      return;
+    }
+
+    assistant.setSuggestedChange(suggestion);
+    await createVersionFromSuggestion(
+      suggestion,
+      suggestion.version_label ?? buildVersionLabelFromInstruction(latestUserInstruction),
+      {
+        source: "ai",
+        action: "apply_suggestion",
+        instruction: latestUserInstruction,
+      }
+    );
+    assistant.setIsGeneratingVersion(false);
+  }
+
   async function handleForkFromSuggestion() {
     if (!assistant.suggestedChange || !recipe || !version || assistant.isGeneratingVersion || assistant.isAskingAi) return;
     const newTitle = window.prompt("Name the new recipe:", recipe.title)?.trim();
@@ -1207,6 +1242,10 @@ export function VersionDetailClient({
           onApplySuggestedChange={() => {
             setOpenPanel("left");
             void handleApplySuggestedChange();
+          }}
+          onBuildLatestRequest={() => {
+            setOpenPanel("left");
+            void handleBuildLatestRequest();
           }}
           onForkFromSuggestion={() => {
             setOpenPanel("left");
