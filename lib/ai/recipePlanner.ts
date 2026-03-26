@@ -30,6 +30,12 @@ const TECHNIQUE_OUTLINES: Record<string, string[]> = {
     "Bake in a water bath (bain-marie) at low heat until just set with a slight wobble.",
     "Chill fully before unmolding or serving.",
   ],
+  bread_pudding: [
+    "Tear or slice bread and arrange in the baking vessel; stale or day-old bread absorbs custard better.",
+    "Whisk together eggs, dairy, sweetener, and flavoring to form the custard.",
+    "Pour custard over bread and soak thoroughly — press down if needed — rest at least 20 minutes.",
+    "Bake at moderate heat until set and golden on top, or slow-cook on low until custard is just firm.",
+  ],
   brownie_chocolate_cake: [
     "Melt chocolate and butter together gently — do not overheat.",
     "Whisk in sugar, then eggs one at a time for structure.",

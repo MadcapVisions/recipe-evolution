@@ -4,7 +4,7 @@
 export const DISH_FAMILIES = [
   // Baked goods
   "brownies_bars", "muffins_scones", "cookies", "cake", "pastry", "fried_pastry",
-  "dessert_bread", "bread", "pie", "tart", "frozen_dessert", "custard_pudding",
+  "dessert_bread", "bread", "pie", "tart", "frozen_dessert", "bread_pudding", "custard_pudding",
   "candy_confection", "dessert",
   // Pizza & flatbread
   "pizza", "flatbread",
@@ -136,8 +136,14 @@ export function detectRequestedDishFamily(context: string) {
     return "frozen_dessert";
   }
 
-  // custards / puddings
-  if (includesAny(normalized, ["pudding", "mousse", "custard", "panna cotta", "crème brûlée", "creme brulee", "flan", "crème caramel", "creme caramel", "pot de creme", "blancmange", "posset", "syllabub", "bread pudding", "rice pudding", "sticky toffee pudding", "chia pudding"])) {
+  // bread pudding — must come BEFORE the custard bucket to avoid custard_pudding misclassification
+  // Bread pudding requires flour_grain (bread); custard/flan forbids it. Different family.
+  if (includesAny(normalized, ["bread pudding", "banana bread pudding", "croissant pudding", "brioche pudding", "challah pudding", "panettone pudding", "pain perdu pudding"])) {
+    return "bread_pudding";
+  }
+
+  // custards / puddings (flourless: flan, crème brûlée, panna cotta, mousse, chia, etc.)
+  if (includesAny(normalized, ["pudding", "mousse", "custard", "panna cotta", "crème brûlée", "creme brulee", "flan", "crème caramel", "creme caramel", "pot de creme", "blancmange", "posset", "syllabub", "rice pudding", "sticky toffee pudding", "chia pudding"])) {
     return "custard_pudding";
   }
 

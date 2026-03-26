@@ -112,6 +112,7 @@ function getDishFamilySpecificProteinInstruction(dishFamilyKey: string): string 
     case "tacos":
       return "Increase protein with taco-appropriate fillings such as chicken, beans, lean beef, shrimp, tofu, or extra fish.";
     case "custard_flan":
+    case "bread_pudding":
     case "brownie":
     case "cookie":
     case "cheesecake":
@@ -131,6 +132,7 @@ function getDishFamilySpecificCalorieReductionInstruction(dishFamilyKey: string)
       return "Reduce calories by trimming nut butters, oils, sugary add-ins, sweetened yogurt, and excess fruit while preserving drinkability.";
     case "salad":
       return "Reduce calories by trimming dressing, cheese, fried toppings, nuts, seeds, and calorie-dense add-ons before reducing vegetables.";
+    case "bread_pudding":
     case "brownie":
     case "cookie":
     case "cheesecake":
@@ -176,7 +178,7 @@ function getDishFamilySpecificFatReductionInstruction(dishFamilyKey: string): st
 }
 
 function blocksDessertProteinRepair(dishFamilyKey: string): boolean {
-  return ["custard_flan", "brownie", "cookie", "cheesecake", "chocolate_cake"].includes(
+  return ["custard_flan", "bread_pudding", "brownie", "cookie", "cheesecake", "chocolate_cake"].includes(
     dishFamilyKey
   );
 }

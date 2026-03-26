@@ -267,6 +267,16 @@ const FAMILY_SEQUENCE_HINTS: Partial<Record<string, string>> = {
     "6. Unmold onto a serving plate just before serving.",
   ].join("\n"),
 
+  bread_pudding: [
+    "Canonical bread pudding sequence:",
+    "1. Tear or slice bread into pieces; arrange in greased baking dish or slow cooker.",
+    "2. Whisk custard base: eggs, milk or cream, sugar, vanilla, and spices until smooth.",
+    "3. Pour custard evenly over bread; press down so all pieces are soaked.",
+    "4. Rest at least 20–30 minutes (or refrigerate overnight) so bread absorbs the custard fully.",
+    "5. Bake at moderate heat until custard is set and top is golden, or slow-cook on low until just set.",
+    "6. Serve warm with sauce, caramel, or cream if desired.",
+  ].join("\n"),
+
   brownie: [
     "Canonical brownie sequence:",
     "1. Melt fat and chocolate/cocoa together.",

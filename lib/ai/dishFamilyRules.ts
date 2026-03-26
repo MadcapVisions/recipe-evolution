@@ -170,6 +170,46 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
   },
 
   {
+    key: "bread_pudding",
+    displayName: "Bread Pudding",
+    aliases: [
+      "bread pudding",
+      "banana bread pudding",
+      "salted caramelized banana bread pudding",
+      "croissant pudding",
+      "panettone pudding",
+      "brioche pudding",
+      "challah pudding",
+      "pain perdu",
+    ],
+    // flour_grain is the whole point — bread is the base
+    requiredClassGroups: [["flour_grain"], ["egg"], ["dairy", "liquid_base"]],
+    commonClasses: ["sweetener", "spice_warm", "fruit", "flavoring_extract"],
+    optionalClasses: ["fat_oil", "salt", "nut", "dried_fruit", "chocolate"],
+    forbiddenClasses: [
+      "protein_fish",
+      "soy_sauce",
+      "hot_sauce_or_spicy",
+      "leafy_green",
+      "tomato_product",
+    ],
+    suspiciousClasses: ["allium", "protein_meat", "vegetable"],
+    expectedMethodKeywords: ["soak", "bake", "custard", "rest", "set"],
+    requiredMethods: ["soak"],
+    optionalMethods: ["bake", "slow_cook", "caramelize", "rest", "mix"],
+    generationConstraints: [
+      "Must include bread or a baked flour-based base such as brioche, challah, croissant, or panettone.",
+      "Must include a custard base with eggs and milk or cream.",
+      "Bread must be torn or sliced and soaked in custard before baking or slow-cooking.",
+      "flour_grain is required — bread pudding is a bread-based custard dessert, not a flourless custard.",
+      "Slow cooker is allowed if the user requests it; custard texture must still be soft and set, not scrambled.",
+      "Texture inside should be soft, creamy, and pudding-like.",
+    ],
+    strictness: "medium",
+    maxUncommonIngredients: 2,
+  },
+
+  {
     key: "brownie",
     displayName: "Brownie",
     aliases: [
