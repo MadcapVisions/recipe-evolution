@@ -11,6 +11,8 @@ import { validateCulinaryFit } from "./culinaryValidator";
 import { findDishFamilyRule } from "./dishFamilyRules";
 import { resolveIngredientListForRatio } from "./resolveIngredientGrams";
 import { stripStepMetadata } from "./recipeSections";
+import type { RequiredNamedIngredient } from "./requiredNamedIngredient";
+import { validateRequiredNamedIngredientsInRecipe } from "./requiredNamedIngredientValidation";
 import type { AICallOptions } from "./aiClient";
 import type {
   RepairModelOutput,
@@ -128,6 +130,7 @@ function validateRecipe(params: {
   dishFamily: DishFamilyRule;
   ingredients: RepairableIngredient[];
   steps: Array<{ text: string; methodTag?: string | null }>;
+  requiredNamedIngredients?: RequiredNamedIngredient[] | null;
   dietaryConstraints?: DietaryConstraint[] | null;
 }): { passed: boolean; score: number; issues: Array<{ code: string; severity: "info" | "warning" | "error"; message: string }> } {
   const result = validateCulinaryFit(
@@ -142,6 +145,14 @@ function validateRecipe(params: {
       severity: v.severity as "info" | "warning" | "error",
       message: v.message,
     }));
+
+  issues.push(
+    ...validateRequiredNamedIngredientsInRecipe({
+      ingredients: params.ingredients,
+      steps: params.steps,
+      requiredNamedIngredients: params.requiredNamedIngredients,
+    })
+  );
 
   // Enforce dietary constraints via ingredient class checks.
   for (const constraint of params.dietaryConstraints ?? []) {

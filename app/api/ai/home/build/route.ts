@@ -571,6 +571,7 @@ export async function POST(request: Request) {
                 userIntent: prompt ?? resolvedIdeaTitle,
                 titleHint: resolvedIdeaTitle,
                 dishHint: effectiveBrief.dish.dish_family ?? null,
+                requiredNamedIngredients: effectiveBrief.ingredients.requiredNamedIngredients ?? [],
                 dietaryConstraints: effectiveBrief.constraints.dietary_tags,
                 availableIngredients: effectiveBrief.ingredients.required,
                 preferredIngredients: effectiveBrief.ingredients.preferred,

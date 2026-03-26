@@ -28,6 +28,7 @@ import { findDishFamilyRule, type DishFamilyRule } from "./dishFamilyRules";
 import { resolveIntent } from "./intentResolver";
 import { normalizeDietaryTags } from "./normalizeDietaryTags";
 import type { DietaryConstraint } from "./dishAwareRepairPlanner";
+import type { RequiredNamedIngredient } from "./requiredNamedIngredient";
 import {
   RecipeTelemetry,
   type RecipeTelemetrySession,
@@ -46,6 +47,7 @@ export type RecipeGenerationInput = {
   userIntent: string;
   titleHint?: string | null;
   dishHint?: string | null;
+  requiredNamedIngredients?: RequiredNamedIngredient[] | null;
   /** Freeform dietary tags — normalized internally via normalizeDietaryTags(). */
   dietaryConstraints?: string[] | null;
   availableIngredients?: string[] | null;
@@ -181,6 +183,7 @@ function buildIngredientPlannerInput(
     userIntent: input.userIntent,
     titleHint: input.titleHint ?? null,
     dishFamily,
+    requiredNamedIngredients: input.requiredNamedIngredients ?? [],
     dietaryConstraints: input.dietaryConstraints ?? [],
     availableIngredients: input.availableIngredients ?? [],
     preferredIngredients: input.preferredIngredients ?? [],
@@ -204,6 +207,7 @@ function buildStepGenerationInput(params: {
     title: ingredientPlan.title ?? input.titleHint ?? null,
     dishFamily,
     ingredients: ingredientPlan.ingredients,
+    requiredNamedIngredients: input.requiredNamedIngredients ?? [],
     dietaryConstraints: input.dietaryConstraints ?? [],
     servings: input.servings ?? null,
   };
@@ -475,6 +479,7 @@ async function runGenerationForFamily(params: {
         dishFamily,
         ingredients: resolvedIngredients,
         steps: finalStepPlan.steps,
+        requiredNamedIngredients: input.requiredNamedIngredients ?? [],
         dietaryConstraints: normalizedDietaryConstraints,
       })
   );
@@ -586,6 +591,7 @@ async function runGenerationForFamily(params: {
           originalValidation: { passed: structuralValidation.passed && ratioValidation.passed, score: combinedScore, issues: combinedIssues },
           originalResolvedIngredients: resolvedIngredients,
           dishFamily,
+          requiredNamedIngredients: input.requiredNamedIngredients ?? [],
           dietaryConstraints: normalizedDietaryConstraints,
           macroTargets: input.macroTargets ?? null,
           userIntent: input.userIntent,

@@ -9,6 +9,7 @@ import { validateMacroTargets } from "./macroTargetValidator";
 import { validateRatios } from "./ratioValidator";
 import { normalizeAISteps } from "./normalizeAISteps";
 import type { DishFamilyRule } from "./dishFamilyRules";
+import type { RequiredNamedIngredient } from "./requiredNamedIngredient";
 
 export type RepairableIngredient = {
   ingredientName: string;
@@ -71,6 +72,7 @@ export type RepairOrchestratorInput = {
   originalValidation: ValidationResult;
   originalResolvedIngredients?: RepairableIngredient[];
   dishFamily: DishFamilyRule;
+  requiredNamedIngredients?: RequiredNamedIngredient[] | null;
   dietaryConstraints?: DietaryConstraint[] | null;
   macroTargets?: MacroTargets | null;
   userIntent?: string | null;
@@ -128,6 +130,7 @@ export type RepairOrchestratorDependencies = {
     dishFamily: DishFamilyRule;
     ingredients: RepairableIngredient[];
     steps: RepairableStep[];
+    requiredNamedIngredients?: RequiredNamedIngredient[] | null;
     dietaryConstraints?: DietaryConstraint[] | null;
   }) => Promise<ValidationResult> | ValidationResult;
 
@@ -204,6 +207,7 @@ export async function orchestrateRecipeRepair(
     originalValidation,
     originalResolvedIngredients,
     dishFamily,
+    requiredNamedIngredients = [],
     dietaryConstraints = [],
     macroTargets = null,
     userIntent = null,
@@ -267,6 +271,7 @@ export async function orchestrateRecipeRepair(
       dishFamily,
       ingredients: repairedResolvedIngredients,
       steps: repairedDraft.steps,
+      requiredNamedIngredients,
       dietaryConstraints,
     });
 

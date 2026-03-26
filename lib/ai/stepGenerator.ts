@@ -1,5 +1,7 @@
 import { normalizeAISteps } from "./normalizeAISteps";
 import type { DishFamilyRule } from "./dishFamilyRules";
+import type { RequiredNamedIngredient } from "./requiredNamedIngredient";
+import { ingredientMentionedInSteps } from "./requiredNamedIngredient";
 
 export type StepGenerationIngredient = {
   ingredientName: string;
@@ -28,6 +30,7 @@ export type StepGenerationInput = {
   title?: string | null;
   dishFamily: DishFamilyRule;
   ingredients: StepGenerationIngredient[];
+  requiredNamedIngredients?: RequiredNamedIngredient[] | null;
   dietaryConstraints?: string[] | null;
   servings?: number | null;
 };
@@ -235,6 +238,18 @@ function validateBasicStepStructure(
       severity: "warning",
       message: "Generated steps do not clearly reference the approved ingredients.",
     });
+  }
+
+  for (const req of input.requiredNamedIngredients ?? []) {
+    if (req.requiredStrength !== "hard") continue;
+    if (!ingredientMentionedInSteps(req, steps)) {
+      issues.push({
+        code: "STEP_MISSING_REQUIRED_INGREDIENT_USAGE",
+        severity: "error",
+        message: `Required ingredient "${req.normalizedName}" is not used in any step.`,
+        metadata: { normalizedName: req.normalizedName },
+      });
+    }
   }
 
   const errorCount = issues.filter((i) => i.severity === "error").length;
