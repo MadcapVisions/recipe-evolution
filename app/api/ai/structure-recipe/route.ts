@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     console.error("Structure recipe route failed", error);
     if (trackedAccess) {
-      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+      await trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
         route: "structure-recipe",
         message: error instanceof Error ? error.message : "Unknown error",
       });

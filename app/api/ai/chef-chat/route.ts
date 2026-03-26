@@ -221,7 +221,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Chef chat route failed", error);
     if (trackedAccess) {
-      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+      await trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
         route: "chef-chat",
         message: error instanceof Error ? error.message : "Unknown error",
       });

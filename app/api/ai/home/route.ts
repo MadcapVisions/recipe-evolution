@@ -392,7 +392,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Home AI route failed", error);
     if (trackedAccess) {
-      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+      await trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
         route: "home-hub",
         message: error instanceof Error ? error.message : "Unknown error",
       });

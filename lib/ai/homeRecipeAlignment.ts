@@ -536,6 +536,11 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     { terms: ["shepherd's pie", "shepherds pie"], title: "Shepherd's Pie" },
     { terms: ["cottage pie"], title: "Cottage Pie" },
     { terms: ["pot pie", "chicken pot pie"], title: "Chicken Pot Pie" },
+    // Bread puddings must come before generic banana bread / sourdough bread matches.
+    { terms: ["salted caramelized banana bread pudding"], title: "Salted Caramelized Banana Bread Pudding" },
+    { terms: ["banana bread pudding"], title: "Banana Bread Pudding" },
+    { terms: ["sourdough bread pudding"], title: "Sourdough Bread Pudding" },
+    { terms: ["bread pudding"], title: "Bread Pudding" },
     // Breads
     { terms: ["banana bread"], title: "Banana Bread" },
     { terms: ["zucchini bread"], title: "Zucchini Bread" },
@@ -750,7 +755,6 @@ export function deriveIdeaTitleFromConversationContext(context: string) {
     { terms: ["churros"], title: "Churros" },
     { terms: ["eton mess"], title: "Eton Mess" },
     { terms: ["trifle"], title: "Trifle" },
-    { terms: ["bread pudding"], title: "Bread Pudding" },
     { terms: ["rice pudding"], title: "Rice Pudding" },
     { terms: ["chocolate mousse"], title: "Chocolate Mousse" },
     // Casseroles

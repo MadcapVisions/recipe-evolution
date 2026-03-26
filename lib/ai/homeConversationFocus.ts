@@ -64,6 +64,16 @@ export function buildReplyBranch(messages: HomeChatMessage[], replyIndex: number
   return messages.slice(start, replyIndex + 1);
 }
 
+export function buildReplyThread(messages: HomeChatMessage[], replyIndex: number): HomeChatMessage[] {
+  if (replyIndex < 0 || replyIndex >= messages.length || messages[replyIndex]?.role !== "ai") {
+    return [];
+  }
+
+  return messages
+    .slice(0, replyIndex + 1)
+    .filter((message) => message.kind !== "direction_selected");
+}
+
 export function buildSelectedDirectionConversation(messages: HomeChatMessage[], replyIndex: number) {
   if (replyIndex < 0 || replyIndex >= messages.length) {
     return buildFocusedRecipeConversation(messages);

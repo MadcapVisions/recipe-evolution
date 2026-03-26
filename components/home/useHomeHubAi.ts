@@ -10,7 +10,7 @@ import {
   buildDirectionSummary,
   buildFocusedChatHistory,
   buildFocusedRecipeConversation,
-  buildReplyBranch,
+  buildReplyThread,
 } from "@/lib/ai/homeConversationFocus";
 import { generateLocalRecipeIdeas } from "@/lib/localRecipeGenerator";
 import { createRecipeFromDraft, getCreatedRecipeHref } from "@/lib/client/recipeMutations";
@@ -166,13 +166,13 @@ const buildSelectedDirectionForMessages = (messages: ChatMessage[], selectedDire
 };
 
 const buildReplyDirectionFromMessages = (messages: ChatMessage[], replyIndex: number): SelectedChefDirection | null => {
-  const sliced = buildReplyBranch(messages, replyIndex);
-  if (sliced.length === 0) {
+  const replyThread = buildReplyThread(messages, replyIndex);
+  if (replyThread.length === 0) {
     return null;
   }
 
-  const branchConversation = buildHeroConversationContext(sliced);
-  const latestReply = [...sliced].reverse().find((message) => message.role === "ai")?.text.trim() ?? "";
+  const branchConversation = buildHeroConversationContext(replyThread);
+  const latestReply = [...replyThread].reverse().find((message) => message.role === "ai")?.text.trim() ?? "";
   const inferredTitle =
     deriveIdeaTitleFromConversationContext(branchConversation) ||
     deriveIdeaTitleFromConversationContext(latestReply) ||
@@ -1038,13 +1038,13 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
   };
 
   const handleCreateRecipeFromReply = async (replyIndex: number) => {
-    const sliced = buildReplyBranch(heroChatMessages, replyIndex);
+    const replyThread = buildReplyThread(heroChatMessages, replyIndex);
     setActiveChatRecipeIndex(replyIndex);
     trackEventInBackground("hero_reply_recipe_requested", {
       source: "home-hub",
       replyIndex,
-      messageCount: sliced.length,
-      conversation: buildHeroConversationContext(sliced).slice(0, 1200),
+      messageCount: replyThread.length,
+      conversation: buildHeroConversationContext(replyThread).slice(0, 1200),
     });
     const replyDirection = buildReplyDirectionFromMessages(heroChatMessages, replyIndex);
     if (!replyDirection) {
@@ -1059,10 +1059,10 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     const lockedDirection =
       selectedChefDirection != null
         ? buildSelectedDirectionForMessages(heroChatMessages, selectedChefDirection) ?? selectedChefDirection
-        : buildSelectedDirectionForMessages(sliced, replyDirection);
+        : buildSelectedDirectionForMessages(replyThread, replyDirection);
 
     await createRecipeFromConversation(
-      selectedChefDirection != null ? heroChatMessages : sliced,
+      selectedChefDirection != null ? heroChatMessages : replyThread,
       "chef-chat-reply",
       lockedDirection
     );

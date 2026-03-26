@@ -5,6 +5,7 @@ import {
   buildFocusedChatHistory,
   buildFocusedRecipeConversation,
   buildReplyBranch,
+  buildReplyThread,
 } from "../../lib/ai/homeConversationFocus";
 
 test("buildFocusedChatHistory keeps only the active branch tail", () => {
@@ -52,6 +53,25 @@ test("buildReplyBranch isolates a specific assistant direction", () => {
   assert.deepEqual(branch, [
     { role: "user", text: "What about the pasta option?" },
     { role: "ai", text: "Do a shrimp eggplant pasta with tomato and garlic." },
+  ]);
+});
+
+test("buildReplyThread keeps earlier user constraints when building from a later assistant reply", () => {
+  const thread = buildReplyThread(
+    [
+      { role: "user", text: "I want salted caramelized banana bread pudding with sourdough discard." },
+      { role: "ai", text: "Start with caramelized bananas and sourdough discard in the custard." },
+      { role: "user", text: "Make it creamy and wet." },
+      { role: "ai", text: "Soak the stale bread longer and increase the custard slightly." },
+    ],
+    3
+  );
+
+  assert.deepEqual(thread, [
+    { role: "user", text: "I want salted caramelized banana bread pudding with sourdough discard." },
+    { role: "ai", text: "Start with caramelized bananas and sourdough discard in the custard." },
+    { role: "user", text: "Make it creamy and wet." },
+    { role: "ai", text: "Soak the stale bread longer and increase the custard slightly." },
   ]);
 });
 

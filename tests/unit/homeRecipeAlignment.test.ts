@@ -46,6 +46,15 @@ test("deriveIdeaTitleFromConversationContext preserves descriptive cake names fr
   );
 });
 
+test("deriveIdeaTitleFromConversationContext keeps banana bread pudding from collapsing into banana bread", () => {
+  assert.equal(
+    deriveIdeaTitleFromConversationContext(
+      "I want to make a Salted Caramelized Banana Bread Pudding in a large slow cooker and use some sourdough discard in the recipe. Make it creamy and wet."
+    ),
+    "Salted Caramelized Banana Bread Pudding"
+  );
+});
+
 test("recipeMatchesRequestedDirection rejects rice bowl drift when pasta was requested", () => {
   assert.equal(
     recipeMatchesRequestedDirection(

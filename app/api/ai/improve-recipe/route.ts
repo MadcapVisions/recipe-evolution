@@ -139,7 +139,7 @@ export async function POST(request: Request) {
     console.error("Improve recipe route failed", error);
     const classified = classifyImproveRecipeError(error);
     if (trackedAccess) {
-      void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
+      await trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
         route: "improve-recipe",
         message: error instanceof Error ? error.message : "Unknown error",
         status: classified.status,
