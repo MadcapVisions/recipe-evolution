@@ -4,6 +4,7 @@ import { validateMacroTargets, type MacroTargets } from "./macroTargetValidator"
 import { classifyIngredient } from "./ingredientClassifier";
 import { checkPlannerMacroFeasibility } from "./plannerMacroFeasibility";
 import type { DishFamilyRule } from "./dishFamilyRules";
+import { matchesRequiredIngredient, type RequiredNamedIngredient } from "./requiredNamedIngredient";
 
 export type CreativityMode = "safe" | "balanced" | "creative";
 
@@ -32,6 +33,8 @@ export type IngredientPlannerInput = {
   availableIngredients?: string[] | null;
   preferredIngredients?: string[] | null;
   forbiddenIngredients?: string[] | null;
+  /** Hard-required named ingredients extracted from the user's message (e.g. "use sourdough discard"). */
+  requiredNamedIngredients?: RequiredNamedIngredient[] | null;
   macroTargets?: MacroTargets | null;
   servings?: number | null;
   creativityMode?: CreativityMode;
@@ -350,6 +353,10 @@ export function buildIngredientPlanPrompt(
     ),
   ].join("\n");
 
+  const hardRequired = (input.requiredNamedIngredients ?? []).filter(
+    (r) => r.requiredStrength === "hard"
+  );
+
   const userPrompt = [
     userIntent ? `User intent: ${userIntent}` : "User intent: (not provided)",
     titleHint ? `Title hint: ${titleHint}` : "Title hint: (not provided)",
@@ -365,6 +372,14 @@ export function buildIngredientPlanPrompt(
     forbiddenIngredients?.length
       ? `Forbidden ingredients by name: ${forbiddenIngredients.join(", ")}`
       : "Forbidden ingredients by name: none",
+    ...(hardRequired.length > 0
+      ? [
+          "",
+          "MANDATORY user-requested ingredients (HARD REQUIREMENT — MUST appear in the ingredient list):",
+          ...hardRequired.map((r) => `- ${r.normalizedName}`),
+          "These were explicitly requested by the user. Do not omit them under any circumstances.",
+        ]
+      : []),
     "",
     "Requirements:",
     "- Include at least one ingredient satisfying EVERY required class group listed above.",
@@ -473,6 +488,20 @@ export function validateIngredientPlanCandidate(
         code: "PLANNER_MISSING_QUANTITY",
         severity: "warning",
         message: `Ingredient "${ingredient.ingredientName}" is missing quantity and grams.`,
+      });
+    }
+  }
+
+  // Hard-required named ingredients
+  for (const req of input.requiredNamedIngredients ?? []) {
+    if (req.requiredStrength !== "hard") continue;
+    const matched = ingredients.some((ing) => matchesRequiredIngredient(ing.ingredientName, req));
+    if (!matched) {
+      issues.push({
+        code: "PLANNER_MISSING_REQUIRED_NAMED_INGREDIENT",
+        severity: "error",
+        message: `Required ingredient "${req.normalizedName}" is missing from the ingredient plan.`,
+        metadata: { normalizedName: req.normalizedName },
       });
     }
   }
@@ -623,18 +652,20 @@ export type IngredientPlannerRunResult = {
 function buildIngredientPlanRetryPrompt(
   input: IngredientPlannerInput,
   missingGroups: string[][],
-  dietaryViolations?: string[]
+  dietaryViolations?: string[],
+  missingNamedIngredients?: string[]
 ): IngredientPlanPromptPayload {
   const base = buildIngredientPlanPrompt(input);
   const groupList = missingGroups.map((g) => `[${g.join(" | ")}]`).join(", ");
 
-  let suffix =
-    `\n\nCRITICAL: The previous plan was REJECTED because it was missing these required class groups: ${groupList}. ` +
-    `You MUST include at least one ingredient satisfying EACH of these groups. ` +
-    `Do not return a partial or empty plan. ` +
-    `Do not omit core identity ingredients for this dish family. ` +
-    `If you are unsure which ingredient covers a group, choose the simplest canonical example. ` +
-    `A plan that still misses any required group will be rejected again.`;
+  let suffix = missingGroups.length > 0
+    ? `\n\nCRITICAL: The previous plan was REJECTED because it was missing these required class groups: ${groupList}. ` +
+      `You MUST include at least one ingredient satisfying EACH of these groups. ` +
+      `Do not return a partial or empty plan. ` +
+      `Do not omit core identity ingredients for this dish family. ` +
+      `If you are unsure which ingredient covers a group, choose the simplest canonical example. ` +
+      `A plan that still misses any required group will be rejected again.`
+    : "";
 
   if (dietaryViolations?.length) {
     suffix +=
@@ -642,6 +673,12 @@ function buildIngredientPlanRetryPrompt(
       `Offending ingredients: ${dietaryViolations.join(", ")}. ` +
       `Remove ALL of them and replace with compliant alternatives. ` +
       `Do not include any ingredient that conflicts with the stated dietary constraints.`;
+  }
+
+  if (missingNamedIngredients?.length) {
+    suffix +=
+      `\n\nALSO CRITICAL: The previous plan omitted mandatory user-requested ingredients: ${missingNamedIngredients.join(", ")}. ` +
+      `These MUST appear in the ingredient list. The user explicitly requested them. Do not drop them.`;
   }
 
   return {
@@ -658,33 +695,42 @@ export async function runIngredientPlanner(
   const candidate = await deps.callPlannerModel(prompt);
   const validation = validateIngredientPlanCandidate(input, candidate);
 
-  // Hard-retry when required class groups are missing OR dietary constraints are violated.
-  // Both are identity/compliance failures that must not silently flow into repair.
+  // Hard-retry when required class groups, dietary constraints, or mandatory named ingredients are missing.
+  // All are identity/compliance failures that must not silently flow into repair.
   const missingGroupIssues = validation.issues.filter(
     (i) => i.code === "PLANNER_MISSING_REQUIRED_CLASS_GROUP"
   );
   const dietaryViolationIssues = validation.issues.filter(
     (i) => i.code.startsWith("dietary_violation:")
   );
+  const missingNamedIssues = validation.issues.filter(
+    (i) => i.code === "PLANNER_MISSING_REQUIRED_NAMED_INGREDIENT"
+  );
 
-  const needsRetry = missingGroupIssues.length > 0 || dietaryViolationIssues.length > 0;
+  const needsRetry =
+    missingGroupIssues.length > 0 ||
+    dietaryViolationIssues.length > 0 ||
+    missingNamedIssues.length > 0;
 
   if (needsRetry) {
     const missingGroups = missingGroupIssues.map(
       (i) => (i.metadata?.classGroup as string[] | undefined) ?? []
     );
-    // Extract offending ingredient names from dietary violation messages
     const dietaryViolatingIngredients = dietaryViolationIssues
       .map((i) => {
         const match = i.message.match(/"([^"]+)"/);
         return match ? match[1] : null;
       })
       .filter(Boolean) as string[];
+    const missingNamedIngredients = missingNamedIssues
+      .map((i) => (i.metadata?.normalizedName as string | undefined) ?? null)
+      .filter(Boolean) as string[];
 
     const retryPrompt = buildIngredientPlanRetryPrompt(
       input,
       missingGroups,
-      dietaryViolatingIngredients.length ? dietaryViolatingIngredients : undefined
+      dietaryViolatingIngredients.length ? dietaryViolatingIngredients : undefined,
+      missingNamedIngredients.length ? missingNamedIngredients : undefined
     );
     const retryCandidate = await deps.callPlannerModel(retryPrompt);
     const retryValidation = validateIngredientPlanCandidate(input, retryCandidate);

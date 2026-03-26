@@ -105,10 +105,22 @@ function extractRequiredIngredients(text: string) {
   const howAboutMatches = Array.from(
     normalized.matchAll(/\b(?:how about|what about)\s+(?:some\s+|a\s+)?([\p{L}][\p{L}\s-]{1,60}?)(?=(?:[.!?,]|$))/gu)
   );
+  const useMatches = Array.from(
+    normalized.matchAll(/\buse (?:some |up (?:some |the |my )?|a bit of |a little |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu)
+  );
+  const usingMatches = Array.from(
+    normalized.matchAll(/\busing (?:some |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu)
+  );
+  const wantToUseMatches = Array.from(
+    normalized.matchAll(/\bwant(?:ing)? to use (?:some |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu)
+  );
   return normalizeIngredientList([
     ...matches.map((match) => match[1] ?? ""),
     ...longingMatches.map((match) => match[1] ?? ""),
     ...howAboutMatches.map((match) => match[1] ?? ""),
+    ...useMatches.map((match) => match[1] ?? ""),
+    ...usingMatches.map((match) => match[1] ?? ""),
+    ...wantToUseMatches.map((match) => match[1] ?? ""),
   ]);
 }
 

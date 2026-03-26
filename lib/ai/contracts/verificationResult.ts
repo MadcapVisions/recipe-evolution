@@ -27,6 +27,10 @@ export type VerificationResult = {
     title_quality_pass: boolean;
     recipe_completeness_pass: boolean;
     culinary_family_valid?: boolean;
+    /** Hard-required named ingredients (e.g. "use sourdough discard") present in ingredient list. */
+    required_named_ingredients_present?: boolean;
+    /** Hard-required named ingredients mentioned in at least one cooking step. */
+    required_named_ingredients_used_in_steps?: boolean;
   };
   culinary_violations?: CulinaryViolation[];
   retry_strategy: VerificationRetryStrategy;

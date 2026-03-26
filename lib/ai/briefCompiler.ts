@@ -90,6 +90,14 @@ const REQUIRED_INGREDIENT_STOP_WORDS = new Set([
   "perfect",
   "balance",
   "quality",
+  // Equipment / method words — "use a slow cooker" should not extract "slow cooker"
+  "cooker",
+  "crockpot",
+  "skillet",
+  "blender",
+  "processor",
+  "air fryer",
+  "instant pot",
 ]);
 
 function splitIngredientCandidates(value: string) {
@@ -115,6 +123,15 @@ function extractExplicitRequiredIngredients(text: string) {
     /\bmust have ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
     /\bneeds? ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
     /\binclude ([\p{L}][\p{L}\s,-]{1,60}?)(?=(?:[.!?]|$))/gu,
+    // "use some sourdough discard", "use sourdough discard in the recipe"
+    /\buse (?:some |up (?:some |the |my )?|a bit of |a little |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu,
+    // "using some sourdough discard", "using the leftover cream"
+    /\busing (?:some |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu,
+    // "want to use some X", "would like to use X"
+    /\bwant(?:ing)? to use (?:some |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu,
+    /\bwould like to use (?:some |the |my )?([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|with|and|or|while|into|over|at)\b|[.,!?]|$)/gu,
+    // "make it with X", "make this with X"
+    /\bmake (?:it|this|the recipe|the dish) with ([\p{L}][\p{L}\s-]{1,40}?)(?=\s+(?:in|for|to|when|if|as|and|or|while|instead|but)\b|[.,!?]|$)/gu,
   ];
 
   for (const pattern of patterns) {

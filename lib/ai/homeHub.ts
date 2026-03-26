@@ -897,6 +897,12 @@ ${firstAttempt.text}`,
     };
   }
 
+  const hardRequiredForPrompt = (input.cookingBrief?.ingredients?.requiredNamedIngredients ?? [])
+    .filter((r) => r.requiredStrength === "hard");
+  const mandatoryIngredientRule = hardRequiredForPrompt.length > 0
+    ? `- MANDATORY user-requested ingredients that MUST appear in the ingredient list: ${hardRequiredForPrompt.map((r) => r.normalizedName).join(", ")}. Do not omit them.`
+    : null;
+
   const ingredientMessages = [
     {
       role: "system" as const,
@@ -917,7 +923,7 @@ Rules:
   - prep_time_min: active preparation time in minutes (e.g. 10, 15, 20)
   - cook_time_min: cooking/baking time in minutes (e.g. 20, 30, 45)
   - difficulty: one of "Easy", "Medium", or "Hard"
-- Do not include steps, chef tips, wrappers, or commentary.`,
+${mandatoryIngredientRule ? mandatoryIngredientRule + "\n" : ""}- Do not include steps, chef tips, wrappers, or commentary.`,
     },
     {
       role: "user" as const,
@@ -935,6 +941,10 @@ ${formatConversation(input.conversationHistory) || "No chef conversation availab
 Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
     },
   ];
+
+  const mandatoryStepRule = hardRequiredForPrompt.length > 0
+    ? `- MANDATORY user-requested ingredients that MUST be explicitly used in the steps: ${hardRequiredForPrompt.map((r) => r.normalizedName).join(", ")}. Name them in at least one step — do not just list them in ingredients and omit from steps.`
+    : null;
 
   const instructionMessages = [
     {
@@ -955,7 +965,7 @@ Rules:
 - Maximum 10 steps.
 - chefTips: 2–3 short, practical tips. Not redundant with steps.
 - Keep the recipe format and dish identity locked.
-- Do not include ingredients, wrapper keys, or commentary.`,
+${mandatoryStepRule ? mandatoryStepRule + "\n" : ""}- Do not include ingredients, wrapper keys, or commentary.`,
     },
     {
       role: "user" as const,
@@ -1707,6 +1717,7 @@ export async function generateHomeRecipe(input: {
                   ...(input.cookingBrief.ingredients.preferred ?? []),
                 ],
                 forbiddenIngredients: input.cookingBrief.ingredients.forbidden ?? [],
+                requiredNamedIngredients: input.cookingBrief.ingredients.requiredNamedIngredients ?? [],
                 macroTargets: input.cookingBrief.constraints.macroTargets,
                 servings: input.cookingBrief.constraints.servings ?? null,
               },
@@ -1809,6 +1820,13 @@ export async function generateHomeRecipe(input: {
     });
   }
 
+  // Mandatory ingredient line for monolithic path (brief may differ from sectioned path scope)
+  const monoHardRequired = (input.cookingBrief?.ingredients?.requiredNamedIngredients ?? [])
+    .filter((r) => r.requiredStrength === "hard");
+  const monoMandatoryRule = monoHardRequired.length > 0
+    ? `MANDATORY user-requested ingredients: ${monoHardRequired.map((r) => r.normalizedName).join(", ")}. These MUST appear in the ingredient list AND be explicitly used in the cooking steps. Do not omit them.`
+    : null;
+
   const messages = [
     {
       role: "system" as const,
@@ -1820,6 +1838,7 @@ User taste summary: ${userTasteSummary?.trim() || "No user taste summary availab
 Structured cooking brief: ${input.cookingBrief ? JSON.stringify(input.cookingBrief) : "No structured cooking brief available."}
 Structured recipe plan: ${input.recipePlan ? JSON.stringify(input.recipePlan) : "No structured recipe plan available."}
 Structured recipe outline: ${JSON.stringify(recipeOutline)}
+${monoMandatoryRule ? monoMandatoryRule + "\n" : ""}
 Retry instructions: ${
           input.retryContext
             ? buildRetryInstructions({
@@ -1853,7 +1872,8 @@ Rules:
 - If an ingredient would normally appear without a unit, still include a count, like 1 onion or 2 eggs.
 - Keep steps practical and home-cook friendly.
 - Produce a complete recipe, not notes.
-- chefTips: include 2–3 specific, practical tips that a home cook would find genuinely useful — technique nuances, common mistakes to avoid, or flavor-boosting tricks. Do not repeat information already in the steps.`,
+- chefTips: include 2–3 specific, practical tips that a home cook would find genuinely useful — technique nuances, common mistakes to avoid, or flavor-boosting tricks. Do not repeat information already in the steps.
+${monoHardRequired.length > 0 ? `- MANDATORY: The following ingredients were explicitly requested by the user and MUST appear in both the ingredient list and the cooking steps: ${monoHardRequired.map((r) => r.normalizedName).join(", ")}.` : ""}`,
     },
     {
       role: "user" as const,
@@ -2257,6 +2277,7 @@ Ingredients context: ${JSON.stringify(input.ingredients ?? [])}`,
                 ...(input.cookingBrief.ingredients.preferred ?? []),
               ],
               forbiddenIngredients: input.cookingBrief.ingredients.forbidden ?? [],
+              requiredNamedIngredients: input.cookingBrief.ingredients.requiredNamedIngredients ?? [],
               macroTargets: input.cookingBrief.constraints.macroTargets,
               servings: input.cookingBrief.constraints.servings ?? null,
             },

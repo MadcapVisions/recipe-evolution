@@ -1,3 +1,5 @@
+import type { RequiredNamedIngredient } from "../requiredNamedIngredient";
+
 export const BRIEF_FIELD_STATES = ["locked", "inferred", "unknown"] as const;
 export type BriefFieldState = (typeof BRIEF_FIELD_STATES)[number];
 
@@ -26,6 +28,8 @@ export type CookingBrief = {
     preferred: string[];
     forbidden: string[];
     centerpiece: string | null;
+    /** Ingredients explicitly requested by the user (e.g. "use sourdough discard"). Hard obligations. */
+    requiredNamedIngredients?: RequiredNamedIngredient[];
   };
   constraints: {
     servings: number | null;
@@ -88,6 +92,7 @@ export function createEmptyCookingBrief(): CookingBrief {
       preferred: [],
       forbidden: [],
       centerpiece: null,
+      requiredNamedIngredients: [],
     },
     constraints: {
       servings: null,

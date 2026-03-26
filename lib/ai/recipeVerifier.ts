@@ -5,6 +5,7 @@ import { ingredientPhraseMatches } from "./ingredientCanonicalization";
 import { createCachedResolver } from "./ingredientResolver";
 import { ingredientsMatch } from "./ingredientMatching";
 import { validateCulinaryFit } from "./culinaryValidator";
+import { matchesRequiredIngredient, ingredientMentionedInSteps } from "./requiredNamedIngredient";
 
 type RecipeLike = {
   title: string;
@@ -265,6 +266,23 @@ export function verifyRecipeAgainstBrief(input: {
     input.recipe.steps
   );
 
+  // Hard-required named ingredients — ingredient list presence + step usage
+  const hardRequired = (brief.ingredients.requiredNamedIngredients ?? []).filter(
+    (r) => r.requiredStrength === "hard"
+  );
+  const recipeIngredientNames = input.recipe.ingredients.map((i) => i.name);
+  const missingFromList = hardRequired.filter(
+    (req) => !recipeIngredientNames.some((name) => matchesRequiredIngredient(name, req))
+  );
+  const missingFromSteps = hardRequired.filter(
+    (req) =>
+      recipeIngredientNames.some((name) => matchesRequiredIngredient(name, req)) &&
+      !ingredientMentionedInSteps(req, input.recipe.steps)
+  );
+  const namedListPass = missingFromList.length === 0;
+  const namedStepsPass = missingFromSteps.length === 0;
+  const hasNamedRequirements = hardRequired.length > 0;
+
   const checks = {
     dish_family_match: dishFamilyMatch,
     style_match: stylePass,
@@ -274,6 +292,10 @@ export function verifyRecipeAgainstBrief(input: {
     title_quality_pass: titlePass,
     recipe_completeness_pass: completenessPass,
     culinary_family_valid: culinary.valid,
+    ...(hasNamedRequirements && {
+      required_named_ingredients_present: namedListPass,
+      required_named_ingredients_used_in_steps: namedStepsPass,
+    }),
   };
   const reasons: string[] = [];
 
@@ -292,6 +314,12 @@ export function verifyRecipeAgainstBrief(input: {
   if (!completenessPass) reasons.push("Recipe is incomplete.");
   for (const v of culinary.violations) {
     if (v.severity === "error") reasons.push(v.message);
+  }
+  for (const req of missingFromList) {
+    reasons.push(`Recipe is missing required ingredient "${req.normalizedName}" that the user explicitly requested.`);
+  }
+  for (const req of missingFromSteps) {
+    reasons.push(`Required ingredient "${req.normalizedName}" appears in the ingredient list but is not used in any cooking step.`);
   }
 
   const passedChecks = Object.values(checks).filter(Boolean).length;
