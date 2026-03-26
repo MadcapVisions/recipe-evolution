@@ -106,8 +106,8 @@ test("buildGeneratedRecipeFromSectionPayloads combines typed section payloads in
   assert.equal(recipe.difficulty, "Intermediate");
   assert.deepEqual(recipe.ingredients, [{ name: "1.5 lb chicken thighs" }, { name: "2 cups pineapple diced" }]);
   assert.deepEqual(recipe.steps, [
-    { text: "Cook the chicken until lightly charred." },
-    { text: "Serve in tortillas with the pineapple." },
+    { text: "Cook the chicken until lightly charred.", methodTag: null },
+    { text: "Serve in tortillas with the pineapple.", methodTag: null },
   ]);
   assert.deepEqual(recipe.chefTips, ["Char the pineapple lightly."]);
 });

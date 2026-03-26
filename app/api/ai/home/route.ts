@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
-    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "home-hub" });
+    initAiUsageContext({ userId: access.userId, route: "home-hub" });
     const tasteSummaryPromise = getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;

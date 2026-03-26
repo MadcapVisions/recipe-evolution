@@ -8,7 +8,7 @@ import {
   detectRequestedAnchorIngredient,
   DISH_FAMILIES,
 } from "./homeRecipeAlignment";
-import { isGenericCenterpieceTitle } from "./briefCompiler";
+import { compileCookingBrief, isGenericCenterpieceTitle } from "./briefCompiler";
 
 // Dish families that represent an explicit format constraint —
 // if one of these is identified, must_preserve_format = true.
@@ -120,6 +120,12 @@ export function deriveBuildSpec(input: {
 
   // --- Style tags ---
   const style_tags = unique(selectedDirection.tags);
+  const constraintBrief = userTurnsText.trim()
+    ? compileCookingBrief({
+        userMessage: userTurnsText,
+        conversationHistory: [],
+      })
+    : null;
 
   return {
     dish_family,
@@ -127,8 +133,8 @@ export function deriveBuildSpec(input: {
     build_title,
     primary_anchor_type,
     primary_anchor_value,
-    required_ingredients: [],  // populated from refinements, not inferred from direction text
-    forbidden_ingredients: [],
+    required_ingredients: constraintBrief?.ingredients.required ?? [],
+    forbidden_ingredients: constraintBrief?.ingredients.forbidden ?? [],
     style_tags,
     must_preserve_format: dish_family !== null && FORMAT_LOCKED_FAMILIES.has(dish_family),
     confidence: dish_family !== null && !titleIsGeneric ? 0.92 : 0.72,

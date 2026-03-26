@@ -12,7 +12,9 @@ test("all cases have required fields", () => {
   for (const c of RECIPE_BENCHMARK_CASES) {
     assert.ok(c.id, `Missing id`);
     assert.ok(c.prompt, `Case ${c.id}: missing prompt`);
-    assert.ok(c.expectedDishFamily, `Case ${c.id}: missing expectedDishFamily`);
+    if (c.category !== "messy") {
+      assert.ok(c.expectedDishFamily, `Case ${c.id}: missing expectedDishFamily`);
+    }
     assert.ok(typeof c.shouldPass === "boolean", `Case ${c.id}: shouldPass must be boolean`);
   }
 });
@@ -48,10 +50,20 @@ test("servings are positive integers when present", () => {
   }
 });
 
-test("exactly one case has shouldPass=false (the impossible macro case)", () => {
+test("reject and messy-conflict cases are the only shouldPass=false cases", () => {
   const failing = RECIPE_BENCHMARK_CASES.filter((c) => c.shouldPass === false);
-  assert.equal(failing.length, 1, `Expected exactly 1 shouldPass=false case, got ${failing.length}`);
-  assert.equal(failing[0].id, "impossible_dessert_macro_01");
+  assert.deepEqual(
+    failing.map((c) => c.id),
+    [
+      "impossible_dessert_macro_01",
+      "reject_brownie_highprotein_lowcal_01",
+      "reject_smoothie_highprotein_lowcal_01",
+      "reject_cookie_lowcal_01",
+      "reject_pasta_lowcarb_01",
+      "messy_conflict_01",
+      "messy_conflict_05",
+    ]
+  );
 });
 
 test("at least one case per major dish category exists", () => {

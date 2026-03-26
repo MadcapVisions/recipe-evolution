@@ -60,7 +60,7 @@ test("verifyRecipeAgainstBrief passes obscure named dish when title preserves th
       title: "Brazilian Moqueca with Coconut Milk and Fish",
       description: "A gently simmered Brazilian fish stew with coconut milk, peppers, and lime.",
       ingredients: [{ name: "1 1/2 lb white fish" }, { name: "1 can coconut milk" }, { name: "1 bell pepper" }],
-      steps: [{ text: "Simmer the moqueca gently until the fish is tender and the broth is fragrant." }],
+      steps: [{ text: "Simmer the fish gently in the coconut milk broth until the moqueca is fragrant and tender." }],
     },
   });
 

@@ -52,15 +52,22 @@ function buildExpectedRecipe(testCase: SeedRecipeEvalCase, brief: CookingBrief):
     );
     if (lowerPrompt.includes("mushroom")) {
       ingredients.push({ name: "8 oz mushrooms" });
+      steps.push(
+        { text: "Stretch the dough thin for a flatbread-style pizza and top it with the sauce, mozzarella, and mushrooms." },
+        { text: "Bake at high heat until the crust is crisp, deeply golden, and the mushrooms are browned." }
+      );
+    } else {
+      steps.push(
+        { text: "Stretch the dough into an oiled sheet pan and add the sauce and mozzarella." },
+        { text: "Bake at high heat until the crust is crisp and deeply golden." }
+      );
     }
-    steps.push(
-      { text: "Stretch the dough into an oiled sheet pan and add the sauce and mozzarella." },
-      { text: "Bake at high heat until the crust is crisp and deeply golden." }
-    );
     description = `Crisp, focaccia-style pizza built around ${normalizedName}.`;
     if (lowerPrompt.includes("flatbread")) {
       description = `Crispy flatbread-style pizza built around ${normalizedName}.`;
-      steps[0] = { text: "Stretch the dough thin for a flatbread-style pizza and add the sauce and mozzarella." };
+      if (!lowerPrompt.includes("mushroom")) {
+        steps[0] = { text: "Stretch the dough thin for a flatbread-style pizza and add the sauce and mozzarella." };
+      }
     }
   } else if (testCase.expected.dishFamily === "pasta") {
     ingredients.push(
@@ -76,10 +83,15 @@ function buildExpectedRecipe(testCase: SeedRecipeEvalCase, brief: CookingBrief):
       { text: "Finish the pasta with the sauce components off the heat until glossy and cohesive." }
     );
   } else if (testCase.expected.dishFamily === "tacos") {
-    ingredients.push({ name: "8 tortillas" }, { name: "1 lb taco filling" });
+    ingredients.push(
+      { name: "8 tortillas" },
+      { name: "1 lb chicken" },
+      { name: "2 jalapenos" },
+      { name: "1 lime" }
+    );
     steps.push(
-      { text: "Cook the filling until deeply seasoned and concentrated." },
-      { text: "Warm the tortillas and assemble the tacos just before serving." }
+      { text: "Cook the chicken with sliced jalapenos until deeply seasoned and concentrated." },
+      { text: "Warm the tortillas and assemble the tacos with a squeeze of lime just before serving." }
     );
     description = `Tacos that stay in taco format, not a bowl.`;
   } else if (testCase.expected.dishFamily === "dips_spreads") {

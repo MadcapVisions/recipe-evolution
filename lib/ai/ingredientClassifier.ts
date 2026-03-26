@@ -19,13 +19,13 @@ const CLASS_PATTERNS: Record<string, RegExp> = {
   // Negative lookbehinds prevent plant-based milks/creams from matching as dairy.
   // e.g. "coconut milk", "oat milk", "almond milk", "coconut cream" must NOT be dairy.
   dairy:
-    /\b(?:whole milk|skim milk|2% milk|low-fat milk|condensed milk|evaporated milk|sweetened condensed milk|buttermilk|heavy cream|whipping cream|double cream|sour cream|half.and.half|half and half|cream cheese|crème fraîche|creme fraiche|mozzarella|parmesan|cheddar|ricotta|mascarpone|gruyere|gouda|brie|feta|greek yogurt|skyr|kefir|yogurt|cheese|(?<!\b(?:coconut|almond|oat|soy|rice|plant|cashew|oat-based)\s)cream|(?<!\b(?:coconut|almond|oat|soy|rice|plant)\s)milk)\b/i,
+    /\b(?:whole milk|skim milk|2% milk|low-fat milk|condensed milk|evaporated milk|sweetened condensed milk|buttermilk|heavy cream|whipping cream|double cream|sour cream|half.and.half|half and half|cream cheese|crème fraîche|creme fraiche|mozzarella|parmesan|pecorino|pecorino romano|cheddar|ricotta|mascarpone|gruyere|gouda|brie|feta|greek yogurt|skyr|kefir|yogurt|cheese|(?<!\b(?:coconut|almond|oat|soy|rice|plant|cashew|oat-based)\s)cream|(?<!\b(?:coconut|almond|oat|soy|rice|plant)\s)milk)\b/i,
 
   liquid_base:
     /\b(milk|cream|broth|stock|water|juice|beer|wine|coconut milk|coconut cream|oat milk|almond milk|soy milk|rice milk|plant milk|buttermilk|vegetable broth|chicken broth|beef broth|fish stock)\b/i,
 
   flour_grain:
-    /\b(flour|all-purpose flour|cake flour|bread flour|whole wheat flour|almond flour|oat flour|rice flour|cornmeal|semolina|oats|rolled oats|panko|breadcrumbs|biscuit mix|bread|sandwich bread|whole wheat bread|sourdough|ciabatta|baguette|tortilla|flour tortilla|corn tortilla|pita|naan|flatbread|bagel|english muffin|burger bun|hot dog bun|hamburger bun|dinner roll|bread roll|sub roll|hoagie roll|wrap|lavash|roti|chapati|injera)\b/i,
+    /\b(flour|all-purpose flour|cake flour|bread flour|whole wheat flour|almond flour|oat flour|rice flour|cornmeal|semolina|oats|rolled oats|panko|breadcrumbs|biscuit mix|bread|sandwich bread|whole wheat bread|sourdough|ciabatta|baguette|pizza dough|dough|pizza crust|crust|tortilla|flour tortilla|corn tortilla|pita|naan|flatbread|bagel|english muffin|burger bun|hot dog bun|hamburger bun|dinner roll|bread roll|sub roll|hoagie roll|wrap|lavash|roti|chapati|injera)\b/i,
 
   starch:
     /\b(rice|arborio|risotto rice|pasta|spaghetti|penne|fettuccine|linguine|noodles|orzo|couscous|quinoa|polenta|cornstarch|potato starch|arrowroot)\b/i,
@@ -46,7 +46,7 @@ const CLASS_PATTERNS: Record<string, RegExp> = {
     /\b(onion|garlic|shallots?|leeks?|chives?|scallions?|green onions?|yellow onion|red onion|white onion)\b/i,
 
   hot_sauce_or_spicy:
-    /\b(hot sauce|sriracha|jalapeño|jalapeno|chili peppers?|habanero|cayenne|red pepper flakes?|tabasco|chipotle|ghost pepper|serrano)\b/i,
+    /\b(hot sauce|sriracha|jalapenos?|chili peppers?|habaneros?|cayenne|red pepper flakes?|tabasco|chipotle|ghost pepper|serranos?)\b/i,
 
   savory_herb:
     /\b(thyme|rosemary|sage|oregano|bay leaves?|marjoram|tarragon|dill|herbes de provence)\b/i,
@@ -118,9 +118,12 @@ export type IngredientClass = keyof typeof CLASS_PATTERNS;
 
 /** Returns all classes detected for a single ingredient name string. */
 export function classifyIngredient(ingredientName: string): string[] {
+  const normalizedName = ingredientName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
   const detected: string[] = [];
   for (const [cls, pattern] of Object.entries(CLASS_PATTERNS)) {
-    if (pattern.test(ingredientName)) {
+    if (pattern.test(normalizedName)) {
       detected.push(cls);
     }
   }

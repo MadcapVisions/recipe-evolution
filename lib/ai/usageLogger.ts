@@ -1,11 +1,10 @@
 import "server-only";
 
 import { AsyncLocalStorage } from "async_hooks";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiUsageMetrics } from "./usageMetrics";
+import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 type UsageContext = {
-  supabase: SupabaseClient;
   userId: string;
   route: string;
 };
@@ -25,11 +24,16 @@ export function initAiUsageContext(ctx: UsageContext): void {
  * Called inside callAIWithMeta after each successful AI response.
  * Fire-and-forget — does not block the response path.
  */
-export function logCallUsage(model: string | undefined, usage: AiUsageMetrics): void {
+export async function logCallUsage(model: string | undefined, usage: AiUsageMetrics): Promise<void> {
   const ctx = store.getStore();
   if (!ctx) return;
 
-  void ctx.supabase.from("ai_usage_log").insert({
+  const admin = createSupabaseAdminClient() as unknown as {
+    from: (table: string) => {
+      insert: (values: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }>;
+    };
+  };
+  const { error } = await admin.from("ai_usage_log").insert({
     user_id: ctx.userId,
     route: ctx.route,
     model: model ?? null,
@@ -37,4 +41,8 @@ export function logCallUsage(model: string | undefined, usage: AiUsageMetrics): 
     output_tokens: usage.output_tokens,
     cost_usd: usage.estimated_cost_usd,
   });
+
+  if (error) {
+    console.warn("Could not persist AI usage log:", error.message);
+  }
 }

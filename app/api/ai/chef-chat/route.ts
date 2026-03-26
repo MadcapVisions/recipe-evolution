@@ -1,6 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { chefChat } from "@/lib/ai/chefChat";
 import type { ChefChatEnvelope } from "@/lib/ai/chefOptions";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       supabase: access.supabase,
       userId: access.userId,
     };
-    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "chef-chat" });
+    initAiUsageContext({ userId: access.userId, route: "chef-chat" });
     const tasteSummaryPromise = getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId);
 
     let body;

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { estimateNutritionFacts } from "@/lib/ai/nutritionFacts";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
@@ -27,7 +26,7 @@ export async function POST(request: Request) {
     if (access.errorResponse) {
       return access.errorResponse;
     }
-    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "nutrition" });
+    initAiUsageContext({ userId: access.userId, route: "nutrition" });
 
     let body;
     try {

@@ -367,9 +367,9 @@ export function VersionDetailClient({
     };
   }
 
-  async function requestAiSuggestion(instruction: string): Promise<SuggestedChange | null> {
+  async function requestAiSuggestion(instruction: string): Promise<SuggestedChange> {
     if (!recipe || !version) {
-      return null;
+      throw new Error("Recipe context is missing.");
     }
 
     const response = await fetch("/api/ai/improve-recipe", {
@@ -407,10 +407,10 @@ export function VersionDetailClient({
     };
 
     if (!response.ok || data.error) {
-      return null;
+      throw new Error(data.message || "AI improvement failed. Please try again.");
     }
 
-    return normalizeSuggestedChange(instruction, (data.result ?? data?.recipe ?? data) as AiRecipeResult & {
+    const normalized = normalizeSuggestedChange(instruction, (data.result ?? data?.recipe ?? data) as AiRecipeResult & {
       ingredients?: Array<{ name: string }>;
       steps?: Array<{ text: string }>;
       explanation?: string;
@@ -419,6 +419,12 @@ export function VersionDetailClient({
       cook_time_min?: number;
       difficulty?: string;
     });
+
+    if (!normalized) {
+      throw new Error("AI returned an incomplete recipe update. Please try again.");
+    }
+
+    return normalized;
   }
 
   function buildDeterministicSuggestion(instruction: string): SuggestedChange | null {
@@ -659,9 +665,11 @@ export function VersionDetailClient({
     if (assistant.cooldownTimeoutRef.current) clearTimeout(assistant.cooldownTimeoutRef.current);
     assistant.cooldownTimeoutRef.current = setTimeout(() => assistant.setCooldownActive(false), 4000);
 
-    const suggestion = await requestAiSuggestion(instruction);
-    if (!suggestion) {
-      assistant.setAiError("AI improvement failed. Please try again.");
+    let suggestion: SuggestedChange;
+    try {
+      suggestion = await requestAiSuggestion(instruction);
+    } catch (error) {
+      assistant.setAiError(error instanceof Error ? error.message : "AI improvement failed. Please try again.");
       assistant.setIsGeneratingVersion(false);
       return;
     }
@@ -799,9 +807,13 @@ export function VersionDetailClient({
     assistant.setIsGeneratingVersion(true);
     assistant.setAiError(null);
 
-    const suggestion = await requestAiSuggestion(latestUserInstruction);
-    if (!suggestion) {
-      assistant.setAiError("Could not build a recipe update from the latest request.");
+    let suggestion: SuggestedChange;
+    try {
+      suggestion = await requestAiSuggestion(latestUserInstruction);
+    } catch (error) {
+      assistant.setAiError(
+        error instanceof Error ? error.message : "Could not build a recipe update from the latest request."
+      );
       assistant.setIsGeneratingVersion(false);
       return;
     }

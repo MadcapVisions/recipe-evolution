@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { structureRecipeFromRawText, StructureRecipeLimitError } from "@/lib/ai/structureRecipe";
 import { trackServerEvent } from "@/lib/trackServerEvent";
@@ -24,7 +23,7 @@ export async function POST(request: Request) {
       return access.errorResponse;
     }
     trackedAccess = access;
-    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "structure-recipe" });
+    initAiUsageContext({ userId: access.userId, route: "structure-recipe" });
 
     let body;
     try {

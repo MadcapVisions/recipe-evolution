@@ -1,7 +1,8 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { improveRecipe } from "@/lib/ai/improveRecipe";
+import { classifyImproveRecipeError } from "@/lib/ai/improveRecipeError";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { trackServerEvent } from "@/lib/trackServerEvent";
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
       return access.errorResponse;
     }
     trackedAccess = access;
-    initAiUsageContext({ supabase: access.supabase as SupabaseClient, userId: access.userId, route: "improve-recipe" });
+    initAiUsageContext({ userId: access.userId, route: "improve-recipe" });
 
     let body;
     try {
@@ -94,18 +95,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ result });
   } catch (error) {
     console.error("Improve recipe route failed", error);
+    const classified = classifyImproveRecipeError(error);
     if (trackedAccess) {
       void trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
         route: "improve-recipe",
         message: error instanceof Error ? error.message : "Unknown error",
+        status: classified.status,
+        user_message: classified.message,
       });
     }
     return NextResponse.json(
       {
         error: true,
-        message: "AI improvement failed. Please try again.",
+        message: classified.message,
       },
-      { status: 500 }
+      { status: classified.status }
     );
   }
 }

@@ -43,6 +43,13 @@ type UsageLogRow = {
   cost_usd: number | null;
 };
 
+type GenerationAttemptCostRow = {
+  owner_id: string;
+  stage_metrics_json: Array<{
+    estimated_cost_usd?: number | null;
+  }> | null;
+};
+
 type AiTaskSettingRow = {
   task_key: string;
   primary_model: string;
@@ -89,31 +96,45 @@ async function listUsers() {
 export async function getAdminDashboardData() {
   const admin = createSupabaseAdminClient();
 
-  const [users, recipesResult, versionsResult, conversationsResult, aiSettingsResult, usageLogResult] = await Promise.all([
+  const [users, recipesResult, versionsResult, conversationsResult, aiSettingsResult, usageLogResult, generationAttemptsResult] = await Promise.all([
     listUsers(),
     admin.from("recipes").select("id, owner_id, title, created_at, updated_at").order("created_at", { ascending: false }),
     admin.from("recipe_versions").select("id, recipe_id, version_number, created_at").order("created_at", { ascending: false }),
     admin.from("ai_conversation_turns").select("id, owner_id, scope, role, created_at").order("created_at", { ascending: false }),
     admin.from("ai_task_settings").select("task_key, primary_model, fallback_model, enabled, updated_at, updated_by").order("updated_at", { ascending: false }),
     admin.from("ai_usage_log").select("user_id, model, input_tokens, output_tokens, cost_usd"),
+    admin.from("ai_generation_attempts").select("owner_id, stage_metrics_json"),
   ]);
 
   if (recipesResult.error) throw new Error(`Failed to load recipes: ${recipesResult.error.message}`);
   if (versionsResult.error) throw new Error(`Failed to load recipe versions: ${versionsResult.error.message}`);
   if (conversationsResult.error) throw new Error(`Failed to load AI conversations: ${conversationsResult.error.message}`);
   if (aiSettingsResult.error) throw new Error(`Failed to load AI settings: ${aiSettingsResult.error.message}`);
+  if (generationAttemptsResult.error) throw new Error(`Failed to load AI generation attempts: ${generationAttemptsResult.error.message}`);
 
   const recipes = (recipesResult.data ?? []) as RecipeRow[];
   const versions = (versionsResult.data ?? []) as VersionRow[];
   const conversations = (conversationsResult.data ?? []) as ConversationRow[];
   const aiSettings = (aiSettingsResult.data ?? []) as AiTaskSettingRow[];
   const usageLog = (usageLogResult.data ?? []) as UsageLogRow[];
+  const generationAttempts = (generationAttemptsResult.data ?? []) as GenerationAttemptCostRow[];
 
   const aiCostByUser = new Map<string, number>();
   for (const row of usageLog) {
     const resolvedCost = resolveUsageCostUsd(row);
     if (typeof resolvedCost === "number" && resolvedCost > 0) {
       aiCostByUser.set(row.user_id, (aiCostByUser.get(row.user_id) ?? 0) + resolvedCost);
+    }
+  }
+
+  const generationCostByUser = new Map<string, number>();
+  for (const row of generationAttempts) {
+    const attemptCost = (row.stage_metrics_json ?? []).reduce(
+      (sum, stage) => sum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
+      0
+    );
+    if (attemptCost > 0) {
+      generationCostByUser.set(row.owner_id, (generationCostByUser.get(row.owner_id) ?? 0) + attemptCost);
     }
   }
 
@@ -149,7 +170,7 @@ export async function getAdminDashboardData() {
       recipeCount: recipeCountByUser.get(user.id) ?? 0,
       versionCount: versionCountByUser.get(user.id) ?? 0,
       conversationCount: conversationCountByUser.get(user.id) ?? 0,
-      aiCostUsd: aiCostByUser.get(user.id) ?? 0,
+      aiCostUsd: aiCostByUser.get(user.id) ?? generationCostByUser.get(user.id) ?? 0,
     }))
     .sort((a, b) => {
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -201,7 +222,7 @@ export async function getAdminDashboardData() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 24);
 
-  const totalAiCostUsd = usageLog.reduce((sum, row) => sum + (resolveUsageCostUsd(row) ?? 0), 0);
+  const totalAiCostUsd = accounts.reduce((sum, account) => sum + account.aiCostUsd, 0);
 
   const overview = {
     totalUsers: users.length,

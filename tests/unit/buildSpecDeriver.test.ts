@@ -194,3 +194,19 @@ test("deriveBuildSpec recovers build_title from user conversation when locked ti
     `expected shrimp/taco in build_title, got "${spec.build_title}"`
   );
 });
+
+test("deriveBuildSpec preserves explicit required ingredients from lock-time user conversation", () => {
+  const spec = deriveBuildSpec({
+    selectedDirection: {
+      id: "dir-discard",
+      title: "Bread Pudding",
+      summary: "Classic bread pudding direction.",
+      tags: [],
+    },
+    conversationHistory: [
+      { role: "user" as const, content: "I want bread pudding with sourdough discard." },
+    ],
+  });
+
+  assert.ok(spec.required_ingredients.includes("sourdough discard"));
+});

@@ -195,7 +195,7 @@ async function callOpenRouter(messages: AIMessage[], options: AICallOptions, mod
             : estimateUsageCostUsd(model, promptTokens, completionTokens),
       },
     };
-    logCallUsage(model, callResult.usage);
+    await logCallUsage(model, callResult.usage);
     return callResult;
   } catch (error) {
     const statusCode = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : undefined;
