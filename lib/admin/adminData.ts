@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getAdminEmails } from "@/lib/auth/adminAccess";
+import { resolveUsageCostUsd } from "@/lib/ai/usageMetrics";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 type AuthUserRecord = {
@@ -36,6 +37,9 @@ type ConversationRow = {
 
 type UsageLogRow = {
   user_id: string;
+  model: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   cost_usd: number | null;
 };
 
@@ -91,7 +95,7 @@ export async function getAdminDashboardData() {
     admin.from("recipe_versions").select("id, recipe_id, version_number, created_at").order("created_at", { ascending: false }),
     admin.from("ai_conversation_turns").select("id, owner_id, scope, role, created_at").order("created_at", { ascending: false }),
     admin.from("ai_task_settings").select("task_key, primary_model, fallback_model, enabled, updated_at, updated_by").order("updated_at", { ascending: false }),
-    admin.from("ai_usage_log").select("user_id, cost_usd"),
+    admin.from("ai_usage_log").select("user_id, model, input_tokens, output_tokens, cost_usd"),
   ]);
 
   if (recipesResult.error) throw new Error(`Failed to load recipes: ${recipesResult.error.message}`);
@@ -107,8 +111,9 @@ export async function getAdminDashboardData() {
 
   const aiCostByUser = new Map<string, number>();
   for (const row of usageLog) {
-    if (typeof row.cost_usd === "number" && row.cost_usd > 0) {
-      aiCostByUser.set(row.user_id, (aiCostByUser.get(row.user_id) ?? 0) + row.cost_usd);
+    const resolvedCost = resolveUsageCostUsd(row);
+    if (typeof resolvedCost === "number" && resolvedCost > 0) {
+      aiCostByUser.set(row.user_id, (aiCostByUser.get(row.user_id) ?? 0) + resolvedCost);
     }
   }
 
@@ -196,7 +201,7 @@ export async function getAdminDashboardData() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 24);
 
-  const totalAiCostUsd = usageLog.reduce((sum, row) => sum + (typeof row.cost_usd === "number" ? row.cost_usd : 0), 0);
+  const totalAiCostUsd = usageLog.reduce((sum, row) => sum + (resolveUsageCostUsd(row) ?? 0), 0);
 
   const overview = {
     totalUsers: users.length,
