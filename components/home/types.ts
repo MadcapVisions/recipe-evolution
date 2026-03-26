@@ -16,6 +16,7 @@ export type HomeHubProps = {
   recentRecipes: RecentRecipe[];
   totalVersionCount: number;
   userTasteProfile: UserTasteProfile | null;
+  gracefulModeEnabled?: boolean;
 };
 
 export type UserTasteProfile = {

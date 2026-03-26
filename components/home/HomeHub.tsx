@@ -5,7 +5,6 @@ import { HomeHeroPanel } from "@/components/home/HomeHeroPanel";
 import { TasteSummaryPanel } from "@/components/home/TasteSummaryPanel";
 import { useHomeHubAi, type BuildDebugEntry, type BuildFailureState } from "@/components/home/useHomeHubAi";
 
-const GRACEFUL_MODE = process.env.NEXT_PUBLIC_GRACEFUL_MODE_ENABLED === "true";
 import type { HomeHubProps } from "@/components/home/types";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
@@ -175,7 +174,7 @@ function BuildDebugPanel({ log }: { log: BuildDebugEntry[] }) {
   );
 }
 
-export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile }: HomeHubProps) {
+export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile, gracefulModeEnabled = false }: HomeHubProps) {
   const {
     promptInput,
     setPromptInput,
@@ -271,13 +270,13 @@ export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile }: Hom
           heroChatViewportRef={heroChatViewportRef}
           buildFailureState={buildFailureState}
           launchDecision={launchDecision}
-          gracefulMode={GRACEFUL_MODE}
+          gracefulMode={gracefulModeEnabled}
           isBuildLong={isBuildLong}
           onRetryBuild={() => void handleRetryBuild()}
           onRetryWithAction={(action) => void handleRetryWithAction(action)}
           onClarificationQuickSelect={handleClarificationQuickSelect}
         />
-        {!GRACEFUL_MODE ? <BuildDebugPanel log={buildDebugLog} /> : null}
+        {!gracefulModeEnabled ? <BuildDebugPanel log={buildDebugLog} /> : null}
       </div>
       <TasteSummaryPanel
         profile={userTasteProfile}

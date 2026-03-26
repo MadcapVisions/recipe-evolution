@@ -8,6 +8,7 @@ import type { OpenRouterModelOption } from "@/lib/ai/openRouterModels";
 type AiTaskSettingsFormProps = {
   initialSettings: AiTaskSettingRecord[];
   modelOptions: OpenRouterModelOption[];
+  initialGracefulMode: boolean;
 };
 
 type EditableTaskSetting = AiTaskSettingRecord;
@@ -190,13 +191,17 @@ function selectOptions(taskKey: AiTaskKey, currentValue: string | null, modelOpt
   };
 }
 
-export function AiTaskSettingsForm({ initialSettings, modelOptions }: AiTaskSettingsFormProps) {
+export function AiTaskSettingsForm({ initialSettings, modelOptions, initialGracefulMode }: AiTaskSettingsFormProps) {
   const [settings, setSettings] = useState<EditableTaskSetting[]>(initialSettings);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { tone: "success" | "error"; text: string }>>({});
+  const [gracefulMode, setGracefulMode] = useState(initialGracefulMode);
+  const [savingFlag, setSavingFlag] = useState(false);
+  const [flagMessage, setFlagMessage] = useState<string | null>(null);
+  const [flagError, setFlagError] = useState<string | null>(null);;
 
   const updateSetting = <K extends keyof EditableTaskSetting>(taskKey: string, key: K, value: EditableTaskSetting[K]) => {
     setSettings((current) =>
@@ -301,6 +306,31 @@ export function AiTaskSettingsForm({ initialSettings, modelOptions }: AiTaskSett
       }));
     } finally {
       setTestingKey((current) => (current === stateKey ? null : current));
+    }
+  };
+
+  const handleSaveFlag = async (key: string, value: boolean) => {
+    setSavingFlag(true);
+    setFlagMessage(null);
+    setFlagError(null);
+
+    try {
+      const response = await fetch("/api/admin/feature-flags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value }),
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok || payload.error) {
+        throw new Error(payload.error ?? "Failed to save feature flag.");
+      }
+
+      setFlagMessage("Feature flags updated.");
+    } catch (saveError) {
+      setFlagError(saveError instanceof Error ? saveError.message : "Failed to save feature flag.");
+    } finally {
+      setSavingFlag(false);
     }
   };
 
@@ -503,6 +533,32 @@ export function AiTaskSettingsForm({ initialSettings, modelOptions }: AiTaskSett
         {message ? <p className="text-sm text-green-700">{message}</p> : null}
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
       </div>
+
+      <div className="settings-highlight p-4">
+        <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">UX Features</p>
+        <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Graceful failure mode</p>
+        <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)]">
+          When enabled, recipe generation failures surface a friendly recovery card with contextual action buttons instead of the raw debug log.
+        </p>
+      </div>
+
+      <section className="settings-section space-y-4 p-4">
+        <label className="inline-flex items-center gap-3 text-[15px] font-medium text-[color:var(--text)]">
+          <input
+            type="checkbox"
+            checked={gracefulMode}
+            onChange={(event) => setGracefulMode(event.target.checked)}
+          />
+          Enable graceful failure mode
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={() => void handleSaveFlag("graceful_mode", gracefulMode)} disabled={savingFlag}>
+            {savingFlag ? "Saving..." : "Save Feature Flags"}
+          </Button>
+          {flagMessage ? <p className="text-sm text-green-700">{flagMessage}</p> : null}
+          {flagError ? <p className="text-sm text-red-700">{flagError}</p> : null}
+        </div>
+      </section>
     </section>
   );
 }

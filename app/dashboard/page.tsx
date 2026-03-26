@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { loadRecipeSummaries } from "@/lib/recipeSummaries";
 import { HomeHub } from "@/components/home/HomeHub";
+import { getFeatureFlag } from "@/lib/ai/featureFlags";
 import type { UserTasteProfile } from "@/components/home/types";
 
 export default async function DashboardPage() {
@@ -28,8 +29,10 @@ export default async function DashboardPage() {
   let totalVersionCount = 0;
   let userTasteProfile: UserTasteProfile | null = null;
 
+  let gracefulModeEnabled = false;
+
   try {
-    const [loaded, preferencesResult] = await Promise.all([
+    const [loaded, preferencesResult, gracefulFlag] = await Promise.all([
       loadRecipeSummaries(supabase, user.id),
       supabase
         .from("user_preferences")
@@ -38,6 +41,7 @@ export default async function DashboardPage() {
         )
         .eq("owner_id", user.id)
         .maybeSingle(),
+      getFeatureFlag("graceful_mode", false),
     ]);
 
     recentRecipes = loaded.recipeSummaries.map((recipe) => ({
@@ -66,6 +70,7 @@ export default async function DashboardPage() {
           tasteNotes: preferences.taste_notes ?? null,
         }
       : null;
+    gracefulModeEnabled = gracefulFlag;
   } catch (error) {
     loadError = error instanceof Error ? error.message : "Could not load dashboard.";
   }
@@ -94,5 +99,5 @@ export default async function DashboardPage() {
     );
   }
 
-  return <HomeHub recentRecipes={recentRecipes} totalVersionCount={totalVersionCount} userTasteProfile={userTasteProfile} />;
+  return <HomeHub recentRecipes={recentRecipes} totalVersionCount={totalVersionCount} userTasteProfile={userTasteProfile} gracefulModeEnabled={gracefulModeEnabled} />;
 }
