@@ -117,6 +117,45 @@ test("buildLockedBrief preserves a specific selected title and ignores old conve
   assert.deepEqual(brief.directives.required_techniques, []);
 });
 
+test("buildLockedBrief recovers explicit required ingredients from user turns when a stale build spec omitted them", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-discard",
+    selectedDirection: {
+      id: "reply-3",
+      title: "Bread Pudding",
+      summary: "Keep it creamy and wet.",
+      tags: [],
+    },
+    conversationHistory: [
+      { role: "user", content: "I want bread pudding with sourdough discard." },
+    ],
+  });
+
+  const stale = {
+    ...session,
+    build_spec: {
+      ...session.build_spec!,
+      required_ingredients: [],
+    },
+  };
+
+  const brief = buildLockedBrief({
+    session: stale,
+    conversationHistory: [
+      { role: "user", content: "I want bread pudding with sourdough discard." },
+      { role: "assistant", content: "Here are three options for using sourdough discard in bread pudding." },
+      { role: "user", content: "I want it creamy and wet." },
+    ],
+  });
+
+  assert.ok(brief.ingredients.required.includes("sourdough discard"));
+  assert.ok(
+    (brief.ingredients.requiredNamedIngredients ?? []).some(
+      (ingredient) => ingredient.normalizedName === "sourdough discard"
+    )
+  );
+});
+
 test("buildLockedBrief repairs generic locked directions from the full conversation branch", () => {
   const session = createLockedSessionFromDirection({
     conversationKey: "conv-1",

@@ -1053,10 +1053,19 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       return;
     }
 
-    if (!selectedChefDirection || selectedChefDirection.replyIndex !== replyIndex) {
+    if (!selectedChefDirection) {
       setSelectedChefDirection(replyDirection);
     }
-    await createRecipeFromConversation(sliced, "chef-chat-reply", buildSelectedDirectionForMessages(sliced, replyDirection));
+    const lockedDirection =
+      selectedChefDirection != null
+        ? buildSelectedDirectionForMessages(heroChatMessages, selectedChefDirection) ?? selectedChefDirection
+        : buildSelectedDirectionForMessages(sliced, replyDirection);
+
+    await createRecipeFromConversation(
+      selectedChefDirection != null ? heroChatMessages : sliced,
+      "chef-chat-reply",
+      lockedDirection
+    );
   };
 
   const handleSelectChefDirection = (replyIndex: number, option: { id: string; title: string; summary: string; tags: string[]; dish_family?: string | null; primary_anchor?: string | null; primary_anchor_type?: "dish" | "protein" | "ingredient" | "format" | null }) => {

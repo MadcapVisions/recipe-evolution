@@ -34,13 +34,13 @@ export function matchesRequiredIngredient(
   const target = normalizeIngredientToken(req.normalizedName);
 
   if (normalized === target) return true;
-  if (normalized.includes(target) || target.includes(normalized)) return true;
+  if (normalized.includes(target)) return true;
 
   for (const alias of req.aliases) {
     const a = normalizeIngredientToken(alias);
     if (!a) continue;
     if (normalized === a) return true;
-    if (normalized.includes(a) || a.includes(normalized)) return true;
+    if (normalized.includes(a)) return true;
   }
 
   return false;

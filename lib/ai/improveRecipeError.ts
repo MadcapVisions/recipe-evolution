@@ -26,6 +26,17 @@ export function classifyImproveRecipeError(error: unknown) {
     };
   }
 
+  if (
+    message.includes('Required ingredient "') ||
+    message.includes("Recipe is missing required ingredient") ||
+    message.includes("Instruction not reflected in result")
+  ) {
+    return {
+      status: 422,
+      message: "Recipe update could not satisfy the ingredient change you requested.",
+    };
+  }
+
   return {
     status: 500,
     message: "AI improvement failed. Please try again.",

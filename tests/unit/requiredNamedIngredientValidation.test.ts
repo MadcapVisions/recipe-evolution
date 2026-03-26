@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { compileCookingBrief } from "../../lib/ai/briefCompiler";
 import { validateRequiredNamedIngredientsInRecipe } from "../../lib/ai/requiredNamedIngredientValidation";
+import { buildRequiredNamedIngredient, matchesRequiredIngredient } from "../../lib/ai/requiredNamedIngredient";
 
 test("recipe refinement treats sourdough discard as a distinct hard-required ingredient", () => {
   const brief = compileCookingBrief({
@@ -32,4 +33,12 @@ test("recipe refinement treats sourdough discard as a distinct hard-required ing
   assert.ok(
     issues.some((issue) => issue.code === "RECIPE_MISSING_REQUIRED_NAMED_INGREDIENT")
   );
+});
+
+test("required ingredient matcher does not let bare sourdough satisfy sourdough discard", () => {
+  const required = buildRequiredNamedIngredient("sourdough discard");
+
+  assert.equal(matchesRequiredIngredient("sourdough", required), false);
+  assert.equal(matchesRequiredIngredient("sourdough bread", required), false);
+  assert.equal(matchesRequiredIngredient("1 cup sourdough discard", required), true);
 });

@@ -71,6 +71,23 @@ export function buildVerificationRepairPlan(
     );
   }
 
+  const hardRequiredNamed = (ing?.requiredNamedIngredients ?? [])
+    .filter((item) => item.requiredStrength === "hard")
+    .map((item) => item.normalizedName);
+
+  if (
+    (checks.required_named_ingredients_present === false ||
+      checks.required_named_ingredients_used_in_steps === false) &&
+    hardRequiredNamed.length > 0
+  ) {
+    if (!scopes.includes("alignment_required_ingredients")) {
+      scopes.push("alignment_required_ingredients");
+    }
+    repairs.push(
+      `The user explicitly requested these exact ingredients: ${hardRequiredNamed.join(", ")}. They must appear by those names in the ingredient list and be explicitly used in at least one step. Do not substitute related ingredients.`
+    );
+  }
+
   if (!checks.forbidden_ingredients_avoided && ing?.forbidden && ing.forbidden.length > 0) {
     scopes.push("alignment_forbidden_ingredients");
     repairs.push(

@@ -123,6 +123,77 @@ function extractHardRequiredIngredients(input: ImproveRecipeInput) {
   );
 }
 
+function createCandidateFromParsed(params: {
+  parsed: Record<string, unknown>;
+  provider: string | null | undefined;
+  model: string | null | undefined;
+  input: ImproveRecipeInput;
+  inputHash: string | null;
+}): AiRecipeResult | null {
+  const ingredients = normalizeIngredients(params.parsed.ingredients);
+  const steps = normalizeSteps(params.parsed.steps);
+  const title =
+    typeof params.parsed.title === "string" && params.parsed.title.trim()
+      ? params.parsed.title.trim()
+      : params.input.recipe.title;
+  const normalizedForValidation = {
+    title,
+    ingredients: ingredients.map((item) => item.name),
+    steps: steps.map((item) => item.text),
+    chefTips: Array.isArray(params.parsed.chefTips)
+      ? params.parsed.chefTips
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .map((item) => item.trim())
+      : [],
+  };
+
+  if (!validateRecipe(normalizedForValidation)) {
+    return null;
+  }
+
+  const explanation =
+    typeof params.parsed.explanation === "string" && params.parsed.explanation.trim().length > 0
+      ? params.parsed.explanation.trim()
+      : null;
+  const version_label =
+    typeof params.parsed.version_label === "string" && params.parsed.version_label.trim().length > 0
+      ? params.parsed.version_label.trim()
+      : null;
+
+  return createAiRecipeResult({
+    purpose: "refine",
+    source: "ai",
+    provider: params.provider,
+    model: params.model ?? params.provider,
+    cached: false,
+    inputHash: params.inputHash,
+    createdAt: new Date().toISOString(),
+    explanation,
+    version_label,
+    recipe: {
+      title,
+      description: null,
+      tags: null,
+      servings:
+        typeof params.parsed.servings === "number" ? params.parsed.servings : params.input.recipe.servings,
+      prep_time_min:
+        typeof params.parsed.prep_time_min === "number"
+          ? params.parsed.prep_time_min
+          : params.input.recipe.prep_time_min,
+      cook_time_min:
+        typeof params.parsed.cook_time_min === "number"
+          ? params.parsed.cook_time_min
+          : params.input.recipe.cook_time_min,
+      difficulty:
+        typeof params.parsed.difficulty === "string" && params.parsed.difficulty.trim().length > 0
+          ? params.parsed.difficulty.trim()
+          : params.input.recipe.difficulty,
+      ingredients,
+      steps,
+    },
+  });
+}
+
 export async function improveRecipe(
   input: ImproveRecipeInput,
   cacheContext?: ImproveRecipeCacheContext
@@ -215,6 +286,7 @@ ${JSON.stringify(input.recipe, null, 2)}`,
   // fails or the instruction keywords don't appear in the result.
   let improved: AiRecipeResult | null = null;
   let lastError = "";
+  let lastCandidate: AiRecipeResult | null = null;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await callAIForJson(messages, aiOptions);
@@ -224,56 +296,18 @@ ${JSON.stringify(input.recipe, null, 2)}`,
       continue;
     }
 
-    const obj = parsed as Record<string, unknown>;
-    const ingredients = normalizeIngredients(obj.ingredients);
-    const steps = normalizeSteps(obj.steps);
-    const title = typeof obj.title === "string" && obj.title.trim() ? obj.title.trim() : input.recipe.title;
-    const normalizedForValidation = {
-      title,
-      ingredients: ingredients.map((item) => item.name),
-      steps: steps.map((item) => item.text),
-      chefTips: Array.isArray(obj.chefTips)
-        ? obj.chefTips
-            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-            .map((item) => item.trim())
-        : [],
-    };
-
-    if (!validateRecipe(normalizedForValidation)) {
+    const candidate = createCandidateFromParsed({
+      parsed: parsed as Record<string, unknown>,
+      provider: result.provider,
+      model: result.model,
+      input,
+      inputHash,
+    });
+    if (!candidate) {
       lastError = "Invalid recipe format returned by AI";
       continue;
     }
-
-    const explanation =
-      typeof obj.explanation === "string" && obj.explanation.trim().length > 0 ? obj.explanation.trim() : null;
-    const version_label =
-      typeof obj.version_label === "string" && obj.version_label.trim().length > 0 ? obj.version_label.trim() : null;
-
-    const candidate = createAiRecipeResult({
-      purpose: "refine",
-      source: "ai",
-      provider: result.provider,
-      model: result.model ?? result.provider,
-      cached: false,
-      inputHash,
-      createdAt: new Date().toISOString(),
-      explanation,
-      version_label,
-      recipe: {
-        title,
-        description: null,
-        tags: null,
-        servings: typeof obj.servings === "number" ? obj.servings : input.recipe.servings,
-        prep_time_min: typeof obj.prep_time_min === "number" ? obj.prep_time_min : input.recipe.prep_time_min,
-        cook_time_min: typeof obj.cook_time_min === "number" ? obj.cook_time_min : input.recipe.cook_time_min,
-        difficulty:
-          typeof obj.difficulty === "string" && obj.difficulty.trim().length > 0
-            ? obj.difficulty.trim()
-            : input.recipe.difficulty,
-        ingredients,
-        steps,
-      },
-    });
+    lastCandidate = candidate;
 
     const missingRequiredIngredientIssues = validateRequiredNamedIngredientsInRecipe({
       ingredients: candidate.recipe.ingredients.map((item) => ({ ingredientName: item.name })),
@@ -295,6 +329,78 @@ ${JSON.stringify(input.recipe, null, 2)}`,
 
     improved = candidate;
     break;
+  }
+
+  if (!improved && hardRequiredIngredients.length > 0) {
+    const repairBase =
+      lastCandidate ??
+      createAiRecipeResult({
+        purpose: "refine",
+        source: "ai",
+        provider: null,
+        model: null,
+        cached: false,
+        inputHash,
+        createdAt: new Date().toISOString(),
+        explanation: null,
+        version_label: null,
+        recipe: {
+          title: input.recipe.title,
+          description: null,
+          tags: null,
+          servings: input.recipe.servings,
+          prep_time_min: input.recipe.prep_time_min,
+          cook_time_min: input.recipe.cook_time_min,
+          difficulty: input.recipe.difficulty,
+          ingredients: input.recipe.ingredients,
+          steps: input.recipe.steps,
+        },
+      });
+
+    const repairMessages = [
+      messages[0]!,
+      {
+        role: "assistant" as const,
+        content: JSON.stringify(repairBase.recipe, null, 2),
+      },
+      {
+        role: "user" as const,
+        content: `Repair this recipe so it fully satisfies the user's explicit ingredient request.
+
+Required ingredients that must appear exactly and be used in the steps:
+${hardRequiredIngredients.map((ingredient) => `- ${ingredient.normalizedName}`).join("\n")}
+
+Rules:
+- Add each required ingredient to the ingredient list with a realistic quantity.
+- Explicitly mention and use each required ingredient in at least one cooking step.
+- Do not substitute a related ingredient. "Sourdough bread" does not satisfy "sourdough discard".
+- Keep the same dish identity and return the same JSON schema only.`,
+      },
+    ];
+
+    const repairResult = await callAIForJson(repairMessages, aiOptions);
+    const repairedParsed = repairResult.parsed;
+    if (repairedParsed && typeof repairedParsed === "object") {
+      const repairedCandidate = createCandidateFromParsed({
+        parsed: repairedParsed as Record<string, unknown>,
+        provider: repairResult.provider,
+        model: repairResult.model,
+        input,
+        inputHash,
+      });
+      if (repairedCandidate) {
+        const repairIssues = validateRequiredNamedIngredientsInRecipe({
+          ingredients: repairedCandidate.recipe.ingredients.map((item) => ({ ingredientName: item.name })),
+          steps: repairedCandidate.recipe.steps,
+          requiredNamedIngredients: hardRequiredIngredients,
+        });
+        if (repairIssues.length === 0 && verifyInstructionApplied(input.instruction, repairedCandidate)) {
+          improved = repairedCandidate;
+        } else if (repairIssues.length > 0) {
+          lastError = repairIssues.map((issue) => issue.message).join(" ");
+        }
+      }
+    }
   }
 
   if (!improved) {

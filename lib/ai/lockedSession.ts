@@ -121,12 +121,28 @@ export function buildLockedBrief(input: {
   // and fall through to the legacy reconstruction path below — never as hard errors.
   const spec = normalizeBuildSpec(input.session.build_spec);
   if (spec) {
+    // Safety net: recover explicit user-authored ingredient constraints from the
+    // conversation branch even when a stale or generic BuildSpec omitted them.
+    // This prevents locked reply-derived sessions from silently dropping hard
+    // requests like "use sourdough discard" before recipe generation begins.
+    const conversationConstraintBrief = (input.conversationHistory ?? []).some((message) => message.role === "user")
+      ? compileCookingBrief({
+          userMessage: (input.conversationHistory ?? [])
+            .filter((message) => message.role === "user")
+            .map((message) => message.content)
+            .join("\n"),
+          conversationHistory: [],
+          lockedSessionState: input.session.state,
+        })
+      : null;
     const forbiddenIngredients = unique([
       ...spec.forbidden_ingredients,
+      ...(conversationConstraintBrief?.ingredients.forbidden ?? []),
       ...refinements.flatMap((item) => item.extracted_changes.forbidden_ingredients),
     ]);
     const requiredIngredients = unique([
       ...spec.required_ingredients,
+      ...(conversationConstraintBrief?.ingredients.required ?? []),
       ...refinements.flatMap((item) => item.extracted_changes.required_ingredients),
       ...(spec.primary_anchor_type === "protein" && spec.primary_anchor_value ? [spec.primary_anchor_value] : []),
       ...(spec.primary_anchor_type === "ingredient" && spec.primary_anchor_value ? [spec.primary_anchor_value] : []),

@@ -155,6 +155,44 @@ test("buildVerificationRepairPlan returns scoped alignment repairs", () => {
   assert.equal(plan.instructions.length, 2);
 });
 
+test("buildVerificationRepairPlan adds exact required-named ingredient instructions", () => {
+  const verification = {
+    passes: false,
+    confidence: 0.2,
+    score: 0.6,
+    reasons: ["missing exact required ingredient"],
+    checks: {
+      ...passingChecks(),
+      required_named_ingredients_present: false,
+      required_named_ingredients_used_in_steps: false,
+    },
+    retry_strategy: "regenerate_stricter" as const,
+  };
+  const brief = {
+    ingredients: {
+      centerpiece: null,
+      required: ["sourdough discard"],
+      forbidden: [],
+      preferred: [],
+      requiredNamedIngredients: [
+        {
+          rawText: "sourdough discard",
+          normalizedName: "sourdough discard",
+          aliases: ["discard"],
+          source: "must_include",
+          requiredStrength: "hard",
+        },
+      ],
+    },
+    style: { tags: [], texture_tags: [], format_tags: [] },
+  } as unknown as CookingBrief;
+
+  const plan = buildVerificationRepairPlan(verification, brief);
+  assert.ok(plan.scopes.includes("alignment_required_ingredients"));
+  assert.ok(plan.instructions.some((instruction) => instruction.includes("sourdough discard")));
+  assert.ok(plan.instructions.some((instruction) => /Do not substitute related ingredients/.test(instruction)));
+});
+
 test("buildQualityRepairPlan returns scoped quality repairs", () => {
   const plan = buildQualityRepairPlan({
     vagueSteps: [{ text: "Cook until done." }],
