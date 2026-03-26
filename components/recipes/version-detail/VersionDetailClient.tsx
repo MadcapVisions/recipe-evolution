@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/components/recipes/version-detail/AiPanels";
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
+import { RecipeFeedbackPanel } from "@/components/recipes/version-detail/RecipeFeedbackPanel";
+import { RecipeWhyFitsPanel } from "@/components/recipes/version-detail/RecipeWhyFitsPanel";
 import { RecipeActionMenu, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useAppShell } from "@/components/shell/AppShellContext";
@@ -1287,46 +1289,66 @@ export function VersionDetailClient({
       />
 
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
-        <VersionMainPanels
-          recipe={recipe!}
-          version={version!}
-          ingredients={displayIngredients}
-          displayServings={displayServings}
-          canAdjustServings={canAdjustServings}
-          onSetTargetServings={setTargetServings}
-          steps={steps}
-          topPhotoUrl={topPhotoUrl}
-          userId={userId}
-          photosWithUrls={photosWithUrls}
-          onRenameRecipe={() => void renameRecipe()}
-          dishFamilyOptions={DISH_FAMILIES}
-          onSaveCategory={(value) => void saveCategoryChoice(value)}
-          onShare={() => void shareVersion()}
-          onViewVersionHistory={() => setVersionHistoryOpen((current) => !current)}
-          versionHistoryOpen={versionHistoryOpen}
-          timelineVersions={timelineVersions}
-          timelineHasMore={timelineHasMore}
-          timelineLoadingMore={timelineLoadingMore}
-          onVersionNavigate={navigateToVersion}
-          onLoadMoreVersions={() => void loadMoreVersions()}
-          onOpenVersionMenu={(targetVersionId, rect) => {
-            sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
-            sidebar.setOpenVersionMenuId(targetVersionId);
-          }}
-          recipeSearch={sidebar.recipeSearch}
-          searchResults={sidebar.searchResults}
-          onRecipeSearchChange={sidebar.setRecipeSearch}
-          onRecipeNavigate={navigateToRecipe}
-          onOpenRecipeMenu={(targetRecipeId, rect) => {
-            sidebar.setMenuAnchor(openMenuAtRect(rect));
-            sidebar.setOpenMenuRecipeId(targetRecipeId);
-          }}
-          recipeSwitchOpen={recipeSwitchOpen}
-          onToggleRecipeSwitch={() => setRecipeSwitchOpen((current) => !current)}
-          onOpenChefWorkshop={() => setOpenPanel("left")}
-          onAddToMealPlan={(day) => router.push(`/planner?recipe=${recipeId}&version=${versionId}&day=${encodeURIComponent(day)}`)}
-          galleryLoading={galleryLoading}
-        />
+        <div className="min-w-0 space-y-5">
+          <VersionMainPanels
+            recipe={recipe!}
+            version={version!}
+            ingredients={displayIngredients}
+            displayServings={displayServings}
+            canAdjustServings={canAdjustServings}
+            onSetTargetServings={setTargetServings}
+            steps={steps}
+            topPhotoUrl={topPhotoUrl}
+            userId={userId}
+            photosWithUrls={photosWithUrls}
+            onRenameRecipe={() => void renameRecipe()}
+            dishFamilyOptions={DISH_FAMILIES}
+            onSaveCategory={(value) => void saveCategoryChoice(value)}
+            onShare={() => void shareVersion()}
+            onViewVersionHistory={() => setVersionHistoryOpen((current) => !current)}
+            versionHistoryOpen={versionHistoryOpen}
+            timelineVersions={timelineVersions}
+            timelineHasMore={timelineHasMore}
+            timelineLoadingMore={timelineLoadingMore}
+            onVersionNavigate={navigateToVersion}
+            onLoadMoreVersions={() => void loadMoreVersions()}
+            onOpenVersionMenu={(targetVersionId, rect) => {
+              sidebar.setVersionMenuAnchor(openMenuAtRect(rect));
+              sidebar.setOpenVersionMenuId(targetVersionId);
+            }}
+            recipeSearch={sidebar.recipeSearch}
+            searchResults={sidebar.searchResults}
+            onRecipeSearchChange={sidebar.setRecipeSearch}
+            onRecipeNavigate={navigateToRecipe}
+            onOpenRecipeMenu={(targetRecipeId, rect) => {
+              sidebar.setMenuAnchor(openMenuAtRect(rect));
+              sidebar.setOpenMenuRecipeId(targetRecipeId);
+            }}
+            recipeSwitchOpen={recipeSwitchOpen}
+            onToggleRecipeSwitch={() => setRecipeSwitchOpen((current) => !current)}
+            onOpenChefWorkshop={() => setOpenPanel("left")}
+            onAddToMealPlan={(day) => router.push(`/planner?recipe=${recipeId}&version=${versionId}&day=${encodeURIComponent(day)}`)}
+            galleryLoading={galleryLoading}
+          />
+          {recipe ? (
+            <RecipeWhyFitsPanel
+              recipeTitle={recipe.title}
+              recipeTags={[]}
+              ingredientNames={ingredients.map((i) => i.name)}
+              dishFamily={recipe.dish_family ?? null}
+            />
+          ) : null}
+          {recipe && version && userId ? (
+            <RecipeFeedbackPanel
+              recipeId={recipe.id}
+              versionId={version.id}
+              recipeTitle={recipe.title}
+              recipeTags={[]}
+              ingredientNames={ingredients.map((i) => i.name)}
+              dishFamily={recipe.dish_family ?? null}
+            />
+          ) : null}
+        </div>
 
         <aside className="hidden space-y-4 xl:block xl:sticky xl:top-28 xl:self-start">
           <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />

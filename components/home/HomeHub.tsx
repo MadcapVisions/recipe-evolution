@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { HomeHeroPanel } from "@/components/home/HomeHeroPanel";
-import { useHomeHubAi, type BuildDebugEntry } from "@/components/home/useHomeHubAi";
+import { TasteSummaryPanel } from "@/components/home/TasteSummaryPanel";
+import { useHomeHubAi, type BuildDebugEntry, type BuildFailureState } from "@/components/home/useHomeHubAi";
 import type { HomeHubProps } from "@/components/home/types";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";
 
@@ -196,6 +197,10 @@ export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile }: Hom
     handleRemoveLastRefinement,
     handleBuildSelectedDirection,
     handleStartOver,
+    buildFailureState,
+    isBuildLong,
+    handleRetryBuild,
+    handleClarificationQuickSelect,
   } = useHomeHubAi(userTasteProfile);
 
   useEffect(() => {
@@ -260,9 +265,19 @@ export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile }: Hom
           onStartOver={handleStartOver}
           heroChatFrameRef={heroChatFrameRef}
           heroChatViewportRef={heroChatViewportRef}
+          buildFailureState={buildFailureState}
+          isBuildLong={isBuildLong}
+          onRetryBuild={() => void handleRetryBuild()}
+          onClarificationQuickSelect={handleClarificationQuickSelect}
         />
         <BuildDebugPanel log={buildDebugLog} />
       </div>
+      <TasteSummaryPanel
+        profile={userTasteProfile}
+        onPromptSelect={(text) => {
+          setPromptInput(text);
+        }}
+      />
     </div>
   );
 }
