@@ -96,6 +96,10 @@ export function VersionMainPanels({
   onToggleRecipeSwitch,
   onOpenChefWorkshop,
   onAddToMealPlan,
+  onDeleteRecipe,
+  onHideRecipe,
+  onArchiveRecipe,
+  deletingRecipe = false,
   photosWithUrls,
   galleryLoading,
 }: {
@@ -129,12 +133,18 @@ export function VersionMainPanels({
   onToggleRecipeSwitch: () => void;
   onOpenChefWorkshop: () => void;
   onAddToMealPlan: (day: string) => void;
+  onDeleteRecipe: () => void;
+  onHideRecipe: () => void;
+  onArchiveRecipe: () => void;
+  deletingRecipe?: boolean;
   photosWithUrls: Array<{ id: string; signedUrl: string; storagePath: string }>;
   galleryLoading: boolean;
 }) {
   const weekdayOptions = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
   const todayDay = weekdayOptions[(new Date().getDay() + 6) % 7];
   const [selectedPlanDay, setSelectedPlanDay] = useState<string>(todayDay);
+  const [recipeMenuOpen, setRecipeMenuOpen] = useState(false);
+  const [mealPlanOpen, setMealPlanOpen] = useState(false);
 
   return (
     <section className="space-y-5">
@@ -220,6 +230,48 @@ export function VersionMainPanels({
                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                   </svg>
                 </button>
+                <div className="relative mt-1 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRecipeMenuOpen((v) => !v)}
+                    aria-label="Recipe options"
+                    title="Recipe options"
+                    className="rounded-full p-1.5 text-[color:var(--muted)] transition hover:bg-[rgba(57,75,70,0.08)] hover:text-[color:var(--text)]"
+                  >
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                    </svg>
+                  </button>
+                  {recipeMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setRecipeMenuOpen(false)} />
+                      <div className="absolute left-0 top-[calc(100%+4px)] z-40 w-52 rounded-[20px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-2 shadow-[0_18px_40px_rgba(52,70,63,0.12)]">
+                        <button
+                          type="button"
+                          onClick={() => { setRecipeMenuOpen(false); onHideRecipe(); }}
+                          className="w-full rounded-[16px] px-3 py-2.5 text-left text-sm font-medium text-[color:var(--text)] transition hover:bg-[rgba(141,169,187,0.08)]"
+                        >
+                          Hide Recipe
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setRecipeMenuOpen(false); onArchiveRecipe(); }}
+                          className="w-full rounded-[16px] px-3 py-2.5 text-left text-sm font-medium text-[color:var(--text)] transition hover:bg-[rgba(141,169,187,0.08)]"
+                        >
+                          Archive Recipe
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingRecipe}
+                          onClick={() => { setRecipeMenuOpen(false); onDeleteRecipe(); }}
+                          className="w-full rounded-[16px] px-3 py-2.5 text-left text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                        >
+                          {deletingRecipe ? "Deleting..." : "Delete Recipe"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               {recipe.description ? (
                 <p className="mt-3 text-[15px] leading-relaxed text-[color:var(--muted)]">{recipe.description}</p>
@@ -245,22 +297,40 @@ export function VersionMainPanels({
               <Button href={`/recipes/${recipe.id}/versions/${version.id}/cook`} className="w-full justify-center lg:w-auto">
                 Cook This Version
               </Button>
-              <div className="flex w-full flex-col gap-2 min-[380px]:col-span-2 lg:w-auto lg:flex-row lg:items-center">
-                <select
-                  value={selectedPlanDay}
-                  onChange={(event) => setSelectedPlanDay(event.target.value)}
-                  aria-label="Choose meal plan day"
-                  className="min-h-11 rounded-full border border-[rgba(142,84,60,0.12)] bg-[rgba(255,249,243,0.96)] px-4 text-sm font-semibold text-[color:var(--text)] shadow-[0_6px_16px_rgba(101,47,29,0.05)]"
-                >
-                  {weekdayOptions.map((day) => (
-                    <option key={day} value={day}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
-                <Button onClick={() => onAddToMealPlan(selectedPlanDay)} variant="secondary" className="w-full justify-center lg:w-auto">
+              <div className="relative w-full min-[380px]:col-span-2 lg:w-auto">
+                <Button onClick={() => setMealPlanOpen((v) => !v)} variant="secondary" className="w-full justify-center lg:w-auto">
                   Add to Meal Plan
                 </Button>
+                {mealPlanOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setMealPlanOpen(false)} />
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 rounded-[24px] border border-[rgba(57,75,70,0.12)] bg-[rgba(255,253,249,0.98)] p-4 shadow-[0_18px_40px_rgba(52,70,63,0.12)]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Pick a day</p>
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {weekdayOptions.map((day) => (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => setSelectedPlanDay(day)}
+                            className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                              selectedPlanDay === day
+                                ? "bg-[color:var(--primary)] text-white"
+                                : "bg-[rgba(57,75,70,0.06)] text-[color:var(--text)] hover:bg-[rgba(57,75,70,0.12)]"
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                      <Button
+                        onClick={() => { onAddToMealPlan(selectedPlanDay); setMealPlanOpen(false); }}
+                        className="mt-3 w-full justify-center"
+                      >
+                        Add {selectedPlanDay}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="relative">
                 <Button onClick={onViewVersionHistory} variant="secondary" className="w-full justify-center lg:w-auto">

@@ -32,3 +32,14 @@ test("buildRecipePlanFromBrief carries blocked ingredients forward", () => {
   assert.ok(plan.blocked_ingredients.includes("garlic"));
   assert.ok(plan.notes.some((note) => note.includes("30 minutes")));
 });
+
+test("buildRecipePlanFromBrief adapts bread pudding technique for slow cooker requests", () => {
+  const brief = compileCookingBrief({
+    userMessage: "I want banana bread pudding in a slow cooker with sourdough discard",
+    conversationHistory: [],
+  });
+
+  const plan = buildRecipePlanFromBrief(brief);
+  assert.ok(plan.technique_outline.some((step) => step.toLowerCase().includes("slow cooker")));
+  assert.ok(plan.notes.some((note) => note.includes("slow cooker")));
+});

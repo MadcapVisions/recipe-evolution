@@ -7,8 +7,11 @@ import { AppShellClient } from "@/components/shell/AppShellClient";
 import { canAccessAdmin } from "@/lib/auth/adminAccess";
 
 export const metadata: Metadata = {
-  title: "Recipe Evolution",
+  title: "MealMaxer",
   description: "Develop better recipes over time with guided refinement, version history, and kitchen planning.",
+  icons: {
+    icon: "/assets/mealmaxer_icon.png",
+  },
 };
 
 const dancingScript = Dancing_Script({

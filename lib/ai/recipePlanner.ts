@@ -1,6 +1,7 @@
 import type { CookingBrief } from "./contracts/cookingBrief";
 import { createEmptyRecipePlan, type RecipePlan } from "./contracts/recipePlan";
 import { findDishFamilyRule } from "./dishFamilyRules";
+import { buildTechniqueHintsFromMethods } from "./methodRegistry";
 
 function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
@@ -130,14 +131,35 @@ const TECHNIQUE_OUTLINES: Record<string, string[]> = {
 
 function inferTechniqueOutline(brief: CookingBrief) {
   const family = brief.dish.dish_family;
-  if (family && TECHNIQUE_OUTLINES[family]) {
-    return TECHNIQUE_OUTLINES[family];
+  const methodHints = buildTechniqueHintsFromMethods(brief.directives.required_techniques);
+  if (brief.constraints.equipment_limits.includes("slow cooker")) {
+    return unique([
+      ...methodHints,
+      ...(family === "bread_pudding"
+      ? [
+          "Grease the slow cooker insert well and arrange the bread directly in it.",
+          "Whisk together the custard, pour it over the bread, and soak thoroughly before cooking.",
+          "Cook on low until the custard is just set and the center is softly jiggly, keeping the lid on as much as possible.",
+          "Rest briefly with the heat off before serving so the pudding finishes setting without overcooking.",
+        ]
+      : [
+          "Prepare the ingredients and layer or transfer them into the slow cooker insert.",
+          "Add the cooking liquid or sauce, then cover tightly.",
+          "Cook on low until the main components are tender and fully cooked through.",
+          "Finish uncovered if needed to adjust consistency before serving.",
+        ]),
+    ]);
   }
-  return [
-    "Build the main flavor base first.",
-    "Cook the central component to the right texture.",
-    "Finish with balancing acid, herbs, or garnish if needed.",
-  ];
+  if (family && TECHNIQUE_OUTLINES[family]) {
+    return unique([...methodHints, ...TECHNIQUE_OUTLINES[family]]);
+  }
+  return methodHints.length > 0
+    ? methodHints
+    : [
+        "Build the main flavor base first.",
+        "Cook the central component to the right texture.",
+        "Finish with balancing acid, herbs, or garnish if needed.",
+      ];
 }
 
 function inferExpectedTextures(brief: CookingBrief) {
@@ -172,6 +194,9 @@ export function buildRecipePlanFromBrief(brief: CookingBrief): RecipePlan {
   plan.notes = unique([
     ...(brief.dish.authenticity_target ? [`Honor the ${brief.dish.authenticity_target} direction.`] : []),
     ...(brief.constraints.time_max_minutes ? [`Aim for roughly ${brief.constraints.time_max_minutes} minutes total.`] : []),
+    ...(brief.constraints.equipment_limits.length > 0
+      ? [`Use: ${brief.constraints.equipment_limits.join(", ")}.`]
+      : []),
     ...(brief.ingredients.forbidden.length > 0 ? [`Avoid: ${brief.ingredients.forbidden.join(", ")}.`] : []),
     ...(familyRule ? familyRule.generationConstraints : []),
   ]);

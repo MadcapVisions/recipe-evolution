@@ -14,6 +14,11 @@ type StructuredRecipeLegacyResponse = {
 export type StructuredRecipeResult = {
   title: string;
   description: string;
+  tags: string[];
+  servings: number | null;
+  prep_time_min: number | null;
+  cook_time_min: number | null;
+  difficulty: string | null;
   ingredients: Array<{ name: string }>;
   steps: Array<{ text: string }>;
   meta?: unknown;
@@ -53,6 +58,11 @@ function normalizeStructuredResult(
     return {
       title: data.result.recipe.title,
       description: data.result.recipe.description ?? "",
+      tags: Array.isArray(data.result.recipe.tags) ? data.result.recipe.tags : [],
+      servings: typeof data.result.recipe.servings === "number" ? data.result.recipe.servings : null,
+      prep_time_min: typeof data.result.recipe.prep_time_min === "number" ? data.result.recipe.prep_time_min : null,
+      cook_time_min: typeof data.result.recipe.cook_time_min === "number" ? data.result.recipe.cook_time_min : null,
+      difficulty: typeof data.result.recipe.difficulty === "string" ? data.result.recipe.difficulty : null,
       ingredients: data.result.recipe.ingredients.map((item) => ({ name: item.name ?? "" })),
       steps: data.result.recipe.steps.map((item) => ({ text: item.text ?? "" })),
       meta: data.result.meta,
@@ -69,6 +79,11 @@ function normalizeStructuredResult(
     return {
       title: legacy.data.title,
       description: legacy.data.description ?? "",
+      tags: [],
+      servings: null,
+      prep_time_min: null,
+      cook_time_min: null,
+      difficulty: null,
       ingredients: legacy.data.ingredients_json.map((item: { name?: string }) => ({ name: item.name ?? "" })),
       steps: legacy.data.steps_json.map((item: { text?: string }) => ({ text: item.text ?? "" })),
       meta: legacy.meta,

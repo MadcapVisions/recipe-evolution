@@ -18,6 +18,7 @@ import {
 } from "./ingredientClassifier";
 import { validateRatios } from "./ratioValidator";
 import { resolveIngredientListForRatio } from "./resolveIngredientGrams";
+import { stepSatisfiesMethod } from "./methodRegistry";
 
 export type ViolationSeverity = "error" | "warning" | "info";
 
@@ -46,11 +47,7 @@ type EnrichedStep = {
  * method string as a substring.
  */
 function hasMethod(steps: EnrichedStep[], method: string): boolean {
-  return steps.some(
-    (step) =>
-      step.methodTag === method ||
-      step.text.toLowerCase().includes(method.toLowerCase())
-  );
+  return steps.some((step) => stepSatisfiesMethod(step, method));
 }
 
 /**

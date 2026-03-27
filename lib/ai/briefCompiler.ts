@@ -6,6 +6,11 @@ import { parseIngredientPhrase } from "./ingredientParsing";
 import { deriveIdeaTitleFromConversationContext, detectRequestedDishFamily } from "./homeRecipeAlignment";
 import { deriveBriefRequestMode } from "./briefStateMachine";
 import { extractRefinementDelta } from "./refinementExtractor";
+import {
+  deriveRequiredTechniquesFromConstraints,
+  extractCookingMethodConstraints,
+  extractEquipmentConstraints,
+} from "./methodRegistry";
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -318,6 +323,8 @@ export function compileCookingBrief(input: {
     recipeContext,
     lockedSessionState: input.lockedSessionState,
   });
+  const equipmentLimits = unique(extractEquipmentConstraints(userOnlyText));
+  const explicitMethods = extractCookingMethodConstraints(userOnlyText);
 
   brief.request_mode = requestMode;
   brief.confidence = confidence;
@@ -353,13 +360,17 @@ export function compileCookingBrief(input: {
     time_max_minutes: extractTimeMaxMinutes(userOnlyText),
     difficulty_target: null,
     dietary_tags: extractDietaryTags(userOnlyText),
-    equipment_limits: [],
+    equipment_limits: equipmentLimits,
   };
   brief.directives = {
     must_have: unique([...(dishFamily ? [dishFamily] : []), ...brief.style.tags, ...brief.ingredients.required]),
     nice_to_have: [],
     must_not_have: mergedForbiddenIngredients,
-    required_techniques: dishFamily === "pizza" ? ["bake"] : [],
+    required_techniques: deriveRequiredTechniquesFromConstraints({
+      dishFamily,
+      explicitMethods,
+      equipmentLimits,
+    }),
   };
   brief.field_state = {
     dish_family: dishFamily ? (requestMode === "locked" ? "locked" : "inferred") : "unknown",
@@ -371,7 +382,12 @@ export function compileCookingBrief(input: {
       brief.ingredients.forbidden.length > 0
         ? "inferred"
         : "unknown",
-    constraints: brief.constraints.time_max_minutes != null || brief.constraints.dietary_tags.length > 0 ? "inferred" : "unknown",
+    constraints:
+      brief.constraints.time_max_minutes != null ||
+      brief.constraints.dietary_tags.length > 0 ||
+      brief.constraints.equipment_limits.length > 0
+        ? "inferred"
+        : "unknown",
   };
   brief.source_turn_ids = input.sourceTurnIds ?? [];
   brief.compiler_notes = [

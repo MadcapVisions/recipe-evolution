@@ -1,4 +1,5 @@
 import type { DishFamilyRule } from "./dishFamilyRules";
+import { stepSatisfiesMethod } from "./methodRegistry";
 
 export type DiffIngredient = {
   ingredientName: string;
@@ -256,7 +257,7 @@ export function evaluateRepairDiff(
   // 7. Required method drift
   if (dishFamily.requiredMethods?.length) {
     for (const method of dishFamily.requiredMethods) {
-      if (!repairedMethods.has(normalizeText(method))) {
+      if (!repairedSteps.some((step) => stepSatisfiesMethod(step, method))) {
         issues.push({
           code: "REPAIR_MISSING_REQUIRED_METHOD",
           severity: "error",

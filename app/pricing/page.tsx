@@ -112,7 +112,7 @@ export default function PricingPage() {
           </div>
 
           <div className="space-y-3">
-            <p className="app-kicker">Recipe Evolution Pro</p>
+            <p className="app-kicker">MealMaxer Pro</p>
             <div className="flex flex-wrap items-end gap-3">
               <h2 className="text-[26px] font-semibold tracking-tight text-[color:var(--text)] sm:text-[38px]">$49.99/year</h2>
               <p className="pb-1 text-[15px] font-medium text-[color:var(--muted)] sm:text-[18px]">$4.17/month billed annually</p>

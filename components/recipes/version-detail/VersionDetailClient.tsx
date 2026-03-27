@@ -1356,7 +1356,10 @@ export function VersionDetailClient({
             dishFamilyOptions={DISH_FAMILIES}
             onSaveCategory={(value) => void saveCategoryChoice(value)}
             onShare={() => void shareVersion()}
-            onViewVersionHistory={() => setVersionHistoryOpen((current) => !current)}
+            onViewVersionHistory={() => {
+              setRecipeSwitchOpen(false);
+              setVersionHistoryOpen((current) => !current);
+            }}
             versionHistoryOpen={versionHistoryOpen}
             timelineVersions={timelineVersions}
             timelineHasMore={timelineHasMore}
@@ -1376,9 +1379,16 @@ export function VersionDetailClient({
               sidebar.setOpenMenuRecipeId(targetRecipeId);
             }}
             recipeSwitchOpen={recipeSwitchOpen}
-            onToggleRecipeSwitch={() => setRecipeSwitchOpen((current) => !current)}
+            onToggleRecipeSwitch={() => {
+              setVersionHistoryOpen(false);
+              setRecipeSwitchOpen((current) => !current);
+            }}
             onOpenChefWorkshop={() => setOpenPanel("left")}
             onAddToMealPlan={(day) => router.push(`/planner?recipe=${recipeId}&version=${versionId}&day=${encodeURIComponent(day)}`)}
+            onDeleteRecipe={() => void deleteRecipe(recipeId, recipe?.title ?? "this recipe")}
+            onHideRecipe={() => void hideRecipe(recipeId)}
+            onArchiveRecipe={() => void archiveRecipe(recipeId)}
+            deletingRecipe={sidebar.deletingRecipeId === recipeId}
             galleryLoading={galleryLoading}
           />
           {recipe ? (

@@ -32,7 +32,7 @@ export default async function AdminAiPage() {
         <p className="app-kicker">AI settings</p>
         <h2 className="text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Task-based model routing</h2>
         <p className="max-w-3xl text-[16px] leading-7 text-[color:var(--muted)]">
-          Recipe Evolution now routes AI through OpenRouter. Use this page to choose which model powers each AI task without redeploying the app.
+          MealMaxer now routes AI through OpenRouter. Use this page to choose which model powers each AI task without redeploying the app.
         </p>
       </div>
 

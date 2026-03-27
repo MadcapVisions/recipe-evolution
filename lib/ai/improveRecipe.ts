@@ -6,7 +6,7 @@ import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "
 import { compileCookingBrief } from "./briefCompiler";
 import { validateRequiredNamedIngredientsInRecipe } from "./requiredNamedIngredientValidation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatIngredientLine } from "../recipes/recipeDraft";
+import { normalizeAiIngredients } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 
 type ImproveRecipeInput = {
@@ -28,33 +28,6 @@ type ImproveRecipeCacheContext = {
   userId: string;
 };
 
-function normalizeIngredients(value: unknown): Array<{ name: string }> {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-      const raw = item as Record<string, unknown>;
-      const name = raw.name;
-      if (typeof name !== "string" || !name.trim()) {
-        return null;
-      }
-      return {
-        name:
-          formatIngredientLine({
-            name,
-            quantity: typeof raw.quantity === "number" ? raw.quantity : null,
-            unit: typeof raw.unit === "string" ? raw.unit : null,
-            prep: typeof raw.prep === "string" ? raw.prep : null,
-          }) || name.trim(),
-      };
-    })
-    .filter((item): item is { name: string } => item !== null);
-}
 
 function normalizeSteps(value: unknown): Array<{ text: string }> {
   if (!Array.isArray(value)) {
@@ -130,7 +103,7 @@ function createCandidateFromParsed(params: {
   input: ImproveRecipeInput;
   inputHash: string | null;
 }): AiRecipeResult | null {
-  const ingredients = normalizeIngredients(params.parsed.ingredients);
+  const ingredients = normalizeAiIngredients(params.parsed.ingredients);
   const steps = normalizeSteps(params.parsed.steps);
   const title =
     typeof params.parsed.title === "string" && params.parsed.title.trim()
@@ -184,10 +157,11 @@ function createCandidateFromParsed(params: {
         typeof params.parsed.cook_time_min === "number"
           ? params.parsed.cook_time_min
           : params.input.recipe.cook_time_min,
-      difficulty:
-        typeof params.parsed.difficulty === "string" && params.parsed.difficulty.trim().length > 0
-          ? params.parsed.difficulty.trim()
-          : params.input.recipe.difficulty,
+      difficulty: (() => {
+        const raw = typeof params.parsed.difficulty === "string" ? params.parsed.difficulty.trim() : "";
+        if (!raw) return params.input.recipe.difficulty;
+        return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+      })(),
       ingredients,
       steps,
     },

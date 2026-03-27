@@ -75,7 +75,7 @@ function getOpenRouterReferer() {
 }
 
 function getOpenRouterTitle() {
-  return process.env.OPENROUTER_APP_TITLE?.trim() || "Recipe Evolution";
+  return process.env.OPENROUTER_APP_TITLE?.trim() || "MealMaxer";
 }
 
 function shouldRetry(error: unknown): boolean {

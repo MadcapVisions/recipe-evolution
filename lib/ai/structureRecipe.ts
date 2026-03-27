@@ -1,9 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
-import { callAIWithMeta } from "./aiClient";
-import { parseJsonResponse } from "./jsonResponse";
+import { callAIForJson } from "./jsonResponse";
 import { createAiRecipeResult, type AiRecipeResult } from "./recipeResult";
-import { formatIngredientLine } from "../recipes/recipeDraft";
+import { normalizeAiIngredients } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 
 type PreferredUnits = "metric" | "imperial";
@@ -230,9 +229,7 @@ export async function structureRecipeFromRawText(input: {
         prep_time_min: cachedStructured.prep_time_min,
         cook_time_min: cachedStructured.cook_time_min,
         difficulty: cachedStructured.difficulty,
-        ingredients: cachedStructured.ingredients_json.map((item) => ({
-          name: formatIngredientLine(item),
-        })),
+        ingredients: normalizeAiIngredients(cachedStructured.ingredients_json),
         steps: cachedStructured.steps_json.map((item) => ({ text: item.text })),
       },
     });
@@ -250,6 +247,11 @@ The JSON format must be exactly:
 {
   "title": string,
   "description": string,
+  "servings": number|null,
+  "prep_time_min": number|null,
+  "cook_time_min": number|null,
+  "difficulty": "easy"|"medium"|"hard"|null,
+  "tags": string[],
   "ingredients": [
     {
       "name": string,
@@ -266,6 +268,8 @@ Rules:
 - Good: 2 onions, 1.5 lb chicken, 2 tbsp olive oil.
 - Bad: onion, olive oil, broth.
 - If the source is vague, infer the most reasonable home-cook quantity instead of omitting it.
+- Extract servings, prep_time_min, cook_time_min, and difficulty from the source if present; otherwise use null.
+- Tags should reflect the cuisine, meal type, or dietary style (e.g. "Italian", "vegetarian", "weeknight").
 
 Recipe text:
 ${rawText}`;
@@ -275,7 +279,7 @@ ${rawText}`;
     throw new Error("Recipe structuring AI task is disabled.");
   }
 
-  const aiResult = await callAIWithMeta(
+  const aiResult = await callAIForJson(
     [
       {
         role: "system",
@@ -295,8 +299,7 @@ ${rawText}`;
     }
   );
 
-  const parsed = parseJsonResponse(aiResult.text);
-  const structured = parseStructuredRecipe(parsed);
+  const structured = parseStructuredRecipe(aiResult.parsed);
   if (!structured) {
     throw new Error("AI response must include a quantity for every ingredient.");
   }
@@ -334,7 +337,7 @@ ${rawText}`;
       prep_time_min: structured.prep_time_min,
       cook_time_min: structured.cook_time_min,
       difficulty: structured.difficulty,
-      ingredients: structured.ingredients_json.map((item) => ({ name: formatIngredientLine(item) })),
+      ingredients: normalizeAiIngredients(structured.ingredients_json),
       steps: structured.steps_json.map((item) => ({ text: item.text })),
     },
   });

@@ -117,11 +117,15 @@ export function NewRecipeFromTextForm() {
 
       setTitle(result.title ?? "");
       setDescription(result.description ?? "");
-      setTagsInput("");
-      setServingsInput("");
-      setPrepTimeInput("");
-      setCookTimeInput("");
-      setDifficultyInput("");
+      setTagsInput(result.tags.join(", "));
+      setServingsInput(result.servings != null ? String(result.servings) : "");
+      setPrepTimeInput(result.prep_time_min != null ? String(result.prep_time_min) : "");
+      setCookTimeInput(result.cook_time_min != null ? String(result.cook_time_min) : "");
+      setDifficultyInput(
+        result.difficulty
+          ? result.difficulty.charAt(0).toUpperCase() + result.difficulty.slice(1).toLowerCase()
+          : ""
+      );
       setIngredientsInput(result.ingredients.map((ingredient) => ingredient.name).join("\n"));
       setStepsInput(result.steps.map((step) => step.text).join("\n"));
     } catch (error) {

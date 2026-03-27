@@ -24,6 +24,8 @@ export type VerificationResult = {
     centerpiece_match: boolean;
     required_ingredients_present: boolean;
     forbidden_ingredients_avoided: boolean;
+    required_techniques_present?: boolean;
+    equipment_limits_present?: boolean;
     title_quality_pass: boolean;
     recipe_completeness_pass: boolean;
     culinary_family_valid?: boolean;

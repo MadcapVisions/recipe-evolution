@@ -68,6 +68,32 @@ test("compileCookingBrief treats 'with sourdough discard' as a hard required ing
   );
 });
 
+test("compileCookingBrief captures slow cooker requests as equipment constraints", () => {
+  const brief = compileCookingBrief({
+    userMessage:
+      "I want to make a Salted Caramelized Banana Bread Pudding in a large slow cooker and use some sourdough discard in the recipe. Make it creamy and wet.",
+    conversationHistory: [],
+  });
+
+  assert.ok(brief.constraints.equipment_limits.includes("slow cooker"));
+  assert.ok(brief.directives.required_techniques.includes("slow_cook"));
+  assert.equal(brief.field_state.constraints, "inferred");
+});
+
+test("compileCookingBrief captures explicit method requests through the registry", () => {
+  const brief = compileCookingBrief({
+    userMessage: "Make salmon in the air fryer or under the broiler with convection if needed",
+    conversationHistory: [],
+  });
+
+  assert.ok(brief.constraints.equipment_limits.includes("air fryer"));
+  assert.ok(brief.constraints.equipment_limits.includes("broiler"));
+  assert.ok(brief.constraints.equipment_limits.includes("convection oven"));
+  assert.ok(brief.directives.required_techniques.includes("air_fry"));
+  assert.ok(brief.directives.required_techniques.includes("broil"));
+  assert.ok(brief.directives.required_techniques.includes("convection_bake"));
+});
+
 test("compileCookingBrief preserves obscure named dishes instead of collapsing to fallback protein titles", () => {
   const okonomiyakiBrief = compileCookingBrief({
     userMessage: "I want Osaka-style okonomiyaki with cabbage and pork belly",

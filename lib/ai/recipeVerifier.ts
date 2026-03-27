@@ -6,6 +6,7 @@ import { createCachedResolver } from "./ingredientResolver";
 import { ingredientsMatch } from "./ingredientMatching";
 import { validateCulinaryFit } from "./culinaryValidator";
 import { matchesRequiredIngredient, ingredientMentionedInSteps } from "./requiredNamedIngredient";
+import { stepMentionsEquipment, stepSatisfiesMethod } from "./methodRegistry";
 
 type RecipeLike = {
   title: string;
@@ -224,6 +225,20 @@ function styleMatch(recipe: RecipeLike, brief: CookingBrief) {
   );
 }
 
+function requiredTechniquesPresent(recipe: RecipeLike, brief: CookingBrief) {
+  if (brief.directives.required_techniques.length === 0) return true;
+  return brief.directives.required_techniques.every((method) =>
+    recipe.steps.some((step) => stepSatisfiesMethod(step, method))
+  );
+}
+
+function equipmentLimitsPresent(recipe: RecipeLike, brief: CookingBrief) {
+  if (brief.constraints.equipment_limits.length === 0) return true;
+  return brief.constraints.equipment_limits.every((equipment) =>
+    recipe.steps.some((step) => stepMentionsEquipment(step, equipment))
+  );
+}
+
 export function verifyRecipeAgainstBrief(input: {
   recipe: RecipeLike;
   brief: CookingBrief | null | undefined;
@@ -258,6 +273,8 @@ export function verifyRecipeAgainstBrief(input: {
   const forbiddenPass = forbiddenIngredientsAvoided(input.recipe, brief, resolve);
   const centerpiecePass = centerpieceMatch(input.recipe, brief);
   const stylePass = styleMatch(input.recipe, brief);
+  const requiredTechniquesPass = requiredTechniquesPresent(input.recipe, brief);
+  const equipmentPass = equipmentLimitsPresent(input.recipe, brief);
   const completenessPass = input.recipe.ingredients.length > 0 && input.recipe.steps.length > 0;
 
   const culinary = validateCulinaryFit(
@@ -289,6 +306,8 @@ export function verifyRecipeAgainstBrief(input: {
     centerpiece_match: centerpiecePass,
     required_ingredients_present: requiredPass,
     forbidden_ingredients_avoided: forbiddenPass,
+    required_techniques_present: requiredTechniquesPass,
+    equipment_limits_present: equipmentPass,
     title_quality_pass: titlePass,
     recipe_completeness_pass: completenessPass,
     culinary_family_valid: culinary.valid,
@@ -310,6 +329,8 @@ export function verifyRecipeAgainstBrief(input: {
   }
   if (!requiredPass) reasons.push("Recipe is missing one or more required ingredients from the brief.");
   if (!forbiddenPass) reasons.push("Recipe includes an ingredient the user asked to avoid.");
+  if (!requiredTechniquesPass) reasons.push("Recipe does not preserve the cooking method the user explicitly requested.");
+  if (!equipmentPass) reasons.push("Recipe does not use the requested cooking tool or appliance.");
   if (!titlePass) reasons.push("Recipe title is too generic to save as a final recipe.");
   if (!completenessPass) reasons.push("Recipe is incomplete.");
   for (const v of culinary.violations) {

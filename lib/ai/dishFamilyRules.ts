@@ -1,3 +1,5 @@
+import type { MethodTag } from "./methodRegistry";
+
 /**
  * Static dish family rules for culinary validation and constrained generation.
  *
@@ -74,12 +76,12 @@ export type DishFamilyRule = {
    * Methods that should usually appear in valid recipes for this family.
    * Treated as warnings until methodTag reliability is confirmed.
    */
-  requiredMethods: string[];
+  requiredMethods: MethodTag[];
 
   /**
    * Helpful but not mandatory methods.
    */
-  optionalMethods: string[];
+  optionalMethods: MethodTag[];
 
   /**
    * Ratio rules interpreted by ratioValidator.ts (not yet implemented).
@@ -153,7 +155,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
       "caramel",
     ],
     requiredMethods: ["mix", "bake", "chill"],
-    optionalMethods: ["strain", "steam", "unmold", "caramelize"],
+    optionalMethods: ["strain", "steam", "set", "caramelize"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       egg_to_liquid: { min: 0.12, max: 0.3 },
@@ -196,7 +198,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["allium", "protein_meat", "vegetable"],
     expectedMethodKeywords: ["soak", "bake", "custard", "rest", "set"],
     requiredMethods: ["soak"],
-    optionalMethods: ["bake", "slow_cook", "caramelize", "rest", "mix"],
+    optionalMethods: ["bake", "slow_cook", "caramelize", "rest", "mix", "set"],
     generationConstraints: [
       "Must include bread or a baked flour-based base such as brioche, challah, croissant, or panettone.",
       "Must include a custard base with eggs and milk or cream.",
@@ -235,7 +237,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["leafy_green", "acid", "hot_sauce_or_spicy"],
     expectedMethodKeywords: ["bake", "melt", "mix", "fold", "cool"],
     requiredMethods: ["mix", "bake"],
-    optionalMethods: ["melt", "fold", "cool", "slice"],
+    optionalMethods: ["melt", "fold", "chill"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       flour_to_fat: { min: 0.4, max: 1.5 },
@@ -277,7 +279,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["tomato_product", "hot_sauce_or_spicy"],
     expectedMethodKeywords: ["bake", "whisk", "mix", "cool"],
     requiredMethods: ["mix", "bake"],
-    optionalMethods: ["whisk", "cool", "fold"],
+    optionalMethods: ["whisk", "chill", "fold"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       flour_to_liquid: { min: 0.5, max: 1.6 },
@@ -319,7 +321,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["tomato_product", "savory_herb", "acid"],
     expectedMethodKeywords: ["bake", "cream", "fold", "chill", "scoop", "roll"],
     requiredMethods: ["mix", "bake"],
-    optionalMethods: ["cream", "fold", "chill", "scoop", "roll"],
+    optionalMethods: ["fold", "chill"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       flour_to_fat: { min: 1.0, max: 3.0 },
@@ -360,7 +362,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["savory_herb", "legume"],
     expectedMethodKeywords: ["bake", "chill", "set", "blend", "beat", "cool"],
     requiredMethods: ["mix", "set"],
-    optionalMethods: ["bake", "chill", "cool", "beat"],
+    optionalMethods: ["bake", "chill"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       sweetener_to_dairy: { min: 0.1, max: 0.8 },
@@ -401,7 +403,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["savory_herb", "tomato_product"],
     expectedMethodKeywords: ["bake", "fold", "mix", "pour", "stir"],
     requiredMethods: ["mix", "bake"],
-    optionalMethods: ["fold", "stir", "pour", "cool"],
+    optionalMethods: ["fold", "stir", "chill"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       flour_to_liquid: { min: 0.8, max: 2.5 },
@@ -442,7 +444,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["hot_sauce_or_spicy", "savory_herb", "starch"],
     expectedMethodKeywords: ["pour", "cook", "flip", "griddle", "waffle iron", "batter"],
     requiredMethods: ["mix", "cook"],
-    optionalMethods: ["flip", "rest"],
+    optionalMethods: ["rest"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       flour_to_liquid: { min: 0.5, max: 1.5 },
@@ -480,7 +482,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["fruit"],
     expectedMethodKeywords: ["stir", "ladle", "simmer", "toast", "absorb", "saute", "sauté"],
     requiredMethods: ["toast", "stir", "simmer"],
-    optionalMethods: ["ladle", "reduce", "rest"],
+    optionalMethods: ["reduce", "rest"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       liquid_to_rice: { min: 2.0, max: 5.0 },
@@ -515,8 +517,8 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     forbiddenClasses: ["leavening", "cocoa_or_chocolate", "custard_base", "icing"],
     suspiciousClasses: ["dairy", "flour_grain"],
     expectedMethodKeywords: ["stir", "fry", "wok", "high heat", "toss", "saute", "sauté"],
-    requiredMethods: ["cook", "high_heat"],
-    optionalMethods: ["toss", "saute"],
+    requiredMethods: ["stir_fry", "high_heat"],
+    optionalMethods: ["saute"],
     generationConstraints: [
       "Must include a primary ingredient, oil, and a savory flavor base.",
       "Method is fast, high-heat cooking.",
@@ -542,8 +544,8 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     forbiddenClasses: ["leavening", "cocoa_or_chocolate", "custard_base", "icing"],
     suspiciousClasses: ["dairy", "sweetener", "fruit"],
     expectedMethodKeywords: ["stir", "fry", "wok", "high heat", "toss"],
-    requiredMethods: ["cook", "high_heat"],
-    optionalMethods: ["toss", "scramble"],
+    requiredMethods: ["stir_fry", "high_heat"],
+    optionalMethods: ["combine"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       rice_to_mixins: { min: 0.8, max: 5.0 },
@@ -620,7 +622,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["sweetener"],
     expectedMethodKeywords: ["boil", "cook", "toss", "sauce", "saute", "sauté", "simmer"],
     requiredMethods: ["boil", "combine"],
-    optionalMethods: ["toss", "simmer", "saute"],
+    optionalMethods: ["simmer", "saute"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       sauce_to_pasta: { min: 0.25, max: 2.0 },
@@ -701,7 +703,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["fat_oil", "starch", "tomato_product", "hot_sauce_or_spicy"],
     expectedMethodKeywords: ["blend", "blender", "pulse", "combine"],
     requiredMethods: ["blend"],
-    optionalMethods: ["pulse"],
+    optionalMethods: [],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       liquid_to_solid: { min: 0.3, max: 2.5 },
@@ -734,7 +736,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["broth"],
     expectedMethodKeywords: ["toss", "dress", "mix", "combine", "chop", "slice"],
     requiredMethods: ["combine"],
-    optionalMethods: ["toss", "chop", "slice"],
+    optionalMethods: ["assemble"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       dressing_to_salad: { min: 0.02, max: 0.3 },
@@ -801,7 +803,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["sweetener"],
     expectedMethodKeywords: ["season", "cook", "grill", "saute", "sauté", "assemble", "warm"],
     requiredMethods: ["cook", "assemble"],
-    optionalMethods: ["grill", "warm", "saute"],
+    optionalMethods: ["grill", "saute"],
     generationConstraints: [
       "Must include a coherent filling and a savory flavor structure.",
       "Tortillas or shells are expected for most subtypes, but fillings may be planned separately.",
@@ -829,7 +831,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["sweetener", "fruit", "cocoa_or_chocolate"],
     expectedMethodKeywords: ["bake", "top", "shape", "stretch"],
     requiredMethods: ["bake"],
-    optionalMethods: ["shape", "stretch", "rest"],
+    optionalMethods: ["rest"],
     // Enforced by ratioValidator.ts (not yet implemented)
     ratioRules: {
       sauce_to_dough: { min: 0.05, max: 0.8 },
@@ -863,7 +865,7 @@ const DISH_FAMILY_RULES: DishFamilyRule[] = [
     suspiciousClasses: ["cocoa_or_chocolate", "sweetener"],
     expectedMethodKeywords: ["assemble", "layer", "toast", "grill", "spread"],
     requiredMethods: ["assemble"],
-    optionalMethods: ["toast", "grill", "spread"],
+    optionalMethods: ["toast", "grill"],
     generationConstraints: [
       "Must include a bread, wrap, or similar carrier plus a coherent filling.",
       "Fillings should be balanced and not wet enough to destroy structure.",

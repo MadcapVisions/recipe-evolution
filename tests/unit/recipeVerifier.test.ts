@@ -148,3 +148,24 @@ test("verifyRecipeAgainstBrief matches normalized required ingredients semantica
   assert.equal(result.checks.required_ingredients_present, true);
   assert.equal(result.passes, true);
 });
+
+test("verifyRecipeAgainstBrief fails when an explicit air fryer request drifts to oven baking", () => {
+  const brief = compileCookingBrief({
+    userMessage: "Make crispy chicken in the air fryer",
+    conversationHistory: [],
+  });
+
+  const result = verifyRecipeAgainstBrief({
+    brief,
+    recipe: {
+      title: "Crispy Chicken",
+      description: "A crispy chicken dinner.",
+      ingredients: [{ name: "1 lb chicken" }],
+      steps: [{ text: "Bake the chicken in the oven until crisp and golden." }],
+    },
+  });
+
+  assert.equal(result.passes, false);
+  assert.equal(result.checks.required_techniques_present, false);
+  assert.equal(result.checks.equipment_limits_present, false);
+});

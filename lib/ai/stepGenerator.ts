@@ -2,6 +2,7 @@ import { normalizeAISteps } from "./normalizeAISteps";
 import type { DishFamilyRule } from "./dishFamilyRules";
 import type { RequiredNamedIngredient } from "./requiredNamedIngredient";
 import { ingredientMentionedInSteps } from "./requiredNamedIngredient";
+import { stepSatisfiesMethod } from "./methodRegistry";
 
 export type StepGenerationIngredient = {
   ingredientName: string;
@@ -127,12 +128,7 @@ function validateRequiredMethods(
   const issues: StepGenerationIssue[] = [];
 
   for (const method of dishFamily.requiredMethods ?? []) {
-    const found = steps.some((step) => {
-      const tag = normalizeText(step.methodTag ?? "");
-      const text = normalizeText(step.text);
-      const target = normalizeText(method);
-      return tag === target || text.includes(target);
-    });
+    const found = steps.some((step) => stepSatisfiesMethod(step, method));
 
     if (!found) {
       issues.push({

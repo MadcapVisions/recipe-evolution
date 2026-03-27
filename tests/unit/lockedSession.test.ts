@@ -156,6 +156,46 @@ test("buildLockedBrief recovers explicit required ingredients from user turns wh
   );
 });
 
+test("buildLockedBrief preserves slow cooker constraints from the locked conversation branch", () => {
+  const session = createLockedSessionFromDirection({
+    conversationKey: "conv-slow-cooker",
+    selectedDirection: {
+      id: "reply-5",
+      title: "Salted Caramelized Banana Bread Pudding",
+      summary: "Make it creamy and wet, and keep it dairy-free if needed.",
+      tags: [],
+    },
+    conversationHistory: [
+      {
+        role: "user",
+        content: "I want to make a Salted Caramelized Banana Bread Pudding in a large slow cooker and use some sourdough discard in the recipe.",
+      },
+      {
+        role: "assistant",
+        content: "A slow cooker bread pudding will stay custardy if you cook it gently on low.",
+      },
+    ],
+  });
+
+  const brief = buildLockedBrief({
+    session,
+    conversationHistory: [
+      {
+        role: "user",
+        content: "I want to make a Salted Caramelized Banana Bread Pudding in a large slow cooker and use some sourdough discard in the recipe.",
+      },
+      {
+        role: "assistant",
+        content: "A slow cooker bread pudding will stay custardy if you cook it gently on low.",
+      },
+    ],
+  });
+
+  assert.ok(brief.constraints.equipment_limits.includes("slow cooker"));
+  assert.ok(brief.directives.required_techniques.includes("slow_cook"));
+  assert.equal(brief.field_state.constraints, "inferred");
+});
+
 test("buildLockedBrief repairs generic locked directions from the full conversation branch", () => {
   const session = createLockedSessionFromDirection({
     conversationKey: "conv-1",

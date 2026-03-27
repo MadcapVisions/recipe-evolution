@@ -113,7 +113,7 @@ export default async function SettingsPage() {
               <p className="app-kicker">Kitchen profile</p>
               <h2 className="text-[28px] font-semibold tracking-tight text-[color:var(--text)]">Taste and cooking defaults</h2>
               <p className="text-[16px] leading-7 text-[color:var(--muted)]">
-                Set the baseline for what you like to cook and eat. Recipe Evolution uses this together with your saved dishes and behavior over time.
+                Set the baseline for what you like to cook and eat. MealMaxer uses this together with your saved dishes and behavior over time.
               </p>
             </div>
             <PreferencesForm

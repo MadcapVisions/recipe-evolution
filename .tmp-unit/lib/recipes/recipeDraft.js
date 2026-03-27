@@ -9,6 +9,7 @@ exports.parseIngredientLines = parseIngredientLines;
 exports.parseStepLines = parseStepLines;
 exports.coerceIngredientLineWithAmount = coerceIngredientLineWithAmount;
 exports.repairRecipeDraftIngredientLines = repairRecipeDraftIngredientLines;
+exports.normalizeAiIngredients = normalizeAiIngredients;
 const zod_1 = require("zod");
 const canonicalEnrichment_1 = require("./canonicalEnrichment");
 const nullableTrimmedString = zod_1.z
@@ -304,4 +305,32 @@ function repairRecipeDraftIngredientLines(input) {
         name: coerceIngredientLineWithAmount(ingredient.name),
     }))
         .filter((ingredient) => ingredient.name.length > 0);
+}
+/**
+ * Canonical entry point for normalizing raw AI ingredient objects into RecipeDraftIngredients.
+ * Accepts objects with optional quantity/unit/prep fields, formats them, then coerces any
+ * missing quantities via repairRecipeDraftIngredientLines. All AI flows should use this.
+ */
+function normalizeAiIngredients(value) {
+    if (!Array.isArray(value))
+        return [];
+    const lines = value
+        .map((item) => {
+        if (!item || typeof item !== "object")
+            return null;
+        const raw = item;
+        const name = typeof raw.name === "string" ? raw.name.trim() : "";
+        if (!name)
+            return null;
+        return {
+            name: formatIngredientLine({
+                name,
+                quantity: typeof raw.quantity === "number" ? raw.quantity : null,
+                unit: typeof raw.unit === "string" ? raw.unit : null,
+                prep: typeof raw.prep === "string" ? raw.prep : null,
+            }) || name,
+        };
+    })
+        .filter((item) => item !== null);
+    return repairRecipeDraftIngredientLines(lines);
 }

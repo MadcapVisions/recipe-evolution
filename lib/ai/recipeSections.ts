@@ -1,5 +1,5 @@
 import type { RecipeDraft } from "../recipes/recipeDraft";
-import { repairRecipeDraftIngredientLines } from "../recipes/recipeDraft";
+import { repairRecipeDraftIngredientLines, normalizeAiIngredients } from "../recipes/recipeDraft";
 import type { RecipeOutline } from "./contracts/recipeOutline";
 import type { RecipeIngredientSection, RecipeInstructionSection, RecipeSections } from "./contracts/recipeSections";
 import type { HomeGeneratedRecipe } from "./recipeNormalization";
@@ -93,14 +93,7 @@ export function buildGeneratedRecipeFromSectionPayloads(input: {
     prep_time_min: input.ingredientSection.prep_time_min ?? 15,
     cook_time_min: input.ingredientSection.cook_time_min ?? 30,
     difficulty: normalizeDifficulty(input.ingredientSection.difficulty),
-    ingredients: input.ingredientSection.ingredients.map((item) => ({
-      name:
-        repairRecipeDraftIngredientLines([
-          {
-            name: [item.quantity, item.unit, item.name, item.prep].filter(Boolean).join(" "),
-          },
-        ])[0]?.name ?? item.name,
-    })),
+    ingredients: normalizeAiIngredients(input.ingredientSection.ingredients),
     steps: input.instructionSection.steps
       .map((item) => ({ text: item.text.trim(), methodTag: item.methodTag ?? null }))
       .filter((item) => item.text.length > 0),

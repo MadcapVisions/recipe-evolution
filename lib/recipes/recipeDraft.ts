@@ -416,3 +416,32 @@ export function repairRecipeDraftIngredientLines(input: Array<{ name: string }>)
     }))
     .filter((ingredient) => ingredient.name.length > 0);
 }
+
+/**
+ * Canonical entry point for normalizing raw AI ingredient objects into RecipeDraftIngredients.
+ * Accepts objects with optional quantity/unit/prep fields, formats them, then coerces any
+ * missing quantities via repairRecipeDraftIngredientLines. All AI flows should use this.
+ */
+export function normalizeAiIngredients(value: unknown): RecipeDraftIngredient[] {
+  if (!Array.isArray(value)) return [];
+
+  const lines = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const raw = item as Record<string, unknown>;
+      const name = typeof raw.name === "string" ? raw.name.trim() : "";
+      if (!name) return null;
+      return {
+        name:
+          formatIngredientLine({
+            name,
+            quantity: typeof raw.quantity === "number" ? raw.quantity : null,
+            unit: typeof raw.unit === "string" ? raw.unit : null,
+            prep: typeof raw.prep === "string" ? raw.prep : null,
+          }) || name,
+      };
+    })
+    .filter((item): item is { name: string } => item !== null);
+
+  return repairRecipeDraftIngredientLines(lines);
+}

@@ -283,8 +283,8 @@ export function AppShellClient({
               className="inline-flex shrink-0 items-center rounded-full border border-[rgba(142,84,60,0.08)] bg-[rgba(255,249,243,0.78)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_8px_18px_rgba(101,47,29,0.05)]"
             >
               <Image
-                src="/assets/RE Logo png.png"
-                alt="Recipe Evolution"
+                src="/assets/mealmaxer_logo.png"
+                alt="MealMaxer"
                 width={460}
                 height={88}
                 priority

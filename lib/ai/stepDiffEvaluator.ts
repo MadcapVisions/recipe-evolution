@@ -1,4 +1,5 @@
 import type { DishFamilyRule } from "./dishFamilyRules";
+import { stepSatisfiesMethod } from "./methodRegistry";
 
 export type DiffStep = {
   text: string;
@@ -175,9 +176,7 @@ export function evaluateStepDiff(params: EvaluateStepDiffParams): StepDiffEvalua
   // 5. Required method lost
   if (dishFamily.requiredMethods?.length) {
     for (const method of dishFamily.requiredMethods) {
-      const found = repairedSteps.some((s) =>
-        normalizeText(s.methodTag ?? "").includes(normalizeText(method))
-      );
+      const found = repairedSteps.some((step) => stepSatisfiesMethod(step, method));
       if (!found) {
         issues.push({
           code: "STEP_DIFF_MISSING_REQUIRED_METHOD",

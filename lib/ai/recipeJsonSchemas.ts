@@ -1,3 +1,5 @@
+import { METHOD_TAGS } from "./methodTags";
+
 export const RECIPE_OUTLINE_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -68,11 +70,7 @@ export const HOME_RECIPE_JSON_SCHEMA = {
           text: { type: "string" },
           methodTag: {
             type: ["string", "null"],
-            enum: [
-              "mix", "bake", "boil", "simmer", "saute", "grill", "fry",
-              "blend", "assemble", "chill", "rest", "toast", "reduce",
-              "steam", "whisk", "fold", "combine", "cook", "high_heat", null,
-            ],
+            enum: [...METHOD_TAGS, null],
           },
           estimatedMinutes: { type: ["number", "null"] },
         },
@@ -127,11 +125,7 @@ export const RECIPE_INSTRUCTION_SECTION_JSON_SCHEMA = {
           text: { type: "string" },
           methodTag: {
             type: ["string", "null"],
-            enum: [
-              "mix", "bake", "boil", "simmer", "saute", "grill", "fry",
-              "blend", "assemble", "chill", "rest", "toast", "reduce",
-              "steam", "whisk", "fold", "combine", "cook", "high_heat", null,
-            ],
+            enum: [...METHOD_TAGS, null],
           },
           estimatedMinutes: { type: ["number", "null"] },
         },

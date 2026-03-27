@@ -18,6 +18,7 @@ import {
 } from "./homeRecipeAlignment";
 import { extractRefinementDelta } from "./refinementExtractor";
 import { deriveBuildSpec } from "./buildSpecDeriver";
+import { deriveRequiredTechniquesFromConstraints } from "./methodRegistry";
 
 function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
@@ -168,6 +169,10 @@ export function buildLockedBrief(input: {
           lockedSessionState: input.session.state,
         })
       : null;
+    const equipmentLimits = unique([
+      ...(conversationConstraintBrief?.constraints.equipment_limits ?? []),
+      ...(refinementBrief?.constraints.equipment_limits ?? []),
+    ]);
 
     const brief = createEmptyCookingBrief();
     brief.request_mode = "locked";
@@ -186,11 +191,25 @@ export function buildLockedBrief(input: {
       ...(centerpiece ? [centerpiece] : []),
     ]);
     brief.directives.must_not_have = forbiddenIngredients;
-    brief.directives.required_techniques = spec.dish_family === "pizza" ? ["bake"] : [];
+    brief.directives.required_techniques = deriveRequiredTechniquesFromConstraints({
+      dishFamily: spec.dish_family,
+      explicitMethods: unique([
+        ...(conversationConstraintBrief?.directives.required_techniques ?? []),
+        ...(refinementBrief?.directives.required_techniques ?? []),
+      ]),
+      equipmentLimits,
+    });
     brief.constraints.time_max_minutes = refinementBrief?.constraints.time_max_minutes ?? null;
     brief.constraints.dietary_tags = unique(refinementBrief?.constraints.dietary_tags ?? []);
+    brief.constraints.equipment_limits = equipmentLimits;
     brief.field_state.dish_family = spec.dish_family ? "locked" : "unknown";
     brief.field_state.normalized_name = spec.build_title ? "locked" : "unknown";
+    brief.field_state.constraints =
+      brief.constraints.time_max_minutes != null ||
+      brief.constraints.dietary_tags.length > 0 ||
+      brief.constraints.equipment_limits.length > 0
+        ? "inferred"
+        : "unknown";
     brief.compiler_notes = [`Built from BuildSpec (lock_time). Family: ${spec.dish_family ?? "none"}.`];
     return sanitizeCookingBriefIngredients(brief);
   }
@@ -270,7 +289,11 @@ export function buildLockedBrief(input: {
     ...(preservedCenterpiece ? [preservedCenterpiece] : []),
   ]);
   brief.directives.must_not_have = unique([...brief.directives.must_not_have, ...forbiddenIngredients]);
-  brief.directives.required_techniques = brief.dish.dish_family === "pizza" ? ["bake"] : [];
+  brief.directives.required_techniques = deriveRequiredTechniquesFromConstraints({
+    dishFamily: brief.dish.dish_family,
+    explicitMethods: brief.directives.required_techniques,
+    equipmentLimits: brief.constraints.equipment_limits,
+  });
   brief.constraints.time_max_minutes = brief.constraints.time_max_minutes ?? null;
   brief.constraints.dietary_tags = unique(brief.constraints.dietary_tags);
   brief.field_state.dish_family = brief.dish.dish_family ? "locked" : brief.field_state.dish_family;

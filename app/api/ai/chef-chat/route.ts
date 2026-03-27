@@ -12,6 +12,7 @@ import { storeConversationTurns } from "@/lib/ai/conversationStore";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
+import { readCanonicalIngredients, readCanonicalSteps } from "@/lib/recipes/canonicalRecipe";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
           .maybeSingle(),
         access.supabase
           .from("recipe_versions")
-          .select("id")
+          .select("id, ingredients_json, steps_json, servings, prep_time_min, cook_time_min, difficulty")
           .eq("id", versionId)
           .eq("recipe_id", recipeId)
           .maybeSingle(),
@@ -154,21 +155,52 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: true, message: "Recipe not found or access denied." }, { status: 403 });
       }
 
+      const requestIngredients = recipe.ingredients!
+        .map((item) => ({ name: typeof item.name === "string" ? item.name.trim() : "" }))
+        .filter((item) => item.name.length > 0);
+      const requestSteps = recipe.steps!
+        .map((item) => ({ text: typeof item.text === "string" ? item.text.trim() : "" }))
+        .filter((item) => item.text.length > 0);
+      const persistedIngredients = readCanonicalIngredients(
+        (ownedVersion as { ingredients_json?: unknown } | null)?.ingredients_json ?? null
+      );
+      const persistedSteps = readCanonicalSteps(
+        (ownedVersion as { steps_json?: unknown } | null)?.steps_json ?? null
+      );
+      const effectiveIngredients = requestIngredients.length > 0 ? requestIngredients : persistedIngredients;
+      const effectiveSteps = requestSteps.length > 0 ? requestSteps : persistedSteps;
+
       improveRecipePromise = improveRecipe({
         instruction: userMessage,
         userTasteSummary,
         recipe: {
           title: recipe.title,
-          servings: typeof recipe.servings === "number" ? recipe.servings : null,
-          prep_time_min: typeof recipe.prep_time_min === "number" ? recipe.prep_time_min : null,
-          cook_time_min: typeof recipe.cook_time_min === "number" ? recipe.cook_time_min : null,
-          difficulty: typeof recipe.difficulty === "string" ? recipe.difficulty : null,
-          ingredients: recipe.ingredients!
-            .map((item) => ({ name: typeof item.name === "string" ? item.name.trim() : "" }))
-            .filter((item) => item.name.length > 0),
-          steps: recipe.steps!
-            .map((item) => ({ text: typeof item.text === "string" ? item.text.trim() : "" }))
-            .filter((item) => item.text.length > 0),
+          servings:
+            typeof recipe.servings === "number"
+              ? recipe.servings
+              : typeof (ownedVersion as { servings?: unknown } | null)?.servings === "number"
+              ? ((ownedVersion as { servings?: number }).servings ?? null)
+              : null,
+          prep_time_min:
+            typeof recipe.prep_time_min === "number"
+              ? recipe.prep_time_min
+              : typeof (ownedVersion as { prep_time_min?: unknown } | null)?.prep_time_min === "number"
+              ? ((ownedVersion as { prep_time_min?: number }).prep_time_min ?? null)
+              : null,
+          cook_time_min:
+            typeof recipe.cook_time_min === "number"
+              ? recipe.cook_time_min
+              : typeof (ownedVersion as { cook_time_min?: unknown } | null)?.cook_time_min === "number"
+              ? ((ownedVersion as { cook_time_min?: number }).cook_time_min ?? null)
+              : null,
+          difficulty:
+            typeof recipe.difficulty === "string"
+              ? recipe.difficulty
+              : typeof (ownedVersion as { difficulty?: unknown } | null)?.difficulty === "string"
+              ? ((ownedVersion as { difficulty?: string }).difficulty ?? null)
+              : null,
+          ingredients: effectiveIngredients,
+          steps: effectiveSteps,
         },
       })
         .then((r) => r as unknown as Record<string, unknown>)
