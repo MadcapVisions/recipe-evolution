@@ -23,6 +23,19 @@ test("analyzeRecipeTurn marks conversational edit questions as buildable recipe 
   assert.equal(result.normalizedRecipeInstruction, "Add chocolate chips to the recipe.");
 });
 
+test("analyzeRecipeTurn treats recipe-specific method questions as buildable when recipe context exists", () => {
+  const result = analyzeRecipeTurn({
+    userMessage: "can we roast the potatoes for extra flavor",
+    hasRecipeContext: true,
+  });
+
+  assert.equal(result.intent, "edit_request");
+  assert.equal(result.action, "suggest_recipe_update");
+  assert.equal(result.canBuildLatestRequest, true);
+  assert.equal(result.shouldIncludeSuggestion, true);
+  assert.equal(result.normalizedRecipeInstruction, "Roast the potatoes for extra flavor in the recipe.");
+});
+
 test("analyzeRecipeTurn keeps pure technique questions in reply-only mode", () => {
   const result = analyzeRecipeTurn({ userMessage: "what temperature should I bake this at?" });
 

@@ -83,8 +83,13 @@ export function ChefAiPanel({
     ? analyzeRecipeTurn({
         userMessage: latestUserMessage.text,
         selectedDirectionLocked: selectedDirection !== null,
+        hasRecipeContext: true,
       })
     : null;
+  const visibleAiError =
+    suggestedChange && /temporarily unavailable|fallback|backup|rate-limited|unavailable/i.test(aiError ?? "")
+      ? null
+      : aiError;
   const showBuildLatestRequest =
     !suggestedChange &&
     !isAskingAi &&
@@ -345,7 +350,7 @@ export function ChefAiPanel({
             </button>
           </div>
         ) : null}
-        {aiError ? <p className="mt-3 text-sm text-red-600">{aiError}</p> : null}
+        {visibleAiError ? <p className="mt-3 text-sm text-red-600">{visibleAiError}</p> : null}
         <div className="mt-3 flex gap-2">
           <input
             id="custom-ai-instruction"

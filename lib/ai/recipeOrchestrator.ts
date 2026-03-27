@@ -46,6 +46,8 @@ const NUMERIC_OPTION_REQUEST_PATTERN =
   /\b(?:2|3)\s+(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i;
 const QUESTION_PREFIX_PATTERN =
   /^(?:can|could|would|should|is|are|what|how|do|does|will)\b/i;
+const ACTIONABLE_METHOD_QUESTION_PATTERN =
+  /^(?:can|could|would|should)\s+(?:i|you|we)\s+(?:roast|bake|broil|grill|sear|saute|sauté|fry|toast|chill|marinate|glaze|season|top|finish|fold in|mix in|stir in|add|remove|swap|replace|increase|reduce|make)\b/i;
 const DIRECT_EDIT_PATTERN =
   /^(?:add|remove|swap|replace|use|make|omit|fold in|mix in|increase|reduce|cut|double|halve|turn|convert|change)\b/i;
 const SAVE_REQUEST_PATTERN =
@@ -98,6 +100,7 @@ export function normalizeRecipeEditInstruction(instruction: string): string {
     [/^(?:can|could|would)\s+(?:i|you|we)\s+remove\s+(.+?)\??$/i, "Remove $1 from the recipe."],
     [/^(?:can|could|would)\s+(?:i|you|we)\s+increase\s+(.+?)\??$/i, "Increase $1 in the recipe."],
     [/^(?:can|could|would)\s+(?:i|you|we)\s+reduce\s+(.+?)\??$/i, "Reduce $1 in the recipe."],
+    [/^(?:can|could|would|should)\s+(?:i|you|we)\s+roast\s+(.+?)\??$/i, "Roast $1 in the recipe."],
   ];
 
   for (const [pattern, replacement] of directRewritePatterns) {
@@ -144,7 +147,12 @@ export function analyzeRecipeTurn(input: {
   const normalizedInstruction = normalizeRecipeEditInstruction(message);
   const normalizedDiffers = normalizedInstruction !== message;
 
-  if (normalizedDiffers || DIRECT_EDIT_PATTERN.test(message) || SAVE_REQUEST_PATTERN.test(message)) {
+  if (
+    normalizedDiffers ||
+    DIRECT_EDIT_PATTERN.test(message) ||
+    SAVE_REQUEST_PATTERN.test(message) ||
+    (input.hasRecipeContext && ACTIONABLE_METHOD_QUESTION_PATTERN.test(message))
+  ) {
     return {
       intent: SAVE_REQUEST_PATTERN.test(message) ? "save_request" : "edit_request",
       action: "suggest_recipe_update",

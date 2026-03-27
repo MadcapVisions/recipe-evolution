@@ -1007,9 +1007,10 @@ export function VersionDetailClient({
         assistant.setSuggestedChange(null);
         assistant.setAiError("Chef AI unavailable. Fallback guidance is shown, but choose a direction before saving.");
       } else {
-        const fallbackSuggestion = buildDeterministicSuggestion(instruction);
+        const fallbackSuggestion =
+          buildIngredientAdditionSuggestion(instruction, fallbackReply) ?? buildDeterministicSuggestion(instruction);
         assistant.setSuggestedChange(fallbackSuggestion);
-        assistant.setAiError("Chef AI unavailable. Using deterministic fallback guidance.");
+        assistant.setAiError(fallbackSuggestion ? null : "Chef AI unavailable. Using deterministic fallback guidance.");
       }
       assistant.setCustomInstruction("");
     } finally {
@@ -1091,6 +1092,7 @@ export function VersionDetailClient({
         assistant.setIsGeneratingVersion(false);
         return;
       }
+      assistant.setAiError(null);
       suggestion = fallbackSuggestion;
     }
 
