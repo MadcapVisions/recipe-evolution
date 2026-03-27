@@ -34,37 +34,54 @@ export async function getOwnedRecipeVersion(
   ownerId: string,
   recipeVersionId: string
 ): Promise<OwnedVersionRecord | null> {
-  const { data, error } = await supabase
+  const { data: version, error: versionError } = await supabase
     .from("recipe_versions")
-    .select("id, recipe_id, ingredients_json, steps_json, notes, servings, prep_time_min, cook_time_min, difficulty, recipes!inner(id, owner_id, title, dish_family)")
+    .select("id, recipe_id, ingredients_json, steps_json, notes, servings, prep_time_min, cook_time_min, difficulty")
     .eq("id", recipeVersionId)
-    .eq("recipes.owner_id", ownerId)
     .maybeSingle();
 
-  if (error || !data) {
+  if (versionError || !version) {
     return null;
   }
 
-  const recipe = Array.isArray(data.recipes) ? data.recipes[0] : data.recipes;
-  const ingredients = Array.isArray(data.ingredients_json)
-    ? data.ingredients_json.map((item) => (typeof (item as { name?: unknown })?.name === "string" ? ((item as { name: string }).name ?? "") : "")).filter(Boolean)
+  const { data: recipe, error: recipeError } = await supabase
+    .from("recipes")
+    .select("id, owner_id, title, dish_family")
+    .eq("id", version.recipe_id)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (recipeError || !recipe) {
+    return null;
+  }
+
+  const ingredients = Array.isArray(version.ingredients_json)
+    ? version.ingredients_json
+        .map((item) =>
+          typeof (item as { name?: unknown })?.name === "string" ? ((item as { name: string }).name ?? "") : ""
+        )
+        .filter(Boolean)
     : [];
-  const steps = Array.isArray(data.steps_json)
-    ? data.steps_json.map((item) => (typeof (item as { text?: unknown })?.text === "string" ? ((item as { text: string }).text ?? "") : "")).filter(Boolean)
+  const steps = Array.isArray(version.steps_json)
+    ? version.steps_json
+        .map((item) =>
+          typeof (item as { text?: unknown })?.text === "string" ? ((item as { text: string }).text ?? "") : ""
+        )
+        .filter(Boolean)
     : [];
 
   return {
-    recipeId: data.recipe_id as string,
+    recipeId: version.recipe_id as string,
     recipeVersionId,
-    recipeTitle: (recipe as { title: string }).title,
-    dishFamily: (recipe as { dish_family?: string | null }).dish_family ?? null,
+    recipeTitle: recipe.title as string,
+    dishFamily: (recipe.dish_family as string | null | undefined) ?? null,
     ingredients,
     steps,
-    notes: typeof data.notes === "string" ? data.notes : null,
-    servings: typeof data.servings === "number" ? data.servings : null,
-    prepTimeMin: typeof data.prep_time_min === "number" ? data.prep_time_min : null,
-    cookTimeMin: typeof data.cook_time_min === "number" ? data.cook_time_min : null,
-    difficulty: typeof data.difficulty === "string" ? data.difficulty : null,
+    notes: typeof version.notes === "string" ? version.notes : null,
+    servings: typeof version.servings === "number" ? version.servings : null,
+    prepTimeMin: typeof version.prep_time_min === "number" ? version.prep_time_min : null,
+    cookTimeMin: typeof version.cook_time_min === "number" ? version.cook_time_min : null,
+    difficulty: typeof version.difficulty === "string" ? version.difficulty : null,
     ownerId,
   };
 }
