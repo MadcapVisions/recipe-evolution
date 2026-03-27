@@ -74,6 +74,15 @@ exports.recipeDraftSchema = zod_1.z.object({
 exports.createRecipePayloadSchema = zod_1.z.object({
     draft: exports.recipeDraftSchema,
     forkedFromVersionId: zod_1.z.string().uuid().nullable().optional().transform((value) => value ?? null),
+    sessionSeed: zod_1.z
+        .object({
+        sourceConversationKey: zod_1.z.string().trim().min(1).nullable().optional().transform((value) => value ?? null),
+        sourceScope: zod_1.z.enum(["home_hub", "recipe_detail"]).nullable().optional().transform((value) => value ?? null),
+        instruction: nullableTrimmedString.optional().transform((value) => value ?? null),
+    })
+        .nullable()
+        .optional()
+        .transform((value) => value ?? null),
 });
 exports.recipeVersionPayloadSchema = zod_1.z.object({
     version_label: nullableTrimmedString.optional().transform((value) => value ?? null),
@@ -87,6 +96,15 @@ exports.recipeVersionPayloadSchema = zod_1.z.object({
     notes: nullableTrimmedString.optional().transform((value) => value ?? null),
     change_log: nullableTrimmedString.optional().transform((value) => value ?? null),
     ai_metadata_json: optionalUnknown.optional().transform((value) => value ?? null),
+    sessionSeed: zod_1.z
+        .object({
+        sourceConversationKey: zod_1.z.string().trim().min(1).nullable().optional().transform((value) => value ?? null),
+        sourceScope: zod_1.z.enum(["home_hub", "recipe_detail"]).nullable().optional().transform((value) => value ?? null),
+        instruction: nullableTrimmedString.optional().transform((value) => value ?? null),
+    })
+        .nullable()
+        .optional()
+        .transform((value) => value ?? null),
 });
 function normalizeRecipeDraft(input) {
     return exports.recipeDraftSchema.parse(input);

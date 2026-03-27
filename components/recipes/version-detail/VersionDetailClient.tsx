@@ -43,6 +43,7 @@ import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
 import { analyzeRecipeTurn, wantsRecipeDirectionOptions } from "@/lib/ai/recipeOrchestrator";
 import { applyChefActions, buildChefIntelligence, type ChefEditAction } from "@/lib/ai/chefIntelligence";
+import { extractRefinementDelta } from "@/lib/ai/refinementExtractor";
 
 const CHEF_FIX_FEEDBACK_KEY = "chef-fix-feedback";
 
@@ -71,6 +72,26 @@ function mapInstructionToImproveGoal(instruction: string): "high protein" | "veg
   if (lower.includes("spicy")) return "spicier";
   if (lower.includes("protein")) return "high protein";
   return null;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeIngredientKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toTitleWords(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function buildRecipeDetailConversationHistory(
@@ -476,6 +497,73 @@ export function VersionDetailClient({
       ingredients: applied.ingredients,
       steps: applied.steps,
       notes: applied.notes,
+    };
+  }
+
+  function buildIngredientAdditionSuggestion(
+    instruction: string,
+    assistantReply?: string | null
+  ): SuggestedChange | null {
+    if (!recipe || !version) {
+      return null;
+    }
+
+    const refinement = extractRefinementDelta({
+      userText: instruction,
+      assistantText: assistantReply ?? null,
+    });
+    const ingredientToAdd = refinement.extracted_changes.required_ingredients[0]?.trim();
+    if (!ingredientToAdd) {
+      return null;
+    }
+
+    const normalizedRequested = normalizeIngredientKey(ingredientToAdd);
+    if (!normalizedRequested) {
+      return null;
+    }
+
+    const alreadyPresent = ingredients.some((item) => normalizeIngredientKey(item.name).includes(normalizedRequested));
+    const escapedIngredient = escapeRegExp(ingredientToAdd);
+    const quantityMatch = (assistantReply ?? "").match(
+      new RegExp(
+        `((?:about\\s+)?\\d+(?:\\.\\d+)?(?:\\s*(?:to|-|–)\\s*\\d+(?:\\.\\d+)?)?\\s*(?:cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|grams?|g|pounds?|lbs?)\\s+(?:of\\s+)?(?:[a-z-]+\\s+){0,4}${escapedIngredient}s?)`,
+        "i"
+      )
+    );
+    const ingredientLine = quantityMatch?.[1]?.trim() || `1 cup ${ingredientToAdd}`;
+
+    const assistantSentence = (assistantReply ?? "")
+      .split(/(?<=[.!?])\s+/)
+      .map((sentence) => sentence.trim())
+      .find((sentence) => new RegExp(`\\b${escapedIngredient}s?\\b`, "i").test(sentence));
+
+    const recipeText = [recipe.title, ...steps.map((item) => item.text)].join(" ").toLowerCase();
+    const defaultStep = /\b(brownie|cake|cookie|muffin|loaf|bake|oven|batter)\b/.test(recipeText)
+      ? `Fold in ${ingredientToAdd} just before transferring the batter to the pan.`
+      : `Stir in ${ingredientToAdd} during the final cooking steps so the addition stays noticeable.`;
+    const addedStep = assistantSentence && /\b(fold|stir|mix|whisk|add|sprinkle|top|finish|use)\b/i.test(assistantSentence)
+      ? assistantSentence
+      : defaultStep;
+    const hasMatchingStep = steps.some((item) => normalizeIngredientKey(item.text).includes(normalizedRequested));
+    const nextSteps = hasMatchingStep ? steps : [...steps, { text: addedStep }];
+    const nextIngredients = alreadyPresent ? ingredients : [...ingredients, { name: ingredientLine }];
+    const shortLabel = toTitleWords(ingredientToAdd)
+      .split(/\s+/)
+      .slice(0, 3)
+      .join(" ");
+
+    return {
+      instruction,
+      explanation:
+        assistantReply?.trim() || `Added ${ingredientToAdd} using the latest chef guidance without calling the recipe update service.`,
+      version_label: shortLabel ? `With ${shortLabel}` : null,
+      servings: version.servings,
+      prep_time_min: version.prep_time_min,
+      cook_time_min: version.cook_time_min,
+      difficulty: version.difficulty,
+      ingredients: nextIngredients,
+      steps: nextSteps,
+      notes: version.notes,
     };
   }
 
@@ -885,7 +973,8 @@ export function VersionDetailClient({
       }
       const suggestion = aiResponse.suggestion;
       if (!suggestion) {
-        const fallbackSuggestion = buildDeterministicSuggestion(instruction);
+        const fallbackSuggestion =
+          buildIngredientAdditionSuggestion(instruction, aiResponse.reply) ?? buildDeterministicSuggestion(instruction);
         if (!fallbackSuggestion) {
           assistant.setSuggestedChange(null);
           assistant.setAiError(null);
@@ -973,6 +1062,10 @@ export function VersionDetailClient({
       const latestAssistantMessage = [...assistant.aiConversation]
         .reverse()
         .find((message) => message.role === "assistant" && Array.isArray(message.chefActions) && message.chefActions.length > 0);
+      const latestAssistantReply = [...assistant.aiConversation]
+        .reverse()
+        .find((message) => message.role === "assistant" && typeof message.text === "string" && message.text.trim().length > 0)
+        ?.text;
       suggestion =
         latestAssistantMessage?.chefActions?.length
           ? buildSuggestedChangeFromChefActions(
@@ -980,13 +1073,25 @@ export function VersionDetailClient({
               latestAssistantMessage.chefActions,
               latestAssistantMessage.text
             ) ?? (await requestAiSuggestion(orchestration.normalizedRecipeInstruction))
-          : await requestAiSuggestion(orchestration.normalizedRecipeInstruction);
+          : buildIngredientAdditionSuggestion(orchestration.normalizedRecipeInstruction, latestAssistantReply)
+            ?? (await requestAiSuggestion(orchestration.normalizedRecipeInstruction));
     } catch (error) {
-      assistant.setAiError(
-        error instanceof Error ? error.message : "Could not build a recipe update from the latest request."
-      );
-      assistant.setIsGeneratingVersion(false);
-      return;
+      const latestAssistantReply = [...assistant.aiConversation]
+        .reverse()
+        .find((message) => message.role === "assistant" && typeof message.text === "string" && message.text.trim().length > 0)
+        ?.text;
+      const fallbackSuggestion = buildIngredientAdditionSuggestion(
+        orchestration.normalizedRecipeInstruction,
+        latestAssistantReply
+      ) ?? buildDeterministicSuggestion(orchestration.normalizedRecipeInstruction);
+      if (!fallbackSuggestion) {
+        assistant.setAiError(
+          error instanceof Error ? error.message : "Could not build a recipe update from the latest request."
+        );
+        assistant.setIsGeneratingVersion(false);
+        return;
+      }
+      suggestion = fallbackSuggestion;
     }
 
     assistant.setSuggestedChange(suggestion);

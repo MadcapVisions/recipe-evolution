@@ -132,5 +132,6 @@ const recipeDraft_1 = require("../../lib/recipes/recipeDraft");
         notes: "Add salt at the end",
         change_log: "Roasted the onions first",
         ai_metadata_json: { cached: true },
+        sessionSeed: null,
     });
 });
