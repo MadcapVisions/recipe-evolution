@@ -10,7 +10,8 @@ export const metadata: Metadata = {
   title: "MealMaxer",
   description: "Develop better recipes over time with guided refinement, version history, and kitchen planning.",
   icons: {
-    icon: "/assets/mealmaxer_icon.png",
+    icon: [{ url: "/assets/mealmaxer_icon.png", type: "image/png" }],
+    apple: "/assets/mealmaxer_icon.png",
   },
 };
 

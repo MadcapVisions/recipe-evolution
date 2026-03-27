@@ -65,3 +65,100 @@ E2E_TEST_PASSWORD=
 ## Admin Access
 
 Routes under `app/admin/` and `app/api/admin/` are gated by `lib/auth/adminAccess.ts`, which checks the `ADMIN_EMAILS` env var. AI model config per task is managed via the `ai_task_settings` table and the admin UI.
+
+## Recipe Creation Logic Map
+
+### Two Top-Level Paths
+
+| Path | Entry Route | Purpose |
+|---|---|---|
+| **Home Build** | `POST /api/ai/home/build` | New recipe from scratch |
+| **Improve Recipe** | `POST /api/ai/improve-recipe` | Mutate existing version |
+
+---
+
+### Path 1: Home Build (`app/api/ai/home/build/route.ts`)
+
+**Pre-generation:**
+1. **Auth + rate limit** — `lib/ai/routeSecurity.ts` — validates session, checks `check_ai_rate_limit` RPC (20 req/5min)
+2. **Brief resolution** — decides which brief to use:
+   - If `lockedSession.selected_direction` exists → `buildLockedBrief()` (`lib/ai/lockedSession.ts`)
+   - If persisted brief is locked (no direction) → use it as-is
+   - Else → `compileCookingBrief()` (`lib/ai/briefCompiler.ts`) — derives intent from message + history
+3. **Recipe plan** — `buildRecipePlanFromBrief()` (`lib/ai/recipePlanner.ts`) — translates brief into constraints for the generator
+
+**Generation retry loop** (inside `generateHomeRecipe`, `lib/ai/homeHub.ts`):
+1. Generate recipe with current plan
+2. **Verify** — `verifyRecipeAgainstBrief()` (`lib/ai/recipeVerifier.ts`) — checks recipe matches brief
+3. If verification fails → `RecipeBuildError` with `retryStrategy`:
+   - `regenerate_same_model` → retry with tighter plan (`buildRetryRecipePlan`)
+   - `regenerate_stricter` → same, stricter constraints
+   - After attempt 2: escalate to `try_fallback_model` (uses `taskSetting.fallbackModel`)
+   - `no_retry` / exhausted → terminal failure
+4. Terminal failure: `mapToLaunchDecision()` (`lib/ai/launchDecisionMapper.ts`) → user-facing recovery card
+
+**Shadow path** (telemetry only, no effect on served result):
+When `macroTargets` are set, `orchestrateRecipeGeneration()` runs in parallel to collect comparison telemetry.
+
+**Post-generation persistence:**
+- `storeGenerationAttempt()` (`lib/ai/generationAttemptStore.ts`) — logs every attempt (success or failure)
+- `upsertLockedDirectionSession()` — marks session state as `built`
+
+---
+
+### Path 2: Improve Recipe (`app/api/ai/improve-recipe/route.ts`)
+
+1. **Auth + rate limit** — `requireAuthenticatedAiAccess` (10 req/5min)
+2. **Load canonical data** — reads `recipe_versions` from DB; falls back to request body
+3. **Session brief** — `resolveRecipeSessionBrief()` (`lib/ai/recipeSessionStore.ts`) — loads conversation context for this recipe/version
+4. **Improve** — `improveRecipe()` (`lib/ai/improveRecipe.ts`) — single AI call, returns updated `RecipeDraft`
+5. Error classification — `classifyImproveRecipeError()` (`lib/ai/improveRecipeError.ts`) — maps errors to user-facing messages + HTTP codes
+
+---
+
+### Path 3: Chef Chat (`POST /api/ai/home` → `chef_chat` mode)
+
+**Intent classification** (before calling AI):
+- `guardCookingTopic()` (`lib/ai/topicGuard.ts`) — blocks non-food messages
+- `deriveBriefRequestMode()` (`lib/ai/briefStateMachine.ts`) — classifies turn as: `explore | compare | revise | locked`
+
+**After AI response:**
+- `extractRefinementDeltaWithFallback()` — extracts structured ingredient/style changes from reply
+- `appendLockedSessionRefinementDelta()` — merges delta into locked session
+- Persists: conversation turns, locked session, compiled brief (all fire-and-forget)
+- Returns `session_action: "clear_locked_direction"` if user pivoted
+
+**Locked direction state machine** (`lib/ai/lockedSessionStore.ts`):
+`exploring → direction_locked → ready_to_build → building → built`
+
+---
+
+### Core Generation Orchestrator (`lib/ai/recipeGenerationOrchestrator.ts`)
+
+Used by home build (shadow path today, full path coming). Per-family pipeline:
+
+| Step | File | Recovery |
+|---|---|---|
+| **0. Dish family selection** | `intentResolver.ts` + `dishFamilyRules.ts` | Tries fallback candidates in order |
+| **0b. Macro feasibility** | `familyMacroFeasibility.ts` | Fails early → try next family |
+| **1. Ingredient planning** | `ingredientPlanner.ts` | `ingredientPlanRepair.ts` (up to 2 retries) |
+| **2. Step generation** | `stepGenerator.ts` | `stepPlanRepair.ts` (up to 2 retries) |
+| **3. Full validation** | structural + `ratioValidator.ts` + `macroTargetValidator.ts` + `nutritionCalculator.ts` | If any fail → step 4 |
+| **4. Full repair** | `repairOrchestrator.ts` (up to 2 retries) | `accepted_repair` / `kept_original` / `regenerate_from_ingredients` |
+
+**Final outcomes:** `accepted` → `accepted_after_recipe_repair` → `kept_repaired_recipe` → `regenerate_from_ingredients` → `failed`
+
+---
+
+### Shared Infrastructure
+
+| File | Role |
+|---|---|
+| `lib/ai/routeSecurity.ts` | Auth check + rate limit for every AI route |
+| `lib/ai/taskSettings.ts` | Per-route model config (primary + fallback) from `ai_task_settings` table |
+| `lib/ai/cache.ts` | SHA256-keyed response cache (`ai_cache` table) |
+| `lib/ai/userTasteProfile.ts` | Cached user preference summary injected into every generation |
+| `lib/ai/recipeTelemetry.ts` | Structured timing/stage logs attached to generation results |
+| `lib/recipes/recipeDraft.ts` | Canonical `RecipeDraft` shape — shared pre-persistence type |
+| `lib/recipes/canonicalEnrichment.ts` | Derives quantity/unit/prep on read (never persisted) |
+| `lib/ai/recipeResult.ts` | `AiRecipeResult` wrapper around `RecipeDraft` with metadata |

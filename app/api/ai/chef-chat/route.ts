@@ -13,6 +13,11 @@ import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
 import { readCanonicalIngredients, readCanonicalSteps } from "@/lib/recipes/canonicalRecipe";
+import { analyzeRecipeTurn } from "@/lib/ai/recipeOrchestrator";
+import { compileCookingBrief } from "@/lib/ai/briefCompiler";
+import { upsertCookingBrief } from "@/lib/ai/briefStore";
+import { mergeCookingBriefs, resolveRecipeSessionBrief } from "@/lib/ai/recipeSessionStore";
+import { createEmptyCookingBrief } from "@/lib/ai/contracts/cookingBrief";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -109,6 +114,23 @@ export async function POST(request: Request) {
             message.content.trim().length > 0
         )
       : [];
+    const orchestration = analyzeRecipeTurn({
+      userMessage,
+      selectedDirectionLocked: conversationHistory.some((message) =>
+        message.role === "assistant" && /^Locked direction:/i.test(message.content)
+      ),
+      hasRecipeContext: Boolean(body.recipeContext || body.recipe || body.recipeId || body.versionId),
+    });
+    const recipeId = body.recipeId?.trim() || null;
+    const versionId = body.versionId?.trim() || null;
+    const sessionBriefPromise =
+      recipeId
+        ? resolveRecipeSessionBrief(access.supabase as SupabaseClient, {
+            ownerId: access.userId,
+            recipeId,
+            versionId,
+          })
+        : Promise.resolve(null);
 
     const taskSetting = await resolveAiTaskSettings("chef_chat");
     if (!taskSetting.enabled) {
@@ -131,7 +153,7 @@ export async function POST(request: Request) {
     // If a suggestion is needed, run ownership checks (fast DB queries) then kick off
     // improveRecipe while chefChat is still in flight so both AI calls overlap.
     let improveRecipePromise: Promise<Record<string, unknown> | null> = Promise.resolve(null);
-    if (body.includeSuggestion) {
+    if (body.includeSuggestion && orchestration.shouldIncludeSuggestion) {
       const recipeId = body.recipeId!.trim();
       const versionId = body.versionId!.trim();
       const recipe = body.recipe!;
@@ -171,8 +193,9 @@ export async function POST(request: Request) {
       const effectiveSteps = requestSteps.length > 0 ? requestSteps : persistedSteps;
 
       improveRecipePromise = improveRecipe({
-        instruction: userMessage,
+        instruction: orchestration.normalizedRecipeInstruction ?? userMessage,
         userTasteSummary,
+        sessionBrief: await sessionBriefPromise,
         recipe: {
           title: recipe.title,
           servings:
@@ -226,12 +249,36 @@ export async function POST(request: Request) {
     }
 
     if (typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0) {
+      const conversationKey = body.conversationKey.trim();
+      const brief = compileCookingBrief({
+        userMessage: orchestration.normalizedRecipeInstruction ?? userMessage,
+        recipeContext: body.recipeContext ?? null,
+        conversationHistory,
+      });
+      const sessionBrief = await sessionBriefPromise;
+      const persistedBrief =
+        recipeId && conversationKey.startsWith("recipe-session:")
+          ? mergeCookingBriefs(
+              mergeCookingBriefs(createEmptyCookingBrief(), sessionBrief ?? createEmptyCookingBrief()),
+              brief
+            )
+          : brief;
+      void upsertCookingBrief(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "recipe_detail",
+        recipeId,
+        versionId,
+        brief: persistedBrief,
+        confidence: persistedBrief.confidence ?? null,
+        isLocked: false,
+      }).catch((e) => console.error("upsertCookingBrief failed", e));
       void storeConversationTurns(access.supabase as SupabaseClient, {
         ownerId: access.userId,
-        conversationKey: body.conversationKey.trim(),
+        conversationKey,
         scope: "recipe_detail",
-        recipeId: body.recipeId?.trim() || null,
-        versionId: body.versionId?.trim() || null,
+        recipeId,
+        versionId,
         turns: [
           {
             role: "user",
@@ -240,7 +287,12 @@ export async function POST(request: Request) {
           {
             role: "assistant",
             message: envelope.reply,
-            metadata_json: suggestion ? { suggestion_created: true, envelope } : envelope.options.length > 0 ? envelope : null,
+            metadata_json:
+              suggestion
+                ? { suggestion_created: true, envelope, orchestration }
+                : envelope.options.length > 0
+                ? { ...envelope, orchestration }
+                : { orchestration },
           },
         ],
       }).catch((e) => console.error("storeConversationTurns failed", e));
@@ -249,6 +301,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...(envelope as ChefChatEnvelope),
       suggestion,
+      orchestration,
     });
   } catch (error) {
     console.error("Chef chat route failed", error);

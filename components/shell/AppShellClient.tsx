@@ -268,7 +268,7 @@ export function AppShellClient({
     <AppShellContext.Provider value={contextValue}>
       <div className="min-h-screen">
         <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(142,84,60,0.08)] bg-[linear-gradient(180deg,rgba(252,245,237,0.96)_0%,rgba(248,239,230,0.9)_100%)] shadow-[0_10px_28px_rgba(101,47,29,0.05)] backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-3 sm:px-6 lg:px-10 lg:py-4">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-1.5 sm:px-6 lg:px-10 lg:py-2">
             <button
               type="button"
               onClick={() => setNavOpen(true)}
@@ -288,7 +288,7 @@ export function AppShellClient({
                 width={460}
                 height={88}
                 priority
-                className="h-[2rem] w-auto opacity-90 min-[380px]:h-[2.2rem] sm:h-[2.5rem] lg:h-[2.8rem]"
+                className="h-[2.8rem] w-auto opacity-90 min-[380px]:h-[3rem] sm:h-[3.5rem] lg:h-[4rem]"
               />
             </Link>
 

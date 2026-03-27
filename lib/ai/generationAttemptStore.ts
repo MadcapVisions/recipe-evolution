@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GenerationAttempt } from "./contracts/generationAttempt";
 import type { AiConversationScope } from "./briefStore";
+import type { PreviousAttemptSnapshot } from "./contracts/orchestrationState";
 
 export async function storeGenerationAttempt(
   supabase: SupabaseClient,
@@ -41,4 +42,43 @@ export async function storeGenerationAttempt(
   if (error) {
     console.warn("Could not persist generation attempt:", error.message);
   }
+}
+
+export async function getLatestGenerationAttempt(
+  supabase: SupabaseClient,
+  input: {
+    ownerId: string;
+    conversationKey: string;
+    scope: AiConversationScope;
+  }
+): Promise<PreviousAttemptSnapshot> {
+  const { data, error } = await supabase
+    .from("ai_generation_attempts")
+    .select("attempt_number, outcome, model, verification_json")
+    .eq("owner_id", input.ownerId)
+    .eq("conversation_key", input.conversationKey)
+    .eq("scope", input.scope)
+    .order("attempt_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) {
+      console.warn("Could not load latest generation attempt:", error.message);
+    }
+    return null;
+  }
+
+  const verification = data.verification_json as
+    | { failure_stage?: unknown; retry_strategy?: unknown }
+    | null
+    | undefined;
+
+  return {
+    attemptNumber: typeof data.attempt_number === "number" ? data.attempt_number : null,
+    outcome: typeof data.outcome === "string" ? data.outcome : null,
+    failureStage: typeof verification?.failure_stage === "string" ? verification.failure_stage : null,
+    retryStrategy: typeof verification?.retry_strategy === "string" ? verification.retry_strategy : null,
+    model: typeof data.model === "string" ? data.model : null,
+  };
 }

@@ -8,10 +8,13 @@ import { validateRequiredNamedIngredientsInRecipe } from "./requiredNamedIngredi
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAiIngredients } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
+import { normalizeRecipeEditInstruction } from "./recipeOrchestrator";
+import type { CookingBrief } from "./contracts/cookingBrief";
 
 type ImproveRecipeInput = {
   instruction: string;
   userTasteSummary?: string;
+  sessionBrief?: CookingBrief | null;
   recipe: {
     title: string;
     servings: number | null;
@@ -28,6 +31,68 @@ type ImproveRecipeCacheContext = {
   userId: string;
 };
 
+function buildPersistentConstraintBlock(brief: CookingBrief | null | undefined) {
+  if (!brief) {
+    return "";
+  }
+
+  const lines: string[] = [];
+  const hardRequiredIngredients = (brief.ingredients.requiredNamedIngredients ?? [])
+    .filter((ingredient) => ingredient.requiredStrength === "hard")
+    .map((ingredient) => ingredient.normalizedName);
+
+  if (hardRequiredIngredients.length > 0) {
+    lines.push(`Persistent must-use ingredients: ${hardRequiredIngredients.join(", ")}`);
+  }
+  if (brief.ingredients.forbidden.length > 0) {
+    lines.push(`Persistent forbidden ingredients: ${brief.ingredients.forbidden.join(", ")}`);
+  }
+  if (brief.constraints.equipment_limits.length > 0) {
+    lines.push(`Persistent equipment or tool constraints: ${brief.constraints.equipment_limits.join(", ")}`);
+  }
+  if (brief.directives.required_techniques.length > 0) {
+    lines.push(`Persistent required cooking methods: ${brief.directives.required_techniques.join(", ")}`);
+  }
+  if (brief.directives.must_have.length > 0) {
+    lines.push(`Persistent must-have details: ${brief.directives.must_have.join(", ")}`);
+  }
+  if (brief.directives.must_not_have.length > 0) {
+    lines.push(`Persistent must-not-have details: ${brief.directives.must_not_have.join(", ")}`);
+  }
+
+  return lines.length > 0 ? `Recipe session constraints:\n${lines.map((line) => `- ${line}`).join("\n")}\n\n` : "";
+}
+
+function buildImproveUserMessage(input: ImproveRecipeInput, hardRequiredIngredients: ReturnType<typeof extractHardRequiredIngredients>, attempt: number): string {
+  const normalizedInstruction = normalizeRecipeEditInstruction(input.instruction);
+  const conversationalHint =
+    normalizedInstruction !== input.instruction.trim()
+      ? `Original user instruction: ${input.instruction}
+Interpreted edit request: ${normalizedInstruction}`
+      : `Instruction:
+${input.instruction}`;
+
+  const retryHint =
+    attempt > 0
+      ? `
+
+The previous answer was invalid. Return a complete rewritten recipe JSON only.
+Do not answer conversationally. Do not explain whether the change is possible.`
+      : "";
+
+  return `${conversationalHint}
+
+${buildPersistentConstraintBlock(input.sessionBrief)}
+${hardRequiredIngredients.length > 0
+  ? `Mandatory user-requested ingredients that must appear in the edited recipe and be used in the steps:
+${hardRequiredIngredients.map((ingredient) => `- ${ingredient.normalizedName}`).join("\n")}
+
+Do not substitute a related ingredient. If the user asked for "sourdough discard", "sourdough bread" does not satisfy the request.`
+  : ""}
+
+Current recipe:
+${JSON.stringify(input.recipe, null, 2)}${retryHint}`;
+}
 
 function normalizeSteps(value: unknown): Array<{ text: string }> {
   if (!Array.isArray(value)) {
@@ -81,7 +146,7 @@ function verifyInstructionApplied(instruction: string, result: AiRecipeResult): 
 }
 
 function extractHardRequiredIngredients(input: ImproveRecipeInput) {
-  const brief = compileCookingBrief({
+  const instructionBrief = compileCookingBrief({
     userMessage: input.instruction,
     conversationHistory: [],
     recipeContext: {
@@ -91,8 +156,17 @@ function extractHardRequiredIngredients(input: ImproveRecipeInput) {
     },
   });
 
-  return (brief.ingredients.requiredNamedIngredients ?? []).filter(
-    (ingredient) => ingredient.requiredStrength === "hard"
+  const merged = [
+    ...((input.sessionBrief?.ingredients.requiredNamedIngredients ?? []).filter(
+      (ingredient) => ingredient.requiredStrength === "hard"
+    )),
+    ...((instructionBrief.ingredients.requiredNamedIngredients ?? []).filter(
+      (ingredient) => ingredient.requiredStrength === "hard"
+    )),
+  ];
+
+  return Array.from(
+    new Map(merged.map((ingredient) => [ingredient.normalizedName.toLowerCase(), ingredient])).values()
   );
 }
 
@@ -228,21 +302,6 @@ Rules:
 - Produce a complete recipe, not notes. Every step should be executable without guessing.
 - Do not include any text outside the JSON object.`,
     },
-    {
-      role: "user" as const,
-      content: `Instruction:
-${input.instruction}
-
-${hardRequiredIngredients.length > 0
-  ? `Mandatory user-requested ingredients that must appear in the edited recipe and be used in the steps:
-${hardRequiredIngredients.map((ingredient) => `- ${ingredient.normalizedName}`).join("\n")}
-
-Do not substitute a related ingredient. If the user asked for "sourdough discard", "sourdough bread" does not satisfy the request.`
-  : ""}
-
-Current recipe:
-${JSON.stringify(input.recipe, null, 2)}`,
-    },
   ];
 
   const taskSetting = await resolveAiTaskSettings("recipe_improvement");
@@ -263,7 +322,14 @@ ${JSON.stringify(input.recipe, null, 2)}`,
   let lastCandidate: AiRecipeResult | null = null;
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await callAIForJson(messages, aiOptions);
+    const attemptMessages = [
+      messages[0]!,
+      {
+        role: "user" as const,
+        content: buildImproveUserMessage(input, hardRequiredIngredients, attempt),
+      },
+    ];
+    const result = await callAIForJson(attemptMessages, aiOptions);
     const { parsed } = result;
     if (!parsed || typeof parsed !== "object") {
       lastError = "AI returned invalid recipe payload.";
@@ -278,7 +344,7 @@ ${JSON.stringify(input.recipe, null, 2)}`,
       inputHash,
     });
     if (!candidate) {
-      lastError = "Invalid recipe format returned by AI";
+      lastError = "AI returned an invalid structured recipe format.";
       continue;
     }
     lastCandidate = candidate;

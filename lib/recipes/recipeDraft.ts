@@ -82,6 +82,15 @@ export const recipeDraftSchema = z.object({
 export const createRecipePayloadSchema = z.object({
   draft: recipeDraftSchema,
   forkedFromVersionId: z.string().uuid().nullable().optional().transform((value) => value ?? null),
+  sessionSeed: z
+    .object({
+      sourceConversationKey: z.string().trim().min(1).nullable().optional().transform((value) => value ?? null),
+      sourceScope: z.enum(["home_hub", "recipe_detail"]).nullable().optional().transform((value) => value ?? null),
+      instruction: nullableTrimmedString.optional().transform((value) => value ?? null),
+    })
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
 });
 
 export const recipeVersionPayloadSchema = z.object({
@@ -96,6 +105,15 @@ export const recipeVersionPayloadSchema = z.object({
   notes: nullableTrimmedString.optional().transform((value) => value ?? null),
   change_log: nullableTrimmedString.optional().transform((value) => value ?? null),
   ai_metadata_json: optionalUnknown.optional().transform((value) => value ?? null),
+  sessionSeed: z
+    .object({
+      sourceConversationKey: z.string().trim().min(1).nullable().optional().transform((value) => value ?? null),
+      sourceScope: z.enum(["home_hub", "recipe_detail"]).nullable().optional().transform((value) => value ?? null),
+      instruction: nullableTrimmedString.optional().transform((value) => value ?? null),
+    })
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
 });
 
 export type RecipeDraftIngredient = z.infer<typeof recipeDraftIngredientSchema>;
@@ -128,6 +146,11 @@ export type RecipeVersionPayload = {
   notes?: string | null;
   change_log?: string | null;
   ai_metadata_json?: unknown;
+  sessionSeed?: {
+    sourceConversationKey?: string | null;
+    sourceScope?: "home_hub" | "recipe_detail" | null;
+    instruction?: string | null;
+  } | null;
 };
 
 export function normalizeRecipeDraft(input: unknown): RecipeDraft {

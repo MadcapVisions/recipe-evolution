@@ -4,7 +4,10 @@ export function classifyImproveRecipeError(error: unknown) {
   if (
     message.includes("All AI model attempts failed") ||
     message.includes("OpenRouter") ||
-    message.includes("AI returned invalid JSON")
+    message.includes("AI returned invalid JSON") ||
+    message.includes("AI returned an invalid structured recipe format") ||
+    message.includes("At least one ingredient is required") ||
+    message.includes("At least one step is required")
   ) {
     return {
       status: 503,

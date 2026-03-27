@@ -8,6 +8,12 @@ import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { trackServerEvent } from "@/lib/trackServerEvent";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
 import { readCanonicalIngredients, readCanonicalSteps } from "@/lib/recipes/canonicalRecipe";
+import { getRecipeSessionConversationKey, resolveRecipeSessionBrief } from "@/lib/ai/recipeSessionStore";
+import { getLatestGenerationAttempt, storeGenerationAttempt } from "@/lib/ai/generationAttemptStore";
+import { buildAttemptOrchestrationState, normalizeRecipeEditInstruction } from "@/lib/ai/recipeOrchestrator";
+import { compileCookingBrief } from "@/lib/ai/briefCompiler";
+import type { CookingBrief } from "@/lib/ai/contracts/cookingBrief";
+import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
 
 const improveRecipeRequestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -26,6 +32,11 @@ const improveRecipeRequestSchema = z.object({
 
 export async function POST(request: Request) {
   let trackedAccess: Awaited<ReturnType<typeof requireAuthenticatedAiAccess>> | null = null;
+  let parsedBody:
+    | z.infer<typeof improveRecipeRequestSchema>
+    | null = null;
+  let sessionBrief: CookingBrief | null = null;
+  let previousAttempt: PreviousAttemptSnapshot = null;
   try {
     const access = await requireAuthenticatedAiAccess({
       route: "improve-recipe",
@@ -45,13 +56,18 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json({ error: true, message: "recipe context is required" }, { status: 400 });
     }
+    parsedBody = body;
 
     const { recipeId, versionId, instruction, recipe } = body;
+    const conversationKey = getRecipeSessionConversationKey(recipeId);
+    const normalizedInstruction = normalizeRecipeEditInstruction(instruction);
 
     const [
       { data: ownedRecipe, error: recipeError },
       { data: ownedVersion, error: versionError },
       userTasteSummary,
+      resolvedSessionBrief,
+      resolvedPreviousAttempt,
     ] = await Promise.all([
       access.supabase
         .from("recipes")
@@ -66,7 +82,19 @@ export async function POST(request: Request) {
         .eq("recipe_id", recipeId)
         .maybeSingle(),
       getCachedUserTasteSummary(access.supabase as SupabaseClient, access.userId),
+      resolveRecipeSessionBrief(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        recipeId,
+        versionId,
+      }),
+      getLatestGenerationAttempt(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "recipe_detail",
+      }),
     ]);
+    sessionBrief = resolvedSessionBrief;
+    previousAttempt = resolvedPreviousAttempt;
 
     if (recipeError || versionError || !ownedRecipe || !ownedVersion) {
       return NextResponse.json({ error: true, message: "Recipe not found or access denied." }, { status: 403 });
@@ -86,6 +114,7 @@ export async function POST(request: Request) {
     );
     const effectiveIngredients = requestIngredients.length > 0 ? requestIngredients : persistedIngredients;
     const effectiveSteps = requestSteps.length > 0 ? requestSteps : persistedSteps;
+    const usedSessionRecovery = requestIngredients.length === 0 || requestSteps.length === 0;
 
     if (effectiveIngredients.length === 0 || effectiveSteps.length === 0) {
       return NextResponse.json(
@@ -100,6 +129,7 @@ export async function POST(request: Request) {
     const result = await improveRecipe({
       instruction,
       userTasteSummary,
+      sessionBrief: resolvedSessionBrief,
       recipe: {
         title: recipe.title,
         servings:
@@ -134,11 +164,151 @@ export async function POST(request: Request) {
       userId: access.userId,
     });
 
+    await storeGenerationAttempt(access.supabase as SupabaseClient, {
+      ownerId: access.userId,
+      conversationKey,
+      scope: "recipe_detail",
+      recipeId,
+      versionId,
+      requestMode: resolvedSessionBrief?.request_mode ?? "revise",
+      stateBefore: "recipe_loaded",
+      stateAfter: "suggestion_ready",
+      attempt: {
+        conversation_snapshot: `user: ${instruction}`,
+        cooking_brief:
+          resolvedSessionBrief ??
+          compileCookingBrief({
+            userMessage: normalizedInstruction,
+            conversationHistory: [],
+            recipeContext: {
+              title: recipe.title,
+              ingredients: effectiveIngredients.map((item) => item.name),
+              steps: effectiveSteps.map((item) => item.text),
+            },
+          }),
+        recipe_plan: null,
+        generator_input: {
+          instruction,
+          normalized_instruction: normalizedInstruction,
+          recipe_title: recipe.title,
+          used_saved_recipe_context: usedSessionRecovery,
+          orchestration_state: buildAttemptOrchestrationState({
+            flow: "recipe_detail_improve",
+            action: "suggest_recipe_update",
+            intent: "edit_request",
+            buildable: true,
+            conversationKey,
+            recipeId,
+            versionId,
+            attemptNumber: (previousAttempt?.attemptNumber ?? 0) + 1,
+            requestMode: resolvedSessionBrief?.request_mode ?? "revise",
+            normalizedInstruction,
+            stateBefore: "recipe_loaded",
+            stateAfter: "suggestion_ready",
+            usedSessionRecovery,
+            usedFallbackModel: false,
+            failureStage: null,
+            retryStrategy: "none",
+            recoveryActions: usedSessionRecovery ? ["reuse_saved_recipe_context", "suggest_recipe_update"] : ["suggest_recipe_update"],
+            reason: null,
+            reasonCodes: [],
+            model: result.meta.model ?? result.meta.provider ?? null,
+            previousAttempt,
+            brief: resolvedSessionBrief,
+          }),
+        },
+        raw_model_output: result,
+        normalized_recipe: result.recipe,
+        verification: null,
+        attempt_number: (previousAttempt?.attemptNumber ?? 0) + 1,
+        provider: result.meta.provider ?? null,
+        model: result.meta.model ?? result.meta.provider ?? null,
+        outcome: "passed",
+        stage_metrics: [],
+      },
+    });
+
     return NextResponse.json({ result });
   } catch (error) {
     console.error("Improve recipe route failed", error);
     const classified = classifyImproveRecipeError(error);
     if (trackedAccess) {
+      if (parsedBody) {
+        const conversationKey = getRecipeSessionConversationKey(parsedBody.recipeId);
+        const normalizedInstruction = normalizeRecipeEditInstruction(parsedBody.instruction);
+        const requestIngredients = parsedBody.recipe.ingredients
+          .map((item) => ({ name: typeof item.name === "string" ? item.name.trim() : "" }))
+          .filter((item) => item.name.length > 0);
+        const requestSteps = parsedBody.recipe.steps
+          .map((item) => ({ text: typeof item.text === "string" ? item.text.trim() : "" }))
+          .filter((item) => item.text.length > 0);
+        const usedSessionRecovery = requestIngredients.length === 0 || requestSteps.length === 0;
+        await storeGenerationAttempt(trackedAccess.supabase as SupabaseClient, {
+          ownerId: trackedAccess.userId,
+          conversationKey,
+          scope: "recipe_detail",
+          recipeId: parsedBody.recipeId,
+          versionId: parsedBody.versionId,
+          requestMode: sessionBrief?.request_mode ?? "revise",
+          stateBefore: "recipe_loaded",
+          stateAfter: "recipe_loaded",
+          attempt: {
+            conversation_snapshot: `user: ${parsedBody.instruction}`,
+            cooking_brief:
+              sessionBrief ??
+              compileCookingBrief({
+                userMessage: normalizedInstruction,
+                conversationHistory: [],
+                recipeContext: {
+                  title: parsedBody.recipe.title,
+                  ingredients: requestIngredients.map((item) => item.name),
+                  steps: requestSteps.map((item) => item.text),
+                },
+              }),
+            recipe_plan: null,
+            generator_input: {
+              instruction: parsedBody.instruction,
+              normalized_instruction: normalizedInstruction,
+              recipe_title: parsedBody.recipe.title,
+              used_saved_recipe_context: usedSessionRecovery,
+              orchestration_state: buildAttemptOrchestrationState({
+                flow: "recipe_detail_improve",
+                action: "suggest_recipe_update",
+                intent: "edit_request",
+                buildable: true,
+                conversationKey,
+                recipeId: parsedBody.recipeId,
+                versionId: parsedBody.versionId,
+                attemptNumber: (previousAttempt?.attemptNumber ?? 0) + 1,
+                requestMode: sessionBrief?.request_mode ?? "revise",
+                normalizedInstruction,
+                stateBefore: "recipe_loaded",
+                stateAfter: "recipe_loaded",
+                usedSessionRecovery,
+                usedFallbackModel: false,
+                failureStage: classified.status >= 500 ? "generation" : "schema",
+                retryStrategy: classified.status >= 500 ? "regenerate_same_model" : "ask_user",
+                recoveryActions: usedSessionRecovery
+                  ? ["reuse_saved_recipe_context", classified.status >= 500 ? "retry_same_model" : "ask_clarifying_question"]
+                  : [classified.status >= 500 ? "retry_same_model" : "ask_clarifying_question"],
+                reason: classified.message,
+                reasonCodes: [error instanceof Error ? error.message : "unknown_error"],
+                model: previousAttempt?.model ?? null,
+                previousAttempt,
+                brief: sessionBrief,
+              }),
+            },
+            raw_model_output: null,
+            normalized_recipe: null,
+            verification: null,
+            attempt_number: (previousAttempt?.attemptNumber ?? 0) + 1,
+            provider: null,
+            model: previousAttempt?.model ?? null,
+            outcome: "generation_failed",
+            stage_metrics: [],
+          },
+        });
+      }
       await trackServerEvent(trackedAccess.supabase, trackedAccess.userId, "ai_route_failed", {
         route: "improve-recipe",
         message: error instanceof Error ? error.message : "Unknown error",

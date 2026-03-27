@@ -164,5 +164,6 @@ test("normalizeRecipeVersionPayload trims values and strips extra fields", () =>
     notes: "Add salt at the end",
     change_log: "Roasted the onions first",
     ai_metadata_json: { cached: true },
+    sessionSeed: null,
   });
 });

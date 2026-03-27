@@ -7,7 +7,7 @@ import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { getCookingBrief } from "@/lib/ai/briefStore";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import { generateHomeRecipe } from "@/lib/ai/homeHub";
-import { storeGenerationAttempt } from "@/lib/ai/generationAttemptStore";
+import { getLatestGenerationAttempt, storeGenerationAttempt } from "@/lib/ai/generationAttemptStore";
 import { createAiStageMetric } from "@/lib/ai/contracts/stageMetrics";
 import { createFailedVerificationResult } from "@/lib/ai/contracts/verificationResult";
 import { verifyRecipeAgainstBrief } from "@/lib/ai/recipeVerifier";
@@ -25,6 +25,7 @@ import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { orchestrateRecipeGeneration } from "@/lib/ai/recipeGenerationOrchestrator";
 import { buildGenerationDeps } from "@/lib/ai/repairAdapters";
 import { normalizeDietaryTags } from "@/lib/ai/normalizeDietaryTags";
+import { analyzeHomeBuildRequest, buildAttemptOrchestrationState } from "@/lib/ai/recipeOrchestrator";
 import {
   mapToLaunchDecision,
   extractVerifierIssueCodes,
@@ -36,6 +37,7 @@ import {
   collectIssueCodes,
   collectReasons,
 } from "@/lib/ai/runIssueCollector";
+import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -198,6 +200,15 @@ export async function POST(request: Request) {
   const conversationKey = typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0
     ? body.conversationKey.trim()
     : null;
+  const buildAnalysis = analyzeHomeBuildRequest({
+    ideaTitle: body.ideaTitle,
+    prompt,
+    selectedDirectionLocked: body.lockedSession?.selected_direction != null,
+    retryMode,
+  });
+  if (!buildAnalysis.canBuild) {
+    return NextResponse.json({ error: true, message: buildAnalysis.reason ?? "Recipe build request is incomplete." }, { status: 400 });
+  }
 
   const encoder = new TextEncoder();
 
@@ -220,6 +231,7 @@ export async function POST(request: Request) {
       let resolvedTaskPrimaryModel: string | undefined;
       let terminalFailureStored = false;
       let lockedSession: LockedDirectionSession | null = null;
+      let previousAttempt: PreviousAttemptSnapshot = null;
       const issueCollector = createRunIssueCollector();
 
       try {
@@ -243,6 +255,13 @@ export async function POST(request: Request) {
               })
             : Promise.resolve(null),
         ]);
+        previousAttempt = conversationKey
+          ? await getLatestGenerationAttempt(access.supabase as SupabaseClient, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+            })
+          : null;
         // Normalize build_spec: malformed/stale objects become null so the session
         // falls back to legacy reconstruction rather than crashing the fast path.
         const rawSession = body.lockedSession ?? persistedSession?.session_json ?? null;
@@ -423,6 +442,12 @@ export async function POST(request: Request) {
             recipePlan = activeRecipePlan;
           } catch (error) {
             const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
+            const effectiveStrategy =
+              !shouldAutoRetryRecipeBuild(failure.retryStrategy, attemptNumber) &&
+              (failure.retryStrategy === "regenerate_same_model" || failure.retryStrategy === "regenerate_stricter") &&
+              taskSetting.fallbackModel
+                ? "try_fallback_model"
+                : failure.retryStrategy;
             const attemptCompletedAt = new Date().toISOString();
             stageMetrics.push(
               createAiStageMetric("recipe_outline", {
@@ -462,6 +487,28 @@ export async function POST(request: Request) {
                     distilled_intents: latestDistilledIntents(lockedSession),
                     recipe_outline: null,
                     outline_source: null,
+                    orchestration_state: buildAttemptOrchestrationState({
+                      flow: "home_hub_build",
+                      action: "build_recipe",
+                      intent: buildAnalysis.intent,
+                      buildable: buildAnalysis.canBuild,
+                      conversationKey,
+                      attemptNumber,
+                      requestMode: effectiveBrief?.request_mode ?? buildAnalysis.requestModeHint,
+                      normalizedInstruction: buildAnalysis.normalizedBuildPrompt,
+                      stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+                      stateAfter: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+                      usedSessionRecovery: briefSource === "reconstructed",
+                      usedFallbackModel: effectiveStrategy === "try_fallback_model",
+                      failureStage: failure.failureStage,
+                      retryStrategy: failure.retryStrategy,
+                      recoveryActions: [effectiveStrategy],
+                      reason: failure.message,
+                      reasonCodes: failure.reasons,
+                      model: failure.model ?? currentAttemptModel ?? null,
+                      previousAttempt,
+                      brief: effectiveBrief,
+                    }),
                   },
                   raw_model_output: failure.rawModelOutput,
                   normalized_recipe: failure.normalizedRecipe,
@@ -474,14 +521,6 @@ export async function POST(request: Request) {
                 },
               });
             }
-
-            // Escalate same-model failures on attempt 2 to try the fallback model
-            const effectiveStrategy =
-              !shouldAutoRetryRecipeBuild(failure.retryStrategy, attemptNumber) &&
-              (failure.retryStrategy === "regenerate_same_model" || failure.retryStrategy === "regenerate_stricter") &&
-              taskSetting.fallbackModel
-                ? "try_fallback_model"
-                : failure.retryStrategy;
 
             if (shouldAutoRetryRecipeBuild(effectiveStrategy, attemptNumber) && activeRecipePlan) {
               lastAttemptModel = currentAttemptModel;
@@ -637,6 +676,28 @@ export async function POST(request: Request) {
                 generation_details: result.recipe.ai_metadata_json && typeof result.recipe.ai_metadata_json === "object"
                   ? (result.recipe.ai_metadata_json as { generation_details?: unknown }).generation_details ?? null
                   : null,
+                orchestration_state: buildAttemptOrchestrationState({
+                  flow: "home_hub_build",
+                  action: "build_recipe",
+                  intent: buildAnalysis.intent,
+                  buildable: buildAnalysis.canBuild,
+                  conversationKey,
+                  attemptNumber,
+                  requestMode: effectiveBrief.request_mode,
+                  normalizedInstruction: buildAnalysis.normalizedBuildPrompt,
+                  stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
+                  stateAfter: lockedSession?.selected_direction ? "built" : "recipe_generated",
+                  usedSessionRecovery: briefSource === "reconstructed",
+                  usedFallbackModel: currentAttemptModel === taskSetting.fallbackModel && Boolean(taskSetting.fallbackModel),
+                  failureStage: null,
+                  retryStrategy: "none",
+                  recoveryActions: ["build_recipe", "persist_session"],
+                  reason: null,
+                  reasonCodes: [],
+                  model: result.meta.model,
+                  previousAttempt,
+                  brief: effectiveBrief,
+                }),
               },
               raw_model_output: result,
               normalized_recipe: result.recipe,
@@ -691,6 +752,28 @@ export async function POST(request: Request) {
                 generation_details: failure.verification?.failure_context && typeof failure.verification.failure_context === "object"
                   ? (failure.verification.failure_context as { generation_details?: unknown }).generation_details ?? null
                   : null,
+                orchestration_state: buildAttemptOrchestrationState({
+                  flow: "home_hub_build",
+                  action: "build_recipe",
+                  intent: buildAnalysis.intent,
+                  buildable: buildAnalysis.canBuild,
+                  conversationKey,
+                  attemptNumber,
+                  requestMode: effectiveBrief?.request_mode ?? buildAnalysis.requestModeHint,
+                  normalizedInstruction: buildAnalysis.normalizedBuildPrompt,
+                  stateBefore: "ready_for_recipe",
+                  stateAfter: "ready_for_recipe",
+                  usedSessionRecovery: Boolean(lockedSession?.selected_direction) && !lockedSession?.build_spec,
+                  usedFallbackModel: currentAttemptModel === resolvedTaskPrimaryModel ? false : Boolean(currentAttemptModel),
+                  failureStage: failure.failureStage,
+                  retryStrategy: failure.retryStrategy,
+                  recoveryActions: [failure.retryStrategy],
+                  reason: failure.message,
+                  reasonCodes: failure.reasons,
+                  model: failure.model ?? currentAttemptModel ?? lastAttemptModel ?? null,
+                  previousAttempt,
+                  brief: effectiveBrief,
+                }),
               },
               raw_model_output: failure.rawModelOutput,
               normalized_recipe: failure.normalizedRecipe,

@@ -25,6 +25,24 @@ test("classifyImproveRecipeError marks disabled tasks as unavailable", () => {
   assert.equal(result.message, "Recipe updates are temporarily unavailable.");
 });
 
+test("classifyImproveRecipeError marks invalid structured recipe outputs as transient", () => {
+  const result = classifyImproveRecipeError(
+    new Error("AI returned an invalid structured recipe format.")
+  );
+
+  assert.equal(result.status, 503);
+  assert.equal(result.message, "Recipe update AI was temporarily unavailable. Please try again.");
+});
+
+test("classifyImproveRecipeError marks empty ingredient-step schema failures as transient", () => {
+  const result = classifyImproveRecipeError(
+    new Error('[{"path":["ingredients"],"message":"At least one ingredient is required"},{"path":["steps"],"message":"At least one step is required"}]')
+  );
+
+  assert.equal(result.status, 503);
+  assert.equal(result.message, "Recipe update AI was temporarily unavailable. Please try again.");
+});
+
 test("classifyImproveRecipeError leaves unknown failures as generic server errors", () => {
   const result = classifyImproveRecipeError(new Error("Unexpected normalization failure"));
 

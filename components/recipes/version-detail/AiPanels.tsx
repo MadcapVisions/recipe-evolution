@@ -5,6 +5,7 @@ import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import type { ConversationMessage, SelectedAssistantDirection, SuggestedChange } from "@/components/recipes/version-detail/types";
 import type { PrepPlan } from "@/lib/recipes/prepPlan";
 import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
+import { analyzeRecipeTurn } from "@/lib/ai/recipeOrchestrator";
 
 function compactOptionSummary(summary: string) {
   const firstSentence = summary.split(/[.!?]/)[0]?.trim() ?? summary.trim();
@@ -78,7 +79,17 @@ export function ChefAiPanel({
     .reverse()
     .find((message) => message.role === "assistant" && (message.options?.length ?? 0) === 0)?.id;
   const latestUserMessage = [...aiConversation].reverse().find((message) => message.role === "user") ?? null;
-  const showBuildLatestRequest = !suggestedChange && !isAskingAi && latestUserMessage !== null;
+  const latestTurnAnalysis = latestUserMessage
+    ? analyzeRecipeTurn({
+        userMessage: latestUserMessage.text,
+        selectedDirectionLocked: selectedDirection !== null,
+      })
+    : null;
+  const showBuildLatestRequest =
+    !suggestedChange &&
+    !isAskingAi &&
+    latestUserMessage !== null &&
+    latestTurnAnalysis?.canBuildLatestRequest === true;
 
   return (
     <section className="app-panel flex flex-col p-4 sm:p-5">

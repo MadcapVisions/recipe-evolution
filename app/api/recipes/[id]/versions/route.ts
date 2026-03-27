@@ -5,6 +5,7 @@ import { normalizeRecipeVersionPayload } from "@/lib/recipes/recipeDraft";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { loadCachedRecipeTimelineSlice } from "@/lib/versionDetailData";
 import { getRecipeDetailTag, getRecipeLibraryTag, getRecipePhotosTag, getRecipeSidebarTag, getRecipeTimelineTag } from "@/lib/cacheTags";
+import { seedRecipeSessionFromSavedRecipe } from "@/lib/ai/recipeSessionStore";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -27,7 +28,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { data: ownedRecipe, error: recipeError } = await supabase
     .from("recipes")
-    .select("id")
+    .select("id, title")
     .eq("id", recipeId)
     .eq("owner_id", user.id)
     .maybeSingle();
@@ -77,7 +78,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { data: ownedRecipe, error: recipeError } = await supabase
     .from("recipes")
-    .select("id")
+    .select("id, title")
     .eq("id", recipeId)
     .eq("owner_id", user.id)
     .maybeSingle();
@@ -85,6 +86,9 @@ export async function POST(request: Request, context: RouteContext) {
   if (recipeError || !ownedRecipe) {
     return NextResponse.json({ error: true, message: "Recipe not found or access denied." }, { status: 403 });
   }
+
+  const recipeTitle =
+    typeof ownedRecipe.title === "string" && ownedRecipe.title.trim().length > 0 ? ownedRecipe.title : "Recipe";
 
   const { data, error: insertError } = await supabase.rpc("create_recipe_version", {
     p_recipe_id: recipeId,
@@ -108,6 +112,27 @@ export async function POST(request: Request, context: RouteContext) {
       { error: true, message: insertError?.message ?? "Failed to create version." },
       { status: 500 }
     );
+  }
+
+  try {
+    await seedRecipeSessionFromSavedRecipe(supabase, {
+      ownerId: user.id,
+      recipeId,
+      versionId: insertedVersion.id,
+      draft: {
+        title: recipeTitle,
+        servings: body.servings ?? null,
+        prep_time_min: body.prep_time_min ?? null,
+        cook_time_min: body.cook_time_min ?? null,
+        difficulty: body.difficulty ?? null,
+        ingredients: body.ingredients,
+        steps: body.steps,
+      },
+      seed: body.sessionSeed ?? null,
+      inheritFromRecipeId: recipeId,
+    });
+  } catch (sessionError) {
+    console.warn("Could not update recipe session:", sessionError);
   }
 
   revalidateTag(getRecipeLibraryTag(user.id), "max");

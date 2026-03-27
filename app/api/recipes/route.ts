@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { createRecipePayloadSchema } from "@/lib/recipes/recipeDraft";
 import { getRecipeDetailTag, getRecipeLibraryTag, getRecipeSidebarTag, getRecipeTimelineTag } from "@/lib/cacheTags";
+import { seedRecipeSessionFromSavedRecipe } from "@/lib/ai/recipeSessionStore";
 
 function getValidationMessage(error: ZodError) {
   return error.issues[0]?.message ?? "Invalid recipe payload.";
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: true, message: "Invalid recipe payload." }, { status: 400 });
   }
 
-  const { draft, forkedFromVersionId } = payload;
+  const { draft, forkedFromVersionId, sessionSeed } = payload;
   const { data, error } = await supabase.rpc("create_recipe_with_initial_version", {
     p_owner_id: user.id,
     p_title: draft.title,
@@ -64,6 +65,41 @@ export async function POST(request: Request) {
       },
       { status }
     );
+  }
+
+  let inheritFromRecipeId: string | null = null;
+  if (forkedFromVersionId) {
+    const { data: forkedVersion } = await supabase
+      .from("recipe_versions")
+      .select("recipe_id")
+      .eq("id", forkedFromVersionId)
+      .maybeSingle();
+    inheritFromRecipeId =
+      forkedVersion && typeof (forkedVersion as { recipe_id?: unknown }).recipe_id === "string"
+        ? ((forkedVersion as { recipe_id: string }).recipe_id ?? null)
+        : null;
+  }
+
+  try {
+    await seedRecipeSessionFromSavedRecipe(supabase, {
+      ownerId: user.id,
+      recipeId: created.recipe_id,
+      versionId: created.version_id,
+      draft: {
+        title: draft.title,
+        description: draft.description,
+        servings: draft.servings,
+        prep_time_min: draft.prep_time_min,
+        cook_time_min: draft.cook_time_min,
+        difficulty: draft.difficulty,
+        ingredients: draft.ingredients,
+        steps: draft.steps,
+      },
+      seed: sessionSeed ?? null,
+      inheritFromRecipeId,
+    });
+  } catch (sessionError) {
+    console.warn("Could not seed recipe session:", sessionError);
   }
 
   revalidateTag(getRecipeLibraryTag(user.id), "max");

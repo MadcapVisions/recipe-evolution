@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmptyCookingBrief } from "../../lib/ai/contracts/cookingBrief";
 import { createAiStageMetric } from "../../lib/ai/contracts/stageMetrics";
 import { upsertCookingBrief, getCookingBrief } from "../../lib/ai/briefStore";
-import { storeGenerationAttempt } from "../../lib/ai/generationAttemptStore";
+import { getLatestGenerationAttempt, storeGenerationAttempt } from "../../lib/ai/generationAttemptStore";
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "../../lib/ai/lockedSessionStore";
 import { createLockedSessionFromDirection } from "../../lib/ai/lockedSession";
 import { getConversationTurns } from "../../lib/ai/conversationStore";
@@ -133,6 +133,56 @@ test("storeGenerationAttempt writes structured attempt artifacts", async () => {
   assert.equal(payload.conversation_key, "conv-1");
   assert.equal(payload.request_mode, "generate");
   assert.equal(payload.model, "openai/gpt-4o-mini");
+});
+
+test("getLatestGenerationAttempt returns the most recent persisted recovery snapshot", async () => {
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_generation_attempts");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        order() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: {
+              attempt_number: 3,
+              outcome: "failed_verification",
+              model: "openai/gpt-4o",
+              verification_json: {
+                failure_stage: "semantic",
+                retry_strategy: "try_fallback_model",
+              },
+            },
+            error: null,
+          });
+        },
+      };
+    },
+  };
+
+  const result = await getLatestGenerationAttempt(supabase as unknown as SupabaseClient, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "home_hub",
+  });
+
+  assert.deepEqual(result, {
+    attemptNumber: 3,
+    outcome: "failed_verification",
+    failureStage: "semantic",
+    retryStrategy: "try_fallback_model",
+    model: "openai/gpt-4o",
+  });
 });
 
 test("upsertLockedDirectionSession writes immutable selected-direction state", async () => {

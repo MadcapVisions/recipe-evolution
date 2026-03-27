@@ -25,6 +25,11 @@ export async function createRecipeVersionViaApi(
     notes?: string | null;
     change_log?: string | null;
     ai_metadata_json?: unknown;
+    sessionSeed?: {
+      sourceConversationKey?: string | null;
+      sourceScope?: "home_hub" | "recipe_detail" | null;
+      instruction?: string | null;
+    } | null;
   }
 ) {
   const response = await fetch(`/api/recipes/${recipeId}/versions`, {
@@ -87,11 +92,19 @@ export function mapVersionToCanonicalVersion(version: {
 export async function createRecipeFromDraft(input: {
   draft: RecipeDraft;
   forkedFromVersionId?: string | null;
+  sessionSeed?: {
+    sourceConversationKey?: string | null;
+    sourceScope?: "home_hub" | "recipe_detail" | null;
+    instruction?: string | null;
+  } | null;
 }) {
   const draft = normalizeRecipeDraft(input.draft);
   const body: Record<string, unknown> = { draft };
   if (input.forkedFromVersionId) {
     body.forkedFromVersionId = input.forkedFromVersionId;
+  }
+  if (input.sessionSeed) {
+    body.sessionSeed = input.sessionSeed;
   }
   const response = await fetch("/api/recipes", {
     method: "POST",

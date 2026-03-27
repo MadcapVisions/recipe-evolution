@@ -563,6 +563,11 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         ...repairedDraft,
         change_log: repairedDraft.change_log ?? "Created from AI Home Hub",
       },
+      sessionSeed: {
+        sourceConversationKey: conversationKeyRef.current,
+        sourceScope: "home_hub",
+        instruction: promptInput.trim() || repairedDraft.title,
+      },
     });
 
     trackEventInBackground("recipe_created", {

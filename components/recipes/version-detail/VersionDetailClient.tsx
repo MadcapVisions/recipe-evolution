@@ -40,6 +40,7 @@ import { scaleCanonicalIngredientLine } from "@/lib/recipes/servings";
 import { useTargetServings } from "@/lib/recipes/targetServings";
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
+import { analyzeRecipeTurn, wantsRecipeDirectionOptions } from "@/lib/ai/recipeOrchestrator";
 
 function normalizeDifficulty(raw: string | null | undefined): "Easy" | "Medium" | "Hard" {
   const lower = (raw ?? "").toLowerCase().trim();
@@ -92,14 +93,6 @@ function buildRecipeDetailConversationHistory(
     role: message.role === "user" ? "user" : "assistant",
     content: message.text,
   }));
-}
-
-function wantsDirectionOptions(message: string) {
-  return (
-    /\b(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i.test(message) ||
-    /\b(?:show|give)\s+me\b.+\b(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i.test(message) ||
-    /\b(?:2|3)\s+(?:options?|ideas?|directions?|variations?|alternatives?|choices?)\b/i.test(message)
-  );
 }
 
 export function VersionDetailClient({
@@ -507,7 +500,13 @@ export function VersionDetailClient({
       steps: steps.map((item) => item.text),
     };
     const conversationHistory = buildRecipeDetailConversationHistory(assistant.aiConversation, assistant.selectedDirection);
-    const includeSuggestion = assistant.selectedDirection !== null || !wantsDirectionOptions(userMessage);
+    const orchestration = analyzeRecipeTurn({
+      userMessage,
+      selectedDirectionLocked: assistant.selectedDirection !== null,
+      hasRecipeContext: true,
+    });
+    const includeSuggestion =
+      assistant.selectedDirection !== null || orchestration.shouldIncludeSuggestion;
 
     const response = await fetch("/api/ai/chef-chat", {
       method: "POST",
@@ -594,6 +593,11 @@ export function VersionDetailClient({
         difficulty: suggestion.difficulty,
         ingredients: suggestion.ingredients,
         steps: suggestion.steps,
+        sessionSeed: {
+          sourceConversationKey: assistant.conversationKey,
+          sourceScope: "recipe_detail",
+          instruction: metadata?.instruction ?? suggestion.instruction,
+        },
       }) ) as VersionRow;
     } catch (error) {
       assistant.setAiError(error instanceof Error ? error.message : "AI improvement failed. Please try again.");
@@ -752,7 +756,7 @@ export function VersionDetailClient({
       assistant.setCustomInstruction("");
     } catch (_error) {
       const fallbackReply = buildDeterministicChefReply(instruction);
-      const optionsRequest = wantsDirectionOptions(instruction);
+      const optionsRequest = wantsRecipeDirectionOptions(instruction);
       const assistantMessage: ConversationMessage = {
         id: `${Date.now()}-assistant`,
         role: "assistant",
@@ -803,13 +807,22 @@ export function VersionDetailClient({
       assistant.setAiError("Ask Chef for a concrete recipe change first.");
       return;
     }
+    const orchestration = analyzeRecipeTurn({
+      userMessage: latestUserInstruction,
+      selectedDirectionLocked: assistant.selectedDirection !== null,
+      hasRecipeContext: true,
+    });
+    if (!orchestration.canBuildLatestRequest || !orchestration.normalizedRecipeInstruction) {
+      assistant.setAiError(orchestration.reason ?? "Ask Chef for a concrete recipe change first.");
+      return;
+    }
 
     assistant.setIsGeneratingVersion(true);
     assistant.setAiError(null);
 
     let suggestion: SuggestedChange;
     try {
-      suggestion = await requestAiSuggestion(latestUserInstruction);
+      suggestion = await requestAiSuggestion(orchestration.normalizedRecipeInstruction);
     } catch (error) {
       assistant.setAiError(
         error instanceof Error ? error.message : "Could not build a recipe update from the latest request."
@@ -825,7 +838,7 @@ export function VersionDetailClient({
       {
         source: "ai",
         action: "apply_suggestion",
-        instruction: latestUserInstruction,
+        instruction: orchestration.normalizedRecipeInstruction,
       }
     );
     assistant.setIsGeneratingVersion(false);
@@ -854,6 +867,11 @@ export function VersionDetailClient({
           ai_metadata_json: null,
         },
         forkedFromVersionId: version.id,
+        sessionSeed: {
+          sourceConversationKey: assistant.conversationKey,
+          sourceScope: "recipe_detail",
+          instruction: assistant.suggestedChange.instruction,
+        },
       });
       assistant.setSuggestedChange(null);
       assistant.setCustomInstruction("");
