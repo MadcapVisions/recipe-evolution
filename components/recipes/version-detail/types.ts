@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
+import type { ChefEditAction } from "@/lib/ai/chefIntelligence";
 import {
   readCanonicalIngredients,
   readCanonicalSteps,
@@ -23,6 +24,7 @@ export type RecipeListItem = {
   title: string;
   is_favorite?: boolean | null;
   tags?: string[] | null;
+  chef_score?: number | null;
 };
 
 export type TimelineVersion = {
@@ -31,6 +33,8 @@ export type TimelineVersion = {
   version_label: string | null;
   change_summary?: string | null;
   created_at: string;
+  total_score?: number | null;
+  score_delta?: number | null;
 };
 
 export type VersionRow = {
@@ -62,6 +66,7 @@ export type ConversationMessage = {
   kind?: "message" | "direction_selected";
   options?: ChefDirectionOption[];
   recommendedOptionId?: string | null;
+  chefActions?: ChefEditAction[];
 };
 
 export type SelectedAssistantDirection = {
@@ -82,6 +87,7 @@ export type SuggestedChange = {
   difficulty: string | null;
   ingredients: Array<{ name: string }>;
   steps: Array<{ text: string }>;
+  notes?: string | null;
 };
 
 export const normalizeSteps = readCanonicalSteps;

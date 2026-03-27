@@ -10,6 +10,8 @@ export type RecipeBrowseItem = {
   is_favorite: boolean;
   version_count: number;
   latest_version_id: string | null;
+  best_version_id: string | null;
+  chef_score: number | null;
   servings: number | null;
   cover_image_url: string | null;
   tags: string[];
@@ -50,7 +52,7 @@ export async function loadRecipeBrowsePage(
 
   let query = supabase
     .from("recipes")
-    .select("id, title, tags, updated_at, is_favorite")
+    .select("id, title, tags, updated_at, is_favorite, best_version_id")
     .eq("owner_id", ownerId);
 
   if (searchTerm) {
@@ -124,6 +126,27 @@ export async function loadRecipeBrowsePage(
     latestServingsByRecipe[row.recipe_id] = row.latest_servings;
   }
 
+  const scoreVersionIds = Array.from(
+    new Set(
+      trimmedRecipes
+        .flatMap((recipe) => [typeof recipe.best_version_id === "string" ? recipe.best_version_id : null, latestVersionIdByRecipe[recipe.id] ?? null])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+  let scoreByVersionId: Record<string, number | null> = {};
+  if (scoreVersionIds.length > 0) {
+    const { data: recipeScores, error: recipeScoresError } = await supabase
+      .from("recipe_scores")
+      .select("recipe_version_id, total_score")
+      .in("recipe_version_id", scoreVersionIds);
+    if (recipeScoresError) {
+      throw new Error(recipeScoresError.message);
+    }
+    scoreByVersionId = Object.fromEntries(
+      (recipeScores ?? []).map((row) => [row.recipe_version_id as string, typeof row.total_score === "number" ? row.total_score : null])
+    );
+  }
+
   // Photo query is now scoped to the latest version per recipe only.
   // The version_photos_version_id_idx index makes this efficient.
   const latestVersionIds = recipeIds
@@ -175,6 +198,10 @@ export async function loadRecipeBrowsePage(
       is_favorite: recipe.is_favorite ?? false,
       version_count: versionCountByRecipe[recipe.id] ?? 0,
       latest_version_id: latestVersionIdByRecipe[recipe.id] ?? null,
+      best_version_id: recipe.best_version_id ?? null,
+      chef_score:
+        (typeof recipe.best_version_id === "string" ? scoreByVersionId[recipe.best_version_id] : null) ??
+        (latestVersionIdByRecipe[recipe.id] ? scoreByVersionId[latestVersionIdByRecipe[recipe.id] as string] ?? null : null),
       servings: latestServingsByRecipe[recipe.id] ?? null,
       cover_image_url:
         coverUrlByRecipe[recipe.id] ??

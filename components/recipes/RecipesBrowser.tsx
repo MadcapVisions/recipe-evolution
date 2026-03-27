@@ -74,6 +74,15 @@ function getCoverAnnotation(recipe: RecipeBrowseItem) {
   return "First saved version.";
 }
 
+function recipeChefScoreBadge(score: number | null | undefined) {
+  if (typeof score !== "number") return null;
+  return (
+    <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+      Chef {score}
+    </span>
+  );
+}
+
 export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowserProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -494,6 +503,7 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
                   <span className="rounded-full bg-[rgba(79,125,115,0.1)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--primary)]">
                     {recipe.version_count} version{recipe.version_count === 1 ? "" : "s"}
                   </span>
+                  {recipeChefScoreBadge(recipe.chef_score)}
                 </div>
                 <p className="font-display text-[30px] font-semibold leading-[0.98] text-[color:var(--text)]">{recipe.title}</p>
                 <div className="artifact-divider pt-3 text-[15px] text-[color:var(--muted)]">

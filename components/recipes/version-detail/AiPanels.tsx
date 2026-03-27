@@ -286,7 +286,7 @@ export function ChefAiPanel({
                       disabled={isGeneratingVersion || isAskingAi}
                       className="rounded-full bg-[color:var(--primary)] px-4 py-2.5 text-[14px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_18px_rgba(58,84,76,0.16)] hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
                     >
-                      {isGeneratingVersion ? "Building recipe..." : "Build recipe"}
+                      {isGeneratingVersion ? "Applying chef changes..." : "Apply chef changes"}
                     </button>
                     <button
                       type="button"
@@ -321,7 +321,7 @@ export function ChefAiPanel({
               disabled={isGeneratingVersion || isAskingAi}
               className="rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
             >
-              {isGeneratingVersion ? "Building recipe..." : "Build recipe"}
+              {isGeneratingVersion ? "Applying chef changes..." : "Apply chef changes"}
             </button>
             <button
               type="button"
@@ -341,7 +341,7 @@ export function ChefAiPanel({
               disabled={isGeneratingVersion || isAskingAi}
               className="w-full rounded-full bg-[color:var(--primary)] px-4 py-3 text-[15px] font-semibold text-white hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
             >
-              {isGeneratingVersion ? "Building recipe..." : "Build recipe from latest request"}
+              {isGeneratingVersion ? "Applying chef changes..." : "Add these fixes to recipe"}
             </button>
           </div>
         ) : null}

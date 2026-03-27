@@ -8,6 +8,40 @@ import { getStockRecipeCover } from "@/lib/stockRecipeCovers";
 
 const INITIAL_TIMELINE_LIMIT = 8;
 
+async function attachTimelineScores(
+  supabase: SupabaseClient,
+  versions: TimelineVersion[]
+): Promise<TimelineVersion[]> {
+  if (versions.length === 0) return versions;
+
+  const versionIds = versions.map((version) => version.id);
+  const { data, error } = await supabase
+    .from("recipe_scores")
+    .select("recipe_version_id, total_score")
+    .in("recipe_version_id", versionIds);
+
+  if (error) {
+    return versions;
+  }
+
+  const scoreByVersionId = new Map<string, number | null>(
+    (data ?? []).map((row) => [row.recipe_version_id as string, typeof row.total_score === "number" ? row.total_score : null])
+  );
+
+  return versions.map((version, index) => {
+    const totalScore = scoreByVersionId.get(version.id) ?? null;
+    const previousVersion = versions[index + 1];
+    const previousScore = previousVersion ? scoreByVersionId.get(previousVersion.id) ?? null : null;
+
+    return {
+      ...version,
+      total_score: totalScore,
+      score_delta:
+        typeof totalScore === "number" && typeof previousScore === "number" ? totalScore - previousScore : null,
+    };
+  });
+}
+
 export async function loadRecipeTimelineSlice(
   supabase: SupabaseClient,
   recipeId: string,
@@ -53,7 +87,7 @@ export async function loadRecipeTimelineSlice(
   const trimmed = pageVersions.slice(0, input.limit);
 
   if (offset > 0 || trimmed.some((version) => version.id === currentVersionId)) {
-    return { versions: trimmed, hasMore };
+    return { versions: await attachTimelineScores(supabase, trimmed), hasMore };
   }
 
   if (currentVersionError || !currentVersion) {
@@ -65,7 +99,7 @@ export async function loadRecipeTimelineSlice(
   );
 
   deduped.sort((a, b) => b.version_number - a.version_number);
-  return { versions: deduped, hasMore: true };
+  return { versions: await attachTimelineScores(supabase, deduped), hasMore: true };
 }
 
 export type RecipeLineage = {
@@ -92,6 +126,8 @@ export type VersionDetailData = {
     version_label: string | null;
     change_summary?: string | null;
     created_at: string;
+    total_score?: number | null;
+    score_delta?: number | null;
   }>;
   timelineHasMore: boolean;
   version: {

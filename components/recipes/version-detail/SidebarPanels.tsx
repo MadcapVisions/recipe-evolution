@@ -5,6 +5,17 @@ import type { ReactNode, Ref } from "react";
 import { Button } from "@/components/Button";
 import { versionLabel, type RecipeListItem, type RecipeRow, type TimelineVersion, type VersionRow } from "@/components/recipes/version-detail/types";
 
+function scoreDeltaBadge(delta: number | null | undefined) {
+  if (typeof delta !== "number" || delta === 0) return null;
+  return {
+    label: `${delta > 0 ? "+" : ""}${delta} Chef`,
+    className:
+      delta > 0
+        ? "bg-[rgba(79,125,115,0.14)] text-[color:var(--primary)]"
+        : "bg-[rgba(201,123,66,0.14)] text-[color:var(--text)]",
+  };
+}
+
 type MenuAnchor = { top: number; left: number };
 
 type RecipeActionMenuProps = {
@@ -129,6 +140,15 @@ type RecipeSidebarProps = RecipeNavigationSectionProps &
     historyRef?: Ref<HTMLDivElement>;
   };
 
+function recipeChefScoreBadge(score: number | null | undefined) {
+  if (typeof score !== "number") return null;
+  return (
+    <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+      Chef {score}
+    </span>
+  );
+}
+
 export function RecipeNavigationSection({
   currentRecipeId,
   recipe,
@@ -194,6 +214,7 @@ export function RecipeNavigationSection({
                       Current dish
                     </span>
                   ) : null}
+                  {recipeChefScoreBadge(userRecipe.chef_score)}
                   <span className="mt-2 block w-full text-left text-[14px] font-medium sm:text-[15px]">
                     {userRecipe.title}
                   </span>
@@ -247,6 +268,7 @@ export function VersionRailSection({
           const isActive = timelineVersion.id === currentVersion.id;
           const isBest = recipe.best_version_id === timelineVersion.id;
           const stageLabel = timelineVersion.version_number === 1 ? "Original build" : `Iteration ${timelineVersion.version_number}`;
+          const deltaBadge = scoreDeltaBadge(timelineVersion.score_delta);
           return (
             <div
               key={timelineVersion.id}
@@ -276,6 +298,16 @@ export function VersionRailSection({
                     {isBest ? (
                       <span className="rounded-full bg-[rgba(201,123,66,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
                         Best
+                      </span>
+                    ) : null}
+                    {typeof timelineVersion.total_score === "number" ? (
+                      <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+                        Chef {timelineVersion.total_score}
+                      </span>
+                    ) : null}
+                    {deltaBadge ? (
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${deltaBadge.className}`}>
+                        {deltaBadge.label}
                       </span>
                     ) : null}
                   </div>

@@ -6,7 +6,28 @@ import { PhotoGallery } from "@/components/PhotoGallery";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import { Button } from "@/components/Button";
 import { ServingsControl } from "@/components/ServingsControl";
+import type { ChefInsight } from "@/lib/ai/chefIntelligence";
 import { versionLabel, type IngredientItem, type RecipeListItem, type RecipeRow, type StepItem, type TimelineVersion, type VersionRow } from "@/components/recipes/version-detail/types";
+
+function scoreDeltaBadge(delta: number | null | undefined) {
+  if (typeof delta !== "number" || delta === 0) return null;
+  return {
+    label: `${delta > 0 ? "+" : ""}${delta} Chef`,
+    className:
+      delta > 0
+        ? "bg-[rgba(79,125,115,0.14)] text-[color:var(--primary)]"
+        : "bg-[rgba(201,123,66,0.14)] text-[color:var(--text)]",
+  };
+}
+
+function recipeChefScoreBadge(score: number | null | undefined) {
+  if (typeof score !== "number") return null;
+  return (
+    <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+      Chef {score}
+    </span>
+  );
+}
 
 function familyLabel(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -75,6 +96,8 @@ export function VersionMainPanels({
   steps,
   topPhotoUrl,
   userId,
+  chefInsights,
+  stepTips,
   onRenameRecipe,
   dishFamilyOptions,
   onSaveCategory,
@@ -112,6 +135,8 @@ export function VersionMainPanels({
   steps: StepItem[];
   topPhotoUrl: string | null;
   userId: string | null;
+  chefInsights: ChefInsight[];
+  stepTips: Array<{ stepIndex: number; text: string }>;
   onRenameRecipe: () => void;
   dishFamilyOptions: readonly string[];
   onSaveCategory: (value: string | null) => void;
@@ -292,6 +317,12 @@ export function VersionMainPanels({
                   onSave={onSaveCategory}
                 />
               </div>
+              {chefInsights[0] ? (
+                <div className="mt-4 max-w-3xl rounded-[18px] bg-[rgba(74,106,96,0.08)] px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Top chef call</p>
+                  <p className="mt-1 text-sm leading-6 text-[color:var(--text)]">{chefInsights[0].text}</p>
+                </div>
+              ) : null}
             </div>
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
               <Button href={`/recipes/${recipe.id}/versions/${version.id}/cook`} className="w-full justify-center lg:w-auto">
@@ -352,6 +383,19 @@ export function VersionMainPanels({
             </div>
           </div>
 
+          {chefInsights.length > 0 ? (
+            <div className="rounded-[24px] border border-[rgba(74,106,96,0.12)] bg-[rgba(255,250,241,0.92)] p-4 sm:p-5">
+              <p className="app-kicker">Chef insights</p>
+              <div className="mt-3 space-y-2.5">
+                {chefInsights.map((insight) => (
+                  <div key={insight.id} className="rounded-[18px] bg-white/80 px-4 py-3">
+                    <p className="text-[15px] leading-relaxed text-[color:var(--text)]">{insight.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {version.notes?.trim() ? (
             <div className="rounded-[24px] bg-[rgba(74,106,96,0.07)] p-4 sm:p-5">
               <p className="app-kicker">Chef tips</p>
@@ -408,7 +452,16 @@ export function VersionMainPanels({
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--primary)] text-[15px] font-semibold text-white">
                 {index + 1}
               </div>
-              <p className="text-[15px] leading-7 text-[color:var(--text)]">{step.text}</p>
+              <div className="space-y-2">
+                <p className="text-[15px] leading-7 text-[color:var(--text)]">{step.text}</p>
+                {stepTips
+                  .filter((tip) => tip.stepIndex === index)
+                  .map((tip) => (
+                    <p key={`${index}-${tip.text}`} className="rounded-[16px] bg-white/80 px-3 py-2 text-sm leading-6 text-[color:var(--muted)]">
+                      Chef tip: {tip.text}
+                    </p>
+                  ))}
+              </div>
             </div>
           ))}
         </div>
@@ -485,6 +538,7 @@ function RecipeSwitchDropdown({
                       Current dish
                     </span>
                   ) : null}
+                  {recipeChefScoreBadge(userRecipe.chef_score)}
                   <span className="mt-2 block text-[14px] font-medium sm:text-[15px]">{userRecipe.title}</span>
                 </div>
                 <button
@@ -535,6 +589,7 @@ function VersionHistoryDropdown({
         {timelineVersions.map((timelineVersion) => {
           const isActive = timelineVersion.id === currentVersionId;
           const isBest = recipe.best_version_id === timelineVersion.id;
+          const deltaBadge = scoreDeltaBadge(timelineVersion.score_delta);
           return (
             <div
               key={timelineVersion.id}
@@ -564,6 +619,16 @@ function VersionHistoryDropdown({
                     {isBest ? (
                       <span className="rounded-full bg-[rgba(201,123,66,0.14)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
                         Best
+                      </span>
+                    ) : null}
+                    {typeof timelineVersion.total_score === "number" ? (
+                      <span className="rounded-full bg-[rgba(57,75,70,0.06)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]">
+                        Chef {timelineVersion.total_score}
+                      </span>
+                    ) : null}
+                    {deltaBadge ? (
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${deltaBadge.className}`}>
+                        {deltaBadge.label}
                       </span>
                     ) : null}
                   </div>

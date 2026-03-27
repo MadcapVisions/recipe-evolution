@@ -8,6 +8,7 @@ import { ChefAiPanel, MetricsPanel, NutritionPanel, PrepPlanPanel } from "@/comp
 import { VersionMainPanels } from "@/components/recipes/version-detail/MainPanels";
 import { RecipeFeedbackPanel } from "@/components/recipes/version-detail/RecipeFeedbackPanel";
 import { RecipeWhyFitsPanel } from "@/components/recipes/version-detail/RecipeWhyFitsPanel";
+import { ChefScorePanel } from "@/components/recipes/version-detail/ChefScorePanel";
 import { RecipeActionMenu, VersionActionMenu } from "@/components/recipes/version-detail/SidebarPanels";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useAppShell } from "@/components/shell/AppShellContext";
@@ -41,6 +42,20 @@ import { useTargetServings } from "@/lib/recipes/targetServings";
 import type { ChefDirectionOption } from "@/lib/ai/chefOptions";
 import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
 import { analyzeRecipeTurn, wantsRecipeDirectionOptions } from "@/lib/ai/recipeOrchestrator";
+import { applyChefActions, buildChefIntelligence, type ChefEditAction } from "@/lib/ai/chefIntelligence";
+
+const CHEF_FIX_FEEDBACK_KEY = "chef-fix-feedback";
+
+type ChefFixFeedback = {
+  recipeId: string;
+  versionId: string;
+  oldScore: number | null;
+  newScore: number | null;
+  delta: number | null;
+  appliedFixes: string[];
+  improvedAreas: string[];
+  regressions: string[];
+};
 
 function normalizeDifficulty(raw: string | null | undefined): "Easy" | "Medium" | "Hard" {
   const lower = (raw ?? "").toLowerCase().trim();
@@ -124,6 +139,7 @@ export function VersionDetailClient({
   const [recipeSwitchOpen, setRecipeSwitchOpen] = useState(false);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [chefFixFeedback, setChefFixFeedback] = useState<ChefFixFeedback | null>(null);
   const assistant = useRecipeAssistant(recipeId, versionId);
   const sidebar = useRecipeSidebarState({
     quickRecipes: [...sidebarData.recentRecipes, ...sidebarData.favoriteRecipes].filter(
@@ -187,6 +203,48 @@ export function VersionDetailClient({
       }),
     [ingredients, steps]
   );
+  const chefIntelligence = useMemo(
+    () =>
+      buildChefIntelligence({
+        title: recipe?.title ?? null,
+        ingredients: ingredients.map((item) => item.name),
+        steps: steps.map((item) => item.text),
+        notes: version?.notes ?? null,
+      }),
+    [ingredients, recipe?.title, steps, version?.notes]
+  );
+  const chefInsights = useMemo(
+    () =>
+      chefIntelligence.insights.map((insight) => ({
+        ...insight,
+        text:
+          insight.ruleType === "warning"
+            ? `Watch out: ${insight.text}`
+            : insight.ruleType === "mandatory"
+            ? `Chef call: ${insight.text}`
+            : insight.text,
+      })),
+    [chefIntelligence.insights]
+  );
+  const chefAwarePrepPlan = useMemo(() => {
+    if (chefIntelligence.checklistItems.length === 0) {
+      return prepPlan;
+    }
+
+    const extraChecklist = chefIntelligence.checklistItems
+      .filter((item) => !prepPlan.checklist.some((existing) => existing.title.toLowerCase() === item.toLowerCase()))
+      .map((item, index) => ({
+        id: `chef-${index}`,
+        phase: "make-ahead" as const,
+        title: item,
+      }));
+
+    return {
+      ...prepPlan,
+      makeAheadTasks: Array.from(new Set([...chefIntelligence.checklistItems, ...prepPlan.makeAheadTasks])).slice(0, 6),
+      checklist: [...extraChecklist, ...prepPlan.checklist].slice(0, 12),
+    };
+  }, [chefIntelligence.checklistItems, prepPlan]);
   const displayIngredients = useMemo(
     () =>
       canAdjustServings && baseServings
@@ -195,6 +253,31 @@ export function VersionDetailClient({
     [baseServings, canAdjustServings, displayServings, ingredients]
   );
   const topPhotoUrl = photosWithUrls[0]?.signedUrl ?? initialData.stockCoverUrl;
+  const previousTimelineVersion = useMemo(() => {
+    if (!version) return null;
+    return (
+      timelineVersions
+        .filter((item) => item.id !== version.id && item.version_number < version.version_number)
+        .sort((a, b) => b.version_number - a.version_number)[0] ?? null
+    );
+  }, [timelineVersions, version]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !version) return;
+
+    const raw = window.sessionStorage.getItem(CHEF_FIX_FEEDBACK_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as ChefFixFeedback;
+      if (parsed.recipeId === recipeId && parsed.versionId === version.id) {
+        setChefFixFeedback(parsed);
+        window.sessionStorage.removeItem(CHEF_FIX_FEEDBACK_KEY);
+      }
+    } catch {
+      window.sessionStorage.removeItem(CHEF_FIX_FEEDBACK_KEY);
+    }
+  }, [recipeId, version]);
 
   useEffect(() => {
     let cancelled = false;
@@ -318,12 +401,13 @@ export function VersionDetailClient({
     improved: {
       recipe?: {
         ingredients?: Array<{ name: string }>;
-        steps?: Array<{ text: string }>;
-        servings?: number | null;
-        prep_time_min?: number | null;
-        cook_time_min?: number | null;
-        difficulty?: string | null;
-      };
+      steps?: Array<{ text: string }>;
+      servings?: number | null;
+      prep_time_min?: number | null;
+      cook_time_min?: number | null;
+      difficulty?: string | null;
+      notes?: string | null;
+    };
       explanation?: string;
       version_label?: string | null;
       ingredients?: Array<{ name: string }>;
@@ -332,6 +416,7 @@ export function VersionDetailClient({
       prep_time_min?: number | null;
       cook_time_min?: number | null;
       difficulty?: string | null;
+      notes?: string | null;
     }
   ): SuggestedChange | null {
     if (!version) {
@@ -357,6 +442,40 @@ export function VersionDetailClient({
           : version.difficulty,
       ingredients: recipePayload.ingredients,
       steps: recipePayload.steps,
+      notes: typeof improved.notes === "string" && improved.notes.trim().length > 0 ? improved.notes.trim() : null,
+    };
+  }
+
+  function buildSuggestedChangeFromChefActions(
+    instruction: string,
+    actions: ChefEditAction[],
+    fallbackExplanation?: string | null
+  ): SuggestedChange | null {
+    if (!recipe || !version || actions.length === 0) {
+      return null;
+    }
+
+    const applied = applyChefActions(
+      {
+        title: recipe.title,
+        ingredients: ingredients.map((item) => item.name),
+        steps: steps.map((item) => item.text),
+        notes: version.notes,
+      },
+      actions
+    );
+
+    return {
+      instruction,
+      explanation: applied.explanation ?? fallbackExplanation ?? "Applied structured chef edits to the current version.",
+      version_label: null,
+      servings: version.servings,
+      prep_time_min: version.prep_time_min,
+      cook_time_min: version.cook_time_min,
+      difficulty: version.difficulty,
+      ingredients: applied.ingredients,
+      steps: applied.steps,
+      notes: applied.notes,
     };
   }
 
@@ -367,6 +486,8 @@ export function VersionDetailClient({
 
     const response = await fetch("/api/ai/improve-recipe", {
       method: "POST",
+      credentials: "include",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         recipeId,
@@ -400,6 +521,9 @@ export function VersionDetailClient({
     };
 
     if (!response.ok || data.error) {
+      if (response.status === 401) {
+        throw new Error("Your session expired. Refresh the page and sign in again.");
+      }
       throw new Error(data.message || "AI improvement failed. Please try again.");
     }
 
@@ -411,6 +535,7 @@ export function VersionDetailClient({
       prep_time_min?: number;
       cook_time_min?: number;
       difficulty?: string;
+      notes?: string | null;
     });
 
     if (!normalized) {
@@ -455,6 +580,7 @@ export function VersionDetailClient({
       difficulty: improved.difficulty ?? version.difficulty,
       ingredients: improved.ingredients,
       steps: improved.steps,
+      notes: null,
     };
   }
 
@@ -484,6 +610,7 @@ export function VersionDetailClient({
       difficulty: remixed.difficulty ?? version.difficulty,
       ingredients: remixed.ingredients,
       steps: remixed.steps,
+      notes: null,
     };
   }
 
@@ -493,6 +620,7 @@ export function VersionDetailClient({
     options: ChefDirectionOption[];
     recommendedOptionId: string | null;
     suggestion: SuggestedChange | null;
+    actions: ChefEditAction[];
   }> {
     const recipeContext = {
       title: recipe?.title ?? "Recipe in progress",
@@ -510,6 +638,8 @@ export function VersionDetailClient({
 
     const response = await fetch("/api/ai/chef-chat", {
       method: "POST",
+      credentials: "include",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userMessage,
@@ -544,23 +674,35 @@ export function VersionDetailClient({
         prep_time_min?: number;
         cook_time_min?: number;
         difficulty?: string;
+        notes?: string | null;
       }) | null;
+      actions?: ChefEditAction[];
       error?: boolean;
       message?: string;
     };
     if (!response.ok || data.error) {
+      if (response.status === 401) {
+        throw new Error("Your session expired. Refresh the page and sign in again.");
+      }
       throw new Error(data.message || "Chef chat request failed.");
     }
     if (typeof data.reply !== "string" || data.reply.trim().length === 0) {
       throw new Error("Chef chat returned an empty response.");
     }
 
+    const actions = Array.isArray(data.actions) ? data.actions : [];
+    const deterministicSuggestion = buildSuggestedChangeFromChefActions(userMessage, actions, data.reply.trim());
+
     return {
       mode: data.mode === "options" ? "options" : "refine",
       reply: data.reply.trim(),
       options: Array.isArray(data.options) ? data.options : [],
       recommendedOptionId: typeof data.recommended_option_id === "string" ? data.recommended_option_id : null,
-      suggestion: data.mode === "options" ? null : data.suggestion ? normalizeSuggestedChange(userMessage, data.suggestion) : null,
+      suggestion:
+        data.mode === "options"
+          ? null
+          : deterministicSuggestion ?? (data.suggestion ? normalizeSuggestedChange(userMessage, data.suggestion) : null),
+      actions,
     };
   }
 
@@ -593,6 +735,7 @@ export function VersionDetailClient({
         difficulty: suggestion.difficulty,
         ingredients: suggestion.ingredients,
         steps: suggestion.steps,
+        notes: suggestion.notes ?? null,
         sessionSeed: {
           sourceConversationKey: assistant.conversationKey,
           sourceScope: "recipe_detail",
@@ -730,6 +873,7 @@ export function VersionDetailClient({
         kind: "message",
         options: aiResponse.options,
         recommendedOptionId: aiResponse.recommendedOptionId,
+        chefActions: aiResponse.actions,
       };
       assistant.setAiConversation((current) => [...current, assistantMessage]);
       if (aiResponse.mode === "options" && aiResponse.options.length > 0) {
@@ -754,7 +898,11 @@ export function VersionDetailClient({
         assistant.setAiError(null);
       }
       assistant.setCustomInstruction("");
-    } catch (_error) {
+    } catch (error) {
+      if (error instanceof Error && /session expired|sign in again/i.test(error.message)) {
+        assistant.setAiError(error.message);
+        return;
+      }
       const fallbackReply = buildDeterministicChefReply(instruction);
       const optionsRequest = wantsRecipeDirectionOptions(instruction);
       const assistantMessage: ConversationMessage = {
@@ -822,7 +970,17 @@ export function VersionDetailClient({
 
     let suggestion: SuggestedChange;
     try {
-      suggestion = await requestAiSuggestion(orchestration.normalizedRecipeInstruction);
+      const latestAssistantMessage = [...assistant.aiConversation]
+        .reverse()
+        .find((message) => message.role === "assistant" && Array.isArray(message.chefActions) && message.chefActions.length > 0);
+      suggestion =
+        latestAssistantMessage?.chefActions?.length
+          ? buildSuggestedChangeFromChefActions(
+              orchestration.normalizedRecipeInstruction,
+              latestAssistantMessage.chefActions,
+              latestAssistantMessage.text
+            ) ?? (await requestAiSuggestion(orchestration.normalizedRecipeInstruction))
+          : await requestAiSuggestion(orchestration.normalizedRecipeInstruction);
     } catch (error) {
       assistant.setAiError(
         error instanceof Error ? error.message : "Could not build a recipe update from the latest request."
@@ -1218,6 +1376,53 @@ export function VersionDetailClient({
           </Link>
         )}
       </div>
+      {chefFixFeedback ? (
+        <div className="rounded-[22px] border border-[rgba(79,125,115,0.16)] bg-[rgba(247,252,248,0.96)] px-4 py-3 sm:px-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="app-kicker">Chef Fix applied</p>
+              <p className="mt-2 text-sm leading-6 text-[color:var(--text)]">
+                New version created
+                {typeof chefFixFeedback.oldScore === "number" && typeof chefFixFeedback.newScore === "number" ? (
+                  <>
+                    {" "}with Chef Score moving from <span className="font-semibold">{chefFixFeedback.oldScore}</span> to{" "}
+                    <span className="font-semibold">{chefFixFeedback.newScore}</span>
+                    {typeof chefFixFeedback.delta === "number" ? (
+                      <span className={`ml-2 font-semibold ${chefFixFeedback.delta >= 0 ? "text-[color:var(--primary)]" : "text-red-600"}`}>
+                        {chefFixFeedback.delta >= 0 ? `+${chefFixFeedback.delta}` : chefFixFeedback.delta}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  "."
+                )}
+              </p>
+              {chefFixFeedback.appliedFixes.length > 0 ? (
+                <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[color:var(--muted)]">
+                  {chefFixFeedback.appliedFixes.length} chef change{chefFixFeedback.appliedFixes.length === 1 ? "" : "s"} applied
+                </p>
+              ) : null}
+              {chefFixFeedback.improvedAreas.length > 0 ? (
+                <p className="mt-2 text-sm leading-6 text-[color:var(--text)]">
+                  Biggest gain: <span className="font-semibold">{chefFixFeedback.improvedAreas[0]}</span>
+                </p>
+              ) : null}
+              {chefFixFeedback.regressions.length > 0 ? (
+                <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
+                  Watch area: {chefFixFeedback.regressions.join(", ")}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setChefFixFeedback(null)}
+              className="rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted)] transition hover:bg-[rgba(57,75,70,0.06)] hover:text-[color:var(--text)]"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
       {isMounted
         ? createPortal(
             <button
@@ -1320,7 +1525,7 @@ export function VersionDetailClient({
 
           {rightSidebarMode === "prep" ? (
             <PrepPlanPanel
-              prepPlan={prepPlan}
+              prepPlan={chefAwarePrepPlan}
               completedChecklistIds={completedPrepIds}
               onToggleChecklistItem={(itemId) => {
                 openRightPanelMode("prep");
@@ -1370,6 +1575,8 @@ export function VersionDetailClient({
             topPhotoUrl={topPhotoUrl}
             userId={userId}
             photosWithUrls={photosWithUrls}
+            chefInsights={chefInsights}
+            stepTips={chefIntelligence.stepTips}
             onRenameRecipe={() => void renameRecipe()}
             dishFamilyOptions={DISH_FAMILIES}
             onSaveCategory={(value) => void saveCategoryChoice(value)}
@@ -1427,13 +1634,31 @@ export function VersionDetailClient({
               dishFamily={recipe.dish_family ?? null}
             />
           ) : null}
+          {recipe && version ? (
+            <div className="xl:hidden">
+              <ChefScorePanel
+                recipeId={recipe.id}
+                versionId={version.id}
+                compareBaseVersionId={previousTimelineVersion?.id ?? null}
+                compareBaseLabel={previousTimelineVersion ? `v${previousTimelineVersion.version_number}` : null}
+              />
+            </div>
+          ) : null}
         </div>
 
         <aside className="hidden space-y-4 xl:block xl:sticky xl:top-28 xl:self-start">
+          {recipe && version ? (
+            <ChefScorePanel
+              recipeId={recipe.id}
+              versionId={version.id}
+              compareBaseVersionId={previousTimelineVersion?.id ?? null}
+              compareBaseLabel={previousTimelineVersion ? `v${previousTimelineVersion.version_number}` : null}
+            />
+          ) : null}
           <MetricsPanel prepMinutes={prepMinutes} cookMinutes={cookMinutes} difficulty={difficulty} servings={displayServings || servings} />
           <NutritionPanel facts={nutritionFacts} loading={nutritionLoading} error={nutritionError} onRecalculate={() => fetchNutrition(true)} />
           <PrepPlanPanel
-            prepPlan={prepPlan}
+            prepPlan={chefAwarePrepPlan}
             completedChecklistIds={completedPrepIds}
             onToggleChecklistItem={(itemId) => {
               const completed = !completedPrepIds.includes(itemId);

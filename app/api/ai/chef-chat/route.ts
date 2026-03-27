@@ -18,6 +18,7 @@ import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import { upsertCookingBrief } from "@/lib/ai/briefStore";
 import { mergeCookingBriefs, resolveRecipeSessionBrief } from "@/lib/ai/recipeSessionStore";
 import { createEmptyCookingBrief } from "@/lib/ai/contracts/cookingBrief";
+import { buildChefIntelligence, deriveChefActions } from "@/lib/ai/chefIntelligence";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -235,6 +236,26 @@ export async function POST(request: Request) {
 
     const [result, suggestion] = await Promise.all([chefChatPromise, improveRecipePromise]);
     const envelope = result.envelope;
+    const recipeForChefIntelligence = {
+      title: body.recipeContext?.title ?? body.recipe?.title ?? null,
+      ingredients:
+        body.recipeContext?.ingredients ??
+        body.recipe?.ingredients?.map((item) => (typeof item.name === "string" ? item.name : "")).filter((item) => item.trim().length > 0) ??
+        [],
+      steps:
+        body.recipeContext?.steps ??
+        body.recipe?.steps?.map((item) => (typeof item.text === "string" ? item.text : "")).filter((item) => item.trim().length > 0) ??
+        [],
+    };
+    const chefIntelligence = buildChefIntelligence(recipeForChefIntelligence);
+    const actions =
+      recipeForChefIntelligence.ingredients.length > 0 || recipeForChefIntelligence.steps.length > 0
+        ? deriveChefActions({
+            userMessage,
+            assistantReply: envelope.reply,
+            recipe: recipeForChefIntelligence,
+          })
+        : [];
 
     if (result.repaired) {
       void trackServerEvent(access.supabase, access.userId, "chef_chat_repaired", {
@@ -289,10 +310,10 @@ export async function POST(request: Request) {
             message: envelope.reply,
             metadata_json:
               suggestion
-                ? { suggestion_created: true, envelope, orchestration }
+                ? { suggestion_created: true, envelope, orchestration, actions, chefIntelligence }
                 : envelope.options.length > 0
-                ? { ...envelope, orchestration }
-                : { orchestration },
+                ? { ...envelope, orchestration, actions, chefIntelligence }
+                : { orchestration, actions, chefIntelligence },
           },
         ],
       }).catch((e) => console.error("storeConversationTurns failed", e));
@@ -302,6 +323,8 @@ export async function POST(request: Request) {
       ...(envelope as ChefChatEnvelope),
       suggestion,
       orchestration,
+      actions,
+      chef_intelligence: chefIntelligence,
     });
   } catch (error) {
     console.error("Chef chat route failed", error);
