@@ -440,3 +440,90 @@ test("improveRecipe includes persisted recipe-session constraints in the model p
     delete require.cache[improveRecipePath];
   }
 });
+
+test("improveRecipe falls back to a deterministic ingredient addition when structured output is empty", async () => {
+  const jsonResponsePath = require.resolve("../../lib/ai/jsonResponse");
+  const taskSettingsPath = require.resolve("../../lib/ai/taskSettings");
+  const improveRecipePath = require.resolve("../../lib/ai/improveRecipe");
+
+  const jsonResponseModule = require(jsonResponsePath) as {
+    callAIForJson: CallAiForJson;
+  };
+  const taskSettingsModule = require(taskSettingsPath) as {
+    resolveAiTaskSettings: ResolveAiTaskSettings;
+  };
+  const originalJsonResponseExports = { ...jsonResponseModule };
+  const originalTaskSettingsExports = { ...taskSettingsModule };
+
+  const mockedCallAiForJson = (async () => ({
+    provider: "openrouter",
+    model: "test-model",
+    text: JSON.stringify({
+      title: "Nutty Brownies with Sea Salt",
+      version_label: "With Chunks",
+      explanation: "Add chocolate chunks to the brownie batter.",
+      ingredients: [],
+      steps: [],
+    }),
+    usage: { inputTokens: 10, outputTokens: 10, reasoningTokens: 0, totalTokens: 20, estimatedCostUsd: 0.001 },
+    parsed: {
+      title: "Nutty Brownies with Sea Salt",
+      version_label: "With Chunks",
+      explanation: "Add chocolate chunks to the brownie batter.",
+      ingredients: [],
+      steps: [],
+    },
+  })) as unknown as CallAiForJson;
+
+  const mockedResolveAiTaskSettings = (async () => ({
+    taskKey: "recipe_improvement",
+    label: "Recipe improvement",
+    description: null,
+    enabled: true,
+    maxTokens: 1200,
+    temperature: 0.2,
+    primaryModel: "test-model",
+    fallbackModel: null,
+    updatedAt: new Date().toISOString(),
+    updatedBy: null,
+  })) as unknown as ResolveAiTaskSettings;
+
+  require.cache[jsonResponsePath]!.exports = {
+    ...originalJsonResponseExports,
+    callAIForJson: mockedCallAiForJson,
+  };
+  require.cache[taskSettingsPath]!.exports = {
+    ...originalTaskSettingsExports,
+    resolveAiTaskSettings: mockedResolveAiTaskSettings,
+  };
+
+  try {
+    delete require.cache[improveRecipePath];
+    const { improveRecipe } = require(improveRecipePath) as typeof import("../../lib/ai/improveRecipe");
+
+    const result = await improveRecipe({
+      instruction: "Add chocolate chunks to the recipe.",
+      recipe: {
+        title: "Nutty Brownies with Sea Salt",
+        servings: 9,
+        prep_time_min: 20,
+        cook_time_min: 35,
+        difficulty: "medium",
+        ingredients: [
+          { name: "1 cup sugar" },
+          { name: "1/2 cup cocoa powder" },
+          { name: "2 eggs" },
+        ],
+        steps: [{ text: "Mix the batter until smooth, then pour it into the prepared pan." }],
+      },
+    });
+
+    assert.equal(result.meta.source, "fallback");
+    assert.ok(result.recipe.ingredients.some((ingredient) => /chocolate chunks/i.test(ingredient.name)));
+    assert.ok(result.recipe.steps.some((step) => /chocolate chunks/i.test(step.text)));
+  } finally {
+    require.cache[jsonResponsePath]!.exports = originalJsonResponseExports;
+    require.cache[taskSettingsPath]!.exports = originalTaskSettingsExports;
+    delete require.cache[improveRecipePath];
+  }
+});

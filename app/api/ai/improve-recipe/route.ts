@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { improveRecipe } from "@/lib/ai/improveRecipe";
+import { improveRecipe, ImproveRecipeGenerationError } from "@/lib/ai/improveRecipe";
 import { classifyImproveRecipeError } from "@/lib/ai/improveRecipeError";
+import { AIJsonParseError } from "@/lib/ai/jsonResponse";
 import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { trackServerEvent } from "@/lib/trackServerEvent";
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
     | null = null;
   let sessionBrief: CookingBrief | null = null;
   let previousAttempt: PreviousAttemptSnapshot = null;
+  let debugPayload: unknown = null;
   try {
     const access = await requireAuthenticatedAiAccess({
       route: "improve-recipe",
@@ -163,6 +165,7 @@ export async function POST(request: Request) {
       supabase: access.supabase as SupabaseClient,
       userId: access.userId,
     });
+    debugPayload = result;
 
     await storeGenerationAttempt(access.supabase as SupabaseClient, {
       ownerId: access.userId,
@@ -232,6 +235,12 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Improve recipe route failed", error);
     const classified = classifyImproveRecipeError(error);
+    const rawModelOutput =
+      error instanceof AIJsonParseError
+        ? error.response
+        : error instanceof ImproveRecipeGenerationError
+        ? error.debugPayload
+        : debugPayload;
     if (trackedAccess) {
       if (parsedBody) {
         const conversationKey = getRecipeSessionConversationKey(parsedBody.recipeId);
@@ -298,7 +307,7 @@ export async function POST(request: Request) {
                 brief: sessionBrief,
               }),
             },
-            raw_model_output: null,
+            raw_model_output: rawModelOutput,
             normalized_recipe: null,
             verification: null,
             attempt_number: (previousAttempt?.attemptNumber ?? 0) + 1,
@@ -314,6 +323,7 @@ export async function POST(request: Request) {
         message: error instanceof Error ? error.message : "Unknown error",
         status: classified.status,
         user_message: classified.message,
+        raw_model_output: rawModelOutput,
       });
     }
     return NextResponse.json(

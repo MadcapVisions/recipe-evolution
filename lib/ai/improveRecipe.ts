@@ -11,6 +11,16 @@ import { resolveAiTaskSettings } from "./taskSettings";
 import { normalizeRecipeEditInstruction } from "./recipeOrchestrator";
 import type { CookingBrief } from "./contracts/cookingBrief";
 
+export class ImproveRecipeGenerationError extends Error {
+  debugPayload: unknown;
+
+  constructor(message: string, debugPayload: unknown = null) {
+    super(message);
+    this.name = "ImproveRecipeGenerationError";
+    this.debugPayload = debugPayload;
+  }
+}
+
 type ImproveRecipeInput = {
   instruction: string;
   userTasteSummary?: string;
@@ -30,6 +40,22 @@ type ImproveRecipeCacheContext = {
   supabase: SupabaseClient;
   userId: string;
 };
+
+function normalizeIngredientKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toTitleWords(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 function buildPersistentConstraintBlock(brief: CookingBrief | null | undefined) {
   if (!brief) {
@@ -170,6 +196,52 @@ function extractHardRequiredIngredients(input: ImproveRecipeInput) {
   );
 }
 
+function buildIngredientAdditionFallback(
+  input: ImproveRecipeInput,
+  hardRequiredIngredients: ReturnType<typeof extractHardRequiredIngredients>
+): AiRecipeResult | null {
+  const ingredientToAdd = hardRequiredIngredients[0]?.normalizedName?.trim();
+  if (!ingredientToAdd) {
+    return null;
+  }
+
+  const normalizedRequested = normalizeIngredientKey(ingredientToAdd);
+  if (!normalizedRequested) {
+    return null;
+  }
+
+  const alreadyPresent = input.recipe.ingredients.some((item) => normalizeIngredientKey(item.name).includes(normalizedRequested));
+  const hasMatchingStep = input.recipe.steps.some((item) => normalizeIngredientKey(item.text).includes(normalizedRequested));
+  const recipeText = [input.recipe.title, ...input.recipe.steps.map((item) => item.text)].join(" ").toLowerCase();
+  const defaultStep = /\b(brownie|cake|cookie|muffin|loaf|bake|oven|batter)\b/.test(recipeText)
+    ? `Fold in 1 cup ${ingredientToAdd} just before transferring the batter to the pan.`
+    : `Stir in 1 cup ${ingredientToAdd} during the final cooking steps so the addition stays noticeable.`;
+  const versionWords = toTitleWords(ingredientToAdd).split(/\s+/).slice(0, 3).join(" ");
+
+  return createAiRecipeResult({
+    purpose: "refine",
+    source: "fallback",
+    provider: null,
+    model: null,
+    cached: false,
+    inputHash: null,
+    createdAt: new Date().toISOString(),
+    explanation: `Built with the deterministic fallback recipe editor to add ${ingredientToAdd}.`,
+    version_label: versionWords ? `With ${versionWords}` : "Updated Version",
+    recipe: {
+      title: input.recipe.title,
+      description: null,
+      tags: null,
+      servings: input.recipe.servings,
+      prep_time_min: input.recipe.prep_time_min,
+      cook_time_min: input.recipe.cook_time_min,
+      difficulty: input.recipe.difficulty,
+      ingredients: alreadyPresent ? input.recipe.ingredients : [...input.recipe.ingredients, { name: `1 cup ${ingredientToAdd}` }],
+      steps: hasMatchingStep ? input.recipe.steps : [...input.recipe.steps, { text: defaultStep }],
+    },
+  });
+}
+
 function createCandidateFromParsed(params: {
   parsed: Record<string, unknown>;
   provider: string | null | undefined;
@@ -194,7 +266,7 @@ function createCandidateFromParsed(params: {
       : [],
   };
 
-  if (!validateRecipe(normalizedForValidation)) {
+  if (!validateRecipe(normalizedForValidation) || ingredients.length === 0 || steps.length === 0) {
     return null;
   }
 
@@ -207,39 +279,43 @@ function createCandidateFromParsed(params: {
       ? params.parsed.version_label.trim()
       : null;
 
-  return createAiRecipeResult({
-    purpose: "refine",
-    source: "ai",
-    provider: params.provider,
-    model: params.model ?? params.provider,
-    cached: false,
-    inputHash: params.inputHash,
-    createdAt: new Date().toISOString(),
-    explanation,
-    version_label,
-    recipe: {
-      title,
-      description: null,
-      tags: null,
-      servings:
-        typeof params.parsed.servings === "number" ? params.parsed.servings : params.input.recipe.servings,
-      prep_time_min:
-        typeof params.parsed.prep_time_min === "number"
-          ? params.parsed.prep_time_min
-          : params.input.recipe.prep_time_min,
-      cook_time_min:
-        typeof params.parsed.cook_time_min === "number"
-          ? params.parsed.cook_time_min
-          : params.input.recipe.cook_time_min,
-      difficulty: (() => {
-        const raw = typeof params.parsed.difficulty === "string" ? params.parsed.difficulty.trim() : "";
-        if (!raw) return params.input.recipe.difficulty;
-        return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
-      })(),
-      ingredients,
-      steps,
-    },
-  });
+  try {
+    return createAiRecipeResult({
+      purpose: "refine",
+      source: "ai",
+      provider: params.provider,
+      model: params.model ?? params.provider,
+      cached: false,
+      inputHash: params.inputHash,
+      createdAt: new Date().toISOString(),
+      explanation,
+      version_label,
+      recipe: {
+        title,
+        description: null,
+        tags: null,
+        servings:
+          typeof params.parsed.servings === "number" ? params.parsed.servings : params.input.recipe.servings,
+        prep_time_min:
+          typeof params.parsed.prep_time_min === "number"
+            ? params.parsed.prep_time_min
+            : params.input.recipe.prep_time_min,
+        cook_time_min:
+          typeof params.parsed.cook_time_min === "number"
+            ? params.parsed.cook_time_min
+            : params.input.recipe.cook_time_min,
+        difficulty: (() => {
+          const raw = typeof params.parsed.difficulty === "string" ? params.parsed.difficulty.trim() : "";
+          if (!raw) return params.input.recipe.difficulty;
+          return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+        })(),
+        ingredients,
+        steps,
+      },
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function improveRecipe(
@@ -320,6 +396,7 @@ Rules:
   let improved: AiRecipeResult | null = null;
   let lastError = "";
   let lastCandidate: AiRecipeResult | null = null;
+  let lastDebugPayload: unknown = null;
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const attemptMessages = [
@@ -330,6 +407,15 @@ Rules:
       },
     ];
     const result = await callAIForJson(attemptMessages, aiOptions);
+    lastDebugPayload = {
+      provider: result.provider,
+      model: result.model ?? null,
+      finishReason: result.finishReason ?? null,
+      text: result.text,
+      parsed: result.parsed,
+      usage: result.usage,
+      attempt,
+    };
     const { parsed } = result;
     if (!parsed || typeof parsed !== "object") {
       lastError = "AI returned invalid recipe payload.";
@@ -369,6 +455,16 @@ Rules:
 
     improved = candidate;
     break;
+  }
+
+  if (
+    !improved &&
+    /invalid structured recipe format|invalid recipe payload/i.test(lastError)
+  ) {
+    const deterministicFallback = buildIngredientAdditionFallback(input, hardRequiredIngredients);
+    if (deterministicFallback) {
+      improved = deterministicFallback;
+    }
   }
 
   if (!improved && hardRequiredIngredients.length > 0) {
@@ -419,6 +515,15 @@ Rules:
     ];
 
     const repairResult = await callAIForJson(repairMessages, aiOptions);
+    lastDebugPayload = {
+      provider: repairResult.provider,
+      model: repairResult.model ?? null,
+      finishReason: repairResult.finishReason ?? null,
+      text: repairResult.text,
+      parsed: repairResult.parsed,
+      usage: repairResult.usage,
+      attempt: "repair",
+    };
     const repairedParsed = repairResult.parsed;
     if (repairedParsed && typeof repairedParsed === "object") {
       const repairedCandidate = createCandidateFromParsed({
@@ -444,7 +549,7 @@ Rules:
   }
 
   if (!improved) {
-    throw new Error(lastError || "Recipe improvement failed after retry.");
+    throw new ImproveRecipeGenerationError(lastError || "Recipe improvement failed after retry.", lastDebugPayload);
   }
 
   if (cacheContext && inputHash) {
