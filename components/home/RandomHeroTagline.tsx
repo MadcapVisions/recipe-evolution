@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 const TAGLINES = [
-  { id: "dinner-decided", copy: "Dinner, Decided." },
-  { id: "turn-what-you-have", copy: "Turn What You Have Into Something Great." },
-  { id: "stop-guessing", copy: "Stop Guessing What To Cook." },
+  { id: "talk-your-way", copy: "Talk your way to a better meal." },
+  { id: "create-smarter", copy: "Create smarter meals with Max." },
+  { id: "craving-to-recipe", copy: "From craving to recipe, with Max." },
 ] as const;
 
 export function RandomHeroTagline() {
@@ -17,12 +17,9 @@ export function RandomHeroTagline() {
         {selection.copy}
       </h1>
       <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[19px] sm:leading-8">
-        <span className="font-semibold text-[color:var(--landing-ink)]">
-          <span className="tracking-[0.16em]">AI</span>
-          <span>cook</span>
-        </span>{" "}
-        turns the ingredients you already have into personalized meal ideas, step-by-step recipes, and dinner plans you
-        will actually want to make.
+        Start with a craving, ingredient, or constraint.{" "}
+        <span className="font-semibold text-[color:var(--landing-ink)]">Max</span>{" "}
+        helps you shape the dish, build the recipe, plan your week, and generate the shopping list.
       </p>
     </div>
   );

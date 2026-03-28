@@ -3,96 +3,122 @@ import Link from "next/link";
 import { RandomHeroTagline } from "@/components/home/RandomHeroTagline";
 
 const benefitStrip = [
-  "Cook from ingredients already in your kitchen",
-  "Get meals matched to your taste, time, and goals",
-  "Cut the nightly what-should-we-eat spiral",
+  "Start with a craving, ingredient, or constraint",
+  "Max helps shape the dish conversationally",
+  "Recipe, plan, and grocery list in one place",
 ];
 
 const heroHighlights = [
-  "Uses what is in your fridge",
-  "Ready in 25 minutes",
-  "High protein options",
+  "25 min weeknight-friendly",
+  "High-protein options",
+  "Add to your weekly plan",
 ];
 
 const heroQuickProof = [
-  { value: "3 taps", label: "from ingredients to dinner ideas" },
-  { value: "25 min", label: "weeknight target" },
-  { value: "Zero guesswork", label: "when dinner feels stalled" },
+  { value: "Conversational", label: "shape the dish before building it" },
+  { value: "Full recipe", label: "built from your exact direction" },
+  { value: "Plan + list", label: "extend into a week and grocery run" },
+];
+
+const entryModes = [
+  {
+    title: "Start with a craving",
+    description: "Something cozy, spicy, fast, or a little elevated.",
+  },
+  {
+    title: "Start with ingredients",
+    description: "Chicken, spinach, lemons, leftover rice, half a carton of cream.",
+  },
+  {
+    title: "Start with constraints",
+    description: "High protein, vegetarian, kid-friendly, no cilantro, under 30 minutes.",
+  },
 ];
 
 const steps = [
   {
     step: "01",
-    title: "Add what you have",
-    description: "Drop in ingredients, leftovers, cravings, or guardrails like time, protein goals, and dietary preferences.",
+    title: "Tell Max what you want",
+    description: "Start with a dish idea, craving, ingredient, or constraint.",
   },
   {
     step: "02",
-    title: "Get meal ideas that fit",
-    description: "AIcook turns your kitchen reality into recipes that feel tailored instead of generic or impossible.",
+    title: "Shape the meal together",
+    description: "Refine flavor, ingredients, effort, and timing until it feels right.",
   },
   {
     step: "03",
-    title: "Cook with confidence",
-    description: "Follow a guided recipe, save the good ones, and build a smarter personal rotation over time.",
+    title: "Turn it into a plan",
+    description: "Save the recipe, add it to your week, and generate the grocery list.",
   },
 ];
 
 const showcaseSections = [
   {
-    kicker: "Pantry-aware",
-    title: "Use what is already in your kitchen.",
+    kicker: "More personalized than browsing",
+    title: "Start with what you actually want.",
     description:
-      "Turn produce, leftovers, and half-finished staples into meals that feel intentional instead of improvised.",
-    bullets: ["Reduce waste without eating boring clean-out meals", "Unlock combinations based on what you actually own"],
+      "Not a blank search bar or a generic suggestion engine. Bring a craving, an ingredient, or a constraint — Max meets you there.",
+    bullets: [
+      "Describe a mood, dish idea, or leftover ingredient",
+      "Chef shapes the meal with you before it becomes a recipe",
+    ],
     imageSrc: "/assets/homepage_photos/full meal.jpg",
     imageAlt: "Temporary homepage photo showing a full plated meal",
   },
   {
-    kicker: "Taste-matched",
-    title: "Get meals that fit real life.",
+    kicker: "More flexible than fixed recipes",
+    title: "Adjust flavor, timing, and goals before you commit.",
     description:
-      "Filter for time, effort, household preferences, and nutrition goals so dinner feels useful on a Tuesday, not just inspirational.",
-    bullets: ["Smart suggestions for quick dinners, picky households, and macro goals", "Less browsing, more deciding"],
+      "Max helps you refine ingredient choices, timing, technique, and dietary goals through conversation — not after the fact.",
+    bullets: [
+      "Change the flavor profile, swap an ingredient, or tighten the timing",
+      "No locked-in recipe to fight against",
+    ],
     imageSrc: "/assets/homepage_photos/tuna dish.jpg",
     imageAlt: "Temporary homepage photo showing a tuna dish",
   },
   {
-    kicker: "Built to repeat",
-    title: "Keep the winners on repeat.",
+    kicker: "More useful than inspiration alone",
+    title: "Turn ideas into real recipes, plans, and lists.",
     description:
-      "Save favorites, revisit the meals that work, and let your home cooking get better instead of starting from zero every night.",
-    bullets: ["Build a personal bench of reliable go-to meals", "Turn one good dinner into a weekly habit"],
+      "Once the dish feels right, MealMax doesn't stop at inspiration. Save it as a recipe, plan it into your week, and generate the full grocery list.",
+    bullets: [
+      "Save every version to your personal cookbook",
+      "One tap from recipe to meal plan to grocery list",
+    ],
     imageSrc: "/assets/homepage_photos/dish_side_view.jpg",
     imageAlt: "Temporary homepage photo showing a plated dish from the side",
   },
 ];
 
 const scenarios = [
-  "Busy weeknights",
-  "Fridge clean-out dinners",
+  "Weeknight cravings",
+  "Ingredient-led ideas",
   "High-protein goals",
-  "Budget-conscious cooking",
+  "Vegetarian meals",
   "Picky households",
-  "Beginner-friendly meals",
+  "Beginner-friendly",
+  "Under 30 minutes",
+  "Budget-conscious",
 ];
 
 const features = [
   {
-    title: "Ingredient-first suggestions",
-    description: "Start with what you have, not a blank search bar.",
+    title: "Elevated by default",
+    description: "Max helps turn rough ideas into meals that feel intentional, balanced, and worth making.",
   },
   {
-    title: "Personalized meal filters",
-    description: "Match recipes to prep time, mood, nutrition, and household constraints.",
+    title: "Built around real life",
+    description: "Refine for time, dietary needs, available ingredients, and household preferences.",
   },
   {
-    title: "Guided cooking flow",
-    description: "Move from idea to finished dish without losing momentum in the kitchen.",
+    title: "Ready to use",
+    description: "When the dish feels right, save it as a recipe, plan it into your week, and generate your list.",
   },
   {
-    title: "Favorites that get smarter",
-    description: "Keep the meals you love and shape a rotation that reflects how you actually cook.",
+    title: "Smarter over time",
+    description: "Max learns your taste preferences and refines suggestions the more you cook.",
   },
 ];
 
@@ -112,9 +138,9 @@ const testimonials = [
 ];
 
 const stats = [
-  { value: "25 min", label: "Average weeknight dinner target" },
-  { value: "3 taps", label: "From ingredients to tailored meal ideas" },
-  { value: "1 kitchen", label: "A smarter system built around your real habits" },
+  { value: "Conversational", label: "shape the dish before it becomes a recipe" },
+  { value: "Full stack", label: "recipe, meal plan, and grocery list in one flow" },
+  { value: "Personalized", label: "built around your taste, time, and goals" },
 ];
 
 export default function HomePage() {
@@ -125,8 +151,8 @@ export default function HomePage() {
         <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.82fr)] lg:gap-12 lg:p-10">
           <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="landing-pill">Chef Utility, with appetite</span>
-              <span className="landing-pill landing-pill-warm">Personalized meal ideas from your kitchen</span>
+              <span className="landing-pill">Your AI cooking partner</span>
+              <span className="landing-pill landing-pill-warm">AI meal creation, planning, and shopping</span>
             </div>
 
             <div className="mt-8">
@@ -135,10 +161,10 @@ export default function HomePage() {
 
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/sign-up" className="landing-btn landing-btn-primary">
-                Start Cooking
+                Start with Max
               </Link>
               <Link href="#how-it-works" className="landing-btn landing-btn-secondary">
-                See How It Works
+                See how it works
               </Link>
             </div>
 
@@ -174,43 +200,51 @@ export default function HomePage() {
               </div>
 
               <div className="landing-ui-card">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="app-kicker">Tonight in AIcook</p>
-                    <p className="mt-2 text-[20px] font-semibold leading-tight text-[color:var(--landing-ink)] sm:text-[26px]">
-                      Lemon basil chicken pasta
-                    </p>
-                  </div>
-                  <span className="landing-score">95% match</span>
-                </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  <div className="landing-ui-panel">
-                    <p className="app-kicker">You have</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {["Chicken", "Pasta", "Spinach", "Garlic", "Lemon"].map((item) => (
-                        <span key={item} className="landing-ui-tag">
-                          {item}
-                        </span>
-                      ))}
+                <div>
+                  <p className="app-kicker">Chef session</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-end">
+                      <div className="max-w-[88%] rounded-[18px] bg-[color:var(--landing-accent)] px-4 py-2 text-[13px] leading-5 text-white">
+                        I want something bright, quick, and weeknight-friendly with chicken.
+                      </div>
+                    </div>
+                    <div className="flex justify-start">
+                      <div className="max-w-[88%] rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] px-4 py-2 text-[13px] leading-5 text-[color:var(--landing-ink)]">
+                        Go lemon basil chicken pasta, or keep it lighter with one-pan herby chicken and blistered tomatoes. Cozy, fresh, or high-protein?
+                      </div>
                     </div>
                   </div>
-                  <div className="landing-ui-panel">
-                    <p className="app-kicker">Why it fits</p>
-                    <ul className="mt-3 space-y-2 text-[14px] leading-6 text-[color:var(--landing-ink)]">
-                      <li>Weeknight-friendly steps</li>
-                      <li>Uses what is already open</li>
-                      <li>Bright, high-protein finish</li>
-                    </ul>
-                  </div>
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {heroHighlights.map((item) => (
-                    <span key={item} className="landing-ui-badge">
-                      {item}
+                <div className="mt-4 rounded-[16px] border border-[rgba(74,106,96,0.15)] bg-[rgba(247,250,248,0.97)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[16px] font-semibold leading-tight text-[color:var(--landing-ink)]">
+                        Lemon Basil Chicken Pasta
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-[color:var(--landing-muted)]">
+                        <span>25 min</span>
+                        <span>·</span>
+                        <span>Fits your preferences</span>
+                      </div>
+                    </div>
+                    <span className="landing-score">Best pick</span>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {heroHighlights.map((item) => (
+                      <span key={item} className="landing-ui-badge">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <span className="rounded-full border border-[rgba(74,106,96,0.2)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[color:var(--landing-ink)]">
+                      Add to plan
                     </span>
-                  ))}
+                    <span className="rounded-full bg-[color:var(--landing-accent)] px-3 py-1.5 text-[12px] font-semibold text-white">
+                      Build recipe
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -218,14 +252,37 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="landing-section">
+        <div className="max-w-3xl">
+          <p className="app-kicker">Start anywhere</p>
+          <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
+            Start anywhere. Max takes it from there.
+          </h2>
+          <p className="mt-4 text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[18px] sm:leading-8">
+            There is no wrong starting point. Max works with whatever you bring.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          {entryModes.map((mode) => (
+            <article key={mode.title} className="landing-feature-card">
+              <h3 className="text-[20px] font-semibold leading-tight text-[color:var(--landing-ink)] sm:text-[24px]">
+                {mode.title}
+              </h3>
+              <p className="mt-3 text-[16px] leading-7 text-[color:var(--landing-muted)]">{mode.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section id="how-it-works" className="landing-section">
         <div className="max-w-3xl">
           <p className="app-kicker">How it works</p>
           <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
-            From fridge to dinner in 3 steps.
+            From idea to recipe in 3 steps.
           </h2>
           <p className="mt-4 text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[18px] sm:leading-8">
-            The flow is built for real-life cooking: fewer tabs, fewer dead-end ideas, and faster decisions.
+            Max helps you shape the meal before it becomes the recipe. No guesswork, no dead-end searches.
           </p>
         </div>
 
@@ -261,14 +318,14 @@ export default function HomePage() {
       <section className="landing-section">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
           <div>
-            <p className="app-kicker">Built for real-life cooking</p>
+            <p className="app-kicker">Not just recipe search</p>
             <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
-              A smarter dinner workflow, not another recipe rabbit hole.
+              Actual meal shaping.
             </h2>
           </div>
           <div className="landing-note">
             <p className="text-[16px] leading-7 text-[color:var(--landing-ink)]">
-              Product-led where it matters, editorial where it counts. The page should prove utility without losing appetite.
+              Max helps you shape the meal before you commit to it — adjusting flavor, effort, ingredients, and goals through conversation.
             </p>
           </div>
         </div>
@@ -309,12 +366,24 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="landing-section">
+        <div className="max-w-3xl">
+          <p className="app-kicker">Planning</p>
+          <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
+            Turn one good idea into a full week.
+          </h2>
+          <p className="mt-4 text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[18px] sm:leading-8">
+            When you find meals that fit, MealMax can turn them into a weekly plan and build your grocery list automatically.
+          </p>
+        </div>
+      </section>
+
       <section className="landing-section overflow-hidden">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.68fr)]">
           <div>
-            <p className="app-kicker">Why people keep using it</p>
+            <p className="app-kicker">Why it&apos;s better</p>
             <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
-              Less waste. Less decision fatigue. More meals worth repeating.
+              Smarter meal creation, not just recipe browsing.
             </h2>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {features.map((feature) => (
@@ -353,9 +422,9 @@ export default function HomePage() {
       <section className="landing-section">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
           <div className="landing-proof">
-            <p className="app-kicker">Proof points</p>
+            <p className="app-kicker">What you get</p>
             <h2 className="mt-3 font-display text-[24px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[40px]">
-              Clear value before the first scroll is over.
+              The full loop, in one place.
             </h2>
             <div className="mt-6 grid gap-3">
               {stats.map((item) => (
@@ -372,7 +441,7 @@ export default function HomePage() {
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               {testimonials.map((item) => (
                 <article key={item.name} className="landing-testimonial">
-                  <p className="text-[16px] leading-7 text-[color:var(--landing-ink)] sm:text-[18px] sm:leading-8">”{item.quote}”</p>
+                  <p className="text-[16px] leading-7 text-[color:var(--landing-ink)] sm:text-[18px] sm:leading-8">"{item.quote}"</p>
                   <p className="mt-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-[color:var(--landing-muted)]">
                     {item.name}
                   </p>
@@ -396,14 +465,14 @@ export default function HomePage() {
         <div className="landing-cta-copy">
           <p className="app-kicker text-white/80">Ready when dinner gets complicated</p>
           <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-white sm:text-[42px]">
-            Open the fridge. We&apos;ll take it from there.
+            Start with a craving. End with a plan.
           </h2>
           <p className="mt-4 max-w-2xl text-[16px] leading-7 text-white/82 sm:text-[18px] sm:leading-8">
-            AIcook helps you turn ingredients, cravings, and constraints into meals you will actually want to make tonight.
+            Tell Max what you want to make. Get an elevated recipe, a meal plan, and a grocery list in minutes.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link href="/sign-up" className="landing-btn landing-btn-cta">
-              Start Cooking
+              Start with Max
             </Link>
             <Link href="/pricing" className="landing-btn landing-btn-ghost">
               See Plans

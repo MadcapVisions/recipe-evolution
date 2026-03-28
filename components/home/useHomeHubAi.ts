@@ -1002,6 +1002,10 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
         modelAnchorType: option.primary_anchor_type ?? null,
       })
     );
+    setHeroChatMessages((prev) => [
+      ...prev,
+      { role: "ai", text: `Selection applied — "${option.title}" is locked in. Refine it further or build the recipe when you're ready.`, kind: "direction_selected" },
+    ]);
     setHeroChatReadyToApply(true);
     setError(null);
     setTransientStatus("Direction selected. Refine it or build the recipe when ready.");
