@@ -148,18 +148,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // Start chefChat immediately (slow AI call).
-    const chefChatPromise = chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
-
-    // If a suggestion is needed, run ownership checks (fast DB queries) then kick off
-    // improveRecipe while chefChat is still in flight so both AI calls overlap.
-    let improveRecipePromise: Promise<Record<string, unknown> | null> = Promise.resolve(null);
+    // If a suggestion is needed, run ownership checks (fast DB queries) before starting any
+    // AI calls. This prevents abandoned in-flight AI calls on 403 ownership failures.
+    let ownedVersion: {
+      id: string;
+      ingredients_json?: unknown;
+      steps_json?: unknown;
+      servings?: unknown;
+      prep_time_min?: unknown;
+      cook_time_min?: unknown;
+      difficulty?: unknown;
+    } | null = null;
     if (body.includeSuggestion && orchestration.shouldIncludeSuggestion) {
       const recipeId = body.recipeId!.trim();
       const versionId = body.versionId!.trim();
-      const recipe = body.recipe!;
 
-      const [{ data: ownedRecipe, error: recipeError }, { data: ownedVersion, error: versionError }] = await Promise.all([
+      const [{ data: ownedRecipe, error: recipeError }, { data: ownedVersionData, error: versionError }] = await Promise.all([
         access.supabase
           .from("recipes")
           .select("id")
@@ -174,22 +178,27 @@ export async function POST(request: Request) {
           .maybeSingle(),
       ]);
 
-      if (recipeError || versionError || !ownedRecipe || !ownedVersion) {
+      if (recipeError || versionError || !ownedRecipe || !ownedVersionData) {
         return NextResponse.json({ error: true, message: "Recipe not found or access denied." }, { status: 403 });
       }
 
+      ownedVersion = ownedVersionData;
+    }
+
+    // Start both AI calls now — ownership is confirmed, no more early returns after this point.
+    const chefChatPromise = chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
+
+    let improveRecipePromise: Promise<Record<string, unknown> | null> = Promise.resolve(null);
+    if (body.includeSuggestion && orchestration.shouldIncludeSuggestion && ownedVersion) {
+      const recipe = body.recipe!;
       const requestIngredients = recipe.ingredients!
         .map((item) => ({ name: typeof item.name === "string" ? item.name.trim() : "" }))
         .filter((item) => item.name.length > 0);
       const requestSteps = recipe.steps!
         .map((item) => ({ text: typeof item.text === "string" ? item.text.trim() : "" }))
         .filter((item) => item.text.length > 0);
-      const persistedIngredients = readCanonicalIngredients(
-        (ownedVersion as { ingredients_json?: unknown } | null)?.ingredients_json ?? null
-      );
-      const persistedSteps = readCanonicalSteps(
-        (ownedVersion as { steps_json?: unknown } | null)?.steps_json ?? null
-      );
+      const persistedIngredients = readCanonicalIngredients(ownedVersion.ingredients_json ?? null);
+      const persistedSteps = readCanonicalSteps(ownedVersion.steps_json ?? null);
       const effectiveIngredients = requestIngredients.length > 0 ? requestIngredients : persistedIngredients;
       const effectiveSteps = requestSteps.length > 0 ? requestSteps : persistedSteps;
 
@@ -202,26 +211,26 @@ export async function POST(request: Request) {
           servings:
             typeof recipe.servings === "number"
               ? recipe.servings
-              : typeof (ownedVersion as { servings?: unknown } | null)?.servings === "number"
-              ? ((ownedVersion as { servings?: number }).servings ?? null)
+              : typeof ownedVersion.servings === "number"
+              ? (ownedVersion.servings ?? null)
               : null,
           prep_time_min:
             typeof recipe.prep_time_min === "number"
               ? recipe.prep_time_min
-              : typeof (ownedVersion as { prep_time_min?: unknown } | null)?.prep_time_min === "number"
-              ? ((ownedVersion as { prep_time_min?: number }).prep_time_min ?? null)
+              : typeof ownedVersion.prep_time_min === "number"
+              ? (ownedVersion.prep_time_min ?? null)
               : null,
           cook_time_min:
             typeof recipe.cook_time_min === "number"
               ? recipe.cook_time_min
-              : typeof (ownedVersion as { cook_time_min?: unknown } | null)?.cook_time_min === "number"
-              ? ((ownedVersion as { cook_time_min?: number }).cook_time_min ?? null)
+              : typeof ownedVersion.cook_time_min === "number"
+              ? (ownedVersion.cook_time_min ?? null)
               : null,
           difficulty:
             typeof recipe.difficulty === "string"
               ? recipe.difficulty
-              : typeof (ownedVersion as { difficulty?: unknown } | null)?.difficulty === "string"
-              ? ((ownedVersion as { difficulty?: string }).difficulty ?? null)
+              : typeof ownedVersion.difficulty === "string"
+              ? (ownedVersion.difficulty ?? null)
               : null,
           ingredients: effectiveIngredients,
           steps: effectiveSteps,

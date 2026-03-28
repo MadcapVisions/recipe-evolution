@@ -50,7 +50,7 @@ void (async () => {
   const deps = buildGenerationDeps();
 
   // Monkey-patch callPlannerModel to capture output
-  let plannerAttempts: Array<{ attempt: number; ingredients: Array<{ name: string; classes: string[] }> }> = [];
+  const plannerAttempts: Array<{ attempt: number; ingredients: Array<{ name: string; classes: string[] }> }> = [];
   let plannerCallCount = 0;
   const origPlanner = deps.callPlannerModel;
   deps.callPlannerModel = async (payload) => {

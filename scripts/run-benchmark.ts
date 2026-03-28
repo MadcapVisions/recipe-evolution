@@ -247,6 +247,7 @@ function ensureOutputDir(): void {
 function appendEvent(event: Record<string, unknown>): void {
   try {
     const line = JSON.stringify({ ts: new Date().toISOString(), ...event }) + "\n";
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { appendFileSync } = require("fs") as typeof import("fs");
     appendFileSync(join(outputBase, "events.jsonl"), line, "utf-8");
   } catch {

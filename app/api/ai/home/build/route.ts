@@ -24,7 +24,6 @@ import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { orchestrateRecipeGeneration } from "@/lib/ai/recipeGenerationOrchestrator";
 import { buildGenerationDeps } from "@/lib/ai/repairAdapters";
-import { normalizeDietaryTags } from "@/lib/ai/normalizeDietaryTags";
 import { analyzeHomeBuildRequest, buildAttemptOrchestrationState } from "@/lib/ai/recipeOrchestrator";
 import {
   mapToLaunchDecision,
@@ -38,73 +37,11 @@ import {
   collectReasons,
 } from "@/lib/ai/runIssueCollector";
 import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
+import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSchema";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
   content: z.string(),
-});
-
-const lockedSessionSchema = z.object({
-  conversation_key: z.string(),
-  state: z.enum(["exploring", "direction_locked", "ready_to_build", "building", "built"]),
-  selected_direction: z
-    .object({
-      id: z.string(),
-      title: z.string(),
-      summary: z.string(),
-      tags: z.array(z.string()),
-    })
-    .nullable(),
-  refinements: z.array(
-    z.object({
-      user_text: z.string(),
-      assistant_text: z.string().nullable(),
-      confidence: z.number(),
-      ambiguity_reason: z.string().nullable(),
-      ambiguous_notes: z.array(z.string()).optional(),
-      distilled_intents: z
-        .object({
-          ingredient_additions: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
-          ingredient_preferences: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
-          ingredient_removals: z.array(z.object({ label: z.string(), canonical_key: z.string() })),
-        })
-        .optional(),
-      extracted_changes: z.object({
-        required_ingredients: z.array(z.string()),
-        preferred_ingredients: z.array(z.string()),
-        forbidden_ingredients: z.array(z.string()),
-        style_tags: z.array(z.string()),
-        notes: z.array(z.string()),
-      }),
-      field_state: z.object({
-        ingredients: z.enum(["locked", "inferred", "unknown"]),
-        style: z.enum(["locked", "inferred", "unknown"]),
-        notes: z.enum(["locked", "inferred", "unknown"]),
-      }),
-    })
-  ),
-  brief_snapshot: z.any().nullable(),
-  // Invalid or partial objects (e.g. stale client, empty {}) fall back to null via .catch(null)
-  // so the session degrades to legacy reconstruction rather than throwing a 500.
-  build_spec: z
-    .object({
-      dish_family: z.string().nullable(),
-      display_title: z.string(),
-      build_title: z.string(),
-      primary_anchor_type: z.enum(["dish", "protein", "ingredient", "format"]).nullable(),
-      primary_anchor_value: z.string().nullable(),
-      required_ingredients: z.array(z.string()),
-      forbidden_ingredients: z.array(z.string()),
-      style_tags: z.array(z.string()),
-      must_preserve_format: z.boolean(),
-      confidence: z.number(),
-      derived_at: z.literal("lock_time"),
-      dish_family_source: z.enum(["model", "inferred"]).optional().default("inferred"),
-      anchor_source: z.enum(["model", "inferred", "none"]).optional().default("none"),
-    })
-    .nullable()
-    .optional()
-    .catch(null),
 });
 
 const buildRequestSchema = z.object({
@@ -183,7 +120,7 @@ export async function POST(request: Request) {
   const relaxIngredients: string[] = Array.isArray(body.relaxRequiredNamedIngredients)
     ? body.relaxRequiredNamedIngredients.filter((s): s is string => typeof s === "string")
     : [];
-  const simplifyRequest = body.simplifyRequest === true;
+  const _simplifyRequest = body.simplifyRequest === true;
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : undefined;
   const ingredients = Array.isArray(body.ingredients)
     ? body.ingredients.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
@@ -596,9 +533,20 @@ export async function POST(request: Request) {
           throw new Error("Recipe build loop completed without a verified result.");
         }
 
-        // Shadow: run new generation orchestrator in parallel when macroTargets are set.
+        send({ type: "status", message: "Recipe is ready.", stage: "recipe_verify" });
+        const successDecision = mapToLaunchDecision({
+          issueCodes: issueCollector.codes,
+          plannerRetries: issueCollector.plannerRetries,
+          repairAttempts: issueCollector.repairAttempts,
+          usedFallback: issueCollector.usedFallback,
+          reasons: issueCollector.reasons,
+          requiredNamedIngredientNames: issueCollector.requiredNamedIngredientNames,
+        });
+        send({ type: "result", result, launchDecision: successDecision });
+
+        // Shadow: run new generation orchestrator fire-and-forget for all builds.
         // Does NOT affect the served result — used only to collect telemetry for comparison.
-        if (effectiveBrief.constraints.macroTargets) {
+        void (async () => {
           try {
             const shadowAiOptions = {
               max_tokens: taskSetting.maxTokens,
@@ -615,28 +563,23 @@ export async function POST(request: Request) {
                 availableIngredients: effectiveBrief.ingredients.required,
                 preferredIngredients: effectiveBrief.ingredients.preferred,
                 forbiddenIngredients: effectiveBrief.ingredients.forbidden,
-                macroTargets: effectiveBrief.constraints.macroTargets,
+                macroTargets: effectiveBrief.constraints.macroTargets ?? null,
                 servings: effectiveBrief.constraints.servings ?? null,
                 creativityMode: "safe",
                 requestId: `shadow_${access.userId}_${Date.now()}`,
               },
               buildGenerationDeps(shadowAiOptions)
             );
-            send({
-              type: "debug",
-              label: "generation_orchestrator_telemetry",
-              data: {
-                shadow: true,
-                status: shadowResult.status,
-                success: shadowResult.success,
-                dishFamily: shadowResult.dishFamily?.key ?? null,
-                telemetry: shadowResult.telemetry.summary,
-              },
+            console.log("[shadow-orchestrator]", {
+              status: shadowResult.status,
+              success: shadowResult.success,
+              dishFamily: shadowResult.dishFamily?.key ?? null,
+              telemetry: shadowResult.telemetry.summary,
             });
           } catch {
             // shadow failure never affects the served result
           }
-        }
+        })();
 
         if (conversationKey) {
           if (lockedSession?.selected_direction) {
@@ -710,17 +653,6 @@ export async function POST(request: Request) {
             },
           });
         }
-
-        send({ type: "status", message: "Recipe is ready.", stage: "recipe_verify" });
-        const successDecision = mapToLaunchDecision({
-          issueCodes: issueCollector.codes,
-          plannerRetries: issueCollector.plannerRetries,
-          repairAttempts: issueCollector.repairAttempts,
-          usedFallback: issueCollector.usedFallback,
-          reasons: issueCollector.reasons,
-          requiredNamedIngredientNames: issueCollector.requiredNamedIngredientNames,
-        });
-        send({ type: "result", result, launchDecision: successDecision });
       } catch (error) {
         const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
         if (conversationKey && !terminalFailureStored) {

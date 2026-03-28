@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Require hook: makes 'server-only' a no-op when running outside Next.js.
  * Used by eval/benchmark scripts that call server-side AI code directly.

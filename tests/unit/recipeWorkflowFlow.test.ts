@@ -20,7 +20,7 @@ function createMockSupabase() {
   const versions = new Map<string, Record<string, unknown>>();
 
   const makeChain = (table: string) => {
-    let filters: Record<string, unknown> = {};
+    const filters: Record<string, unknown> = {};
     let sortColumn: string | null = null;
     let sortAscending = true;
     let rowLimit: number | null = null;

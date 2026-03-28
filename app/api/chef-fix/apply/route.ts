@@ -28,8 +28,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: true, message: "Invalid fix apply request." }, { status: 400 });
   }
 
-  const generated = await generateAndPersistChefFixes(supabase, user.id, parsed.data.recipe_version_id, parsed.data.mode);
-  const version = await getOwnedRecipeVersion(supabase, user.id, parsed.data.recipe_version_id);
+  const [generated, version] = await Promise.all([
+    generateAndPersistChefFixes(supabase, user.id, parsed.data.recipe_version_id, parsed.data.mode),
+    getOwnedRecipeVersion(supabase, user.id, parsed.data.recipe_version_id),
+  ]);
   if (!generated || !version) {
     return NextResponse.json({ error: true, message: "Recipe version not found." }, { status: 404 });
   }
