@@ -1,10 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { RandomHeroTagline } from "@/components/home/RandomHeroTagline";
 
 const heroHighlights = [
-  "25 min weeknight-friendly",
-  "High-protein options",
+  "25 min but polished",
+  "Creamy, bright, and flexible",
   "Add to your weekly plan",
 ];
 
@@ -176,18 +175,27 @@ export default function HomePage() {
     <div className="landing-page mx-auto max-w-[1380px] space-y-8">
       <section className="landing-hero relative overflow-hidden">
         <div className="landing-grid absolute inset-0 opacity-60" />
-        <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.82fr)] lg:gap-12 lg:p-10">
-          <div className="flex h-full flex-col">
+        <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,0.88fr)_minmax(460px,1.12fr)] lg:items-center lg:gap-12 lg:p-10">
+          <div className="landing-hero-copy flex h-full flex-col">
             <div className="flex flex-wrap items-center gap-3">
               <span className="landing-pill landing-pill-warm">AI meal creation, planning, and shopping</span>
             </div>
 
             <div className="mt-8">
-              <RandomHeroTagline />
+              <div className="space-y-4">
+                <h1 className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.92] tracking-[-0.045em] text-[color:var(--landing-ink)] sm:text-[54px] lg:text-[84px]">
+                  Shape dinner with taste, not guesswork.
+                </h1>
+                <p className="max-w-[35rem] text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[19px] sm:leading-8">
+                  Start with a craving, an ingredient, or a few constraints.{" "}
+                  <span className="font-semibold text-[color:var(--landing-ink)]">Max</span>{" "}
+                  helps you refine the dish before it becomes the recipe, then turns it into a plan and shopping list.
+                </p>
+              </div>
             </div>
 
-            <p className="mt-4 text-[16px] font-medium text-[color:var(--landing-muted)] sm:text-[18px]">
-              No more &ldquo;what should we eat?&rdquo;
+            <p className="mt-4 text-[16px] font-medium tracking-[-0.01em] text-[color:var(--landing-muted)] sm:text-[18px]">
+              Fewer dead-end searches. More dinners you actually want to make.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -199,7 +207,7 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {heroFeatureProof.map((item) => (
                 <div key={item.title} className="landing-feature-proof-card">
                   <p className="text-[15px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.title}</p>
@@ -213,61 +221,46 @@ export default function HomePage() {
             <div className="landing-photo-shell">
               <div className="landing-photo-hero">
                 <Image
-                  src="/assets/homepage_photos/homepage.jpg"
-                  alt="Temporary homepage hero image"
+                  src="/assets/homepage_photos/creamy_shrimp_pasta.jpg"
+                  alt="Creamy shrimp pasta plated for the MealMax homepage hero"
                   fill
                   priority
                   unoptimized
                   className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 42vw"
+                  sizes="(max-width: 1024px) 100vw, 52vw"
                 />
               </div>
 
               <div className="landing-ui-card">
                 <div>
                   <p className="app-kicker">Max in action</p>
-                  <div className="mt-3 space-y-2">
-                    <div className="flex justify-end">
-                      <div className="max-w-[88%] rounded-[18px] bg-[color:var(--landing-accent)] px-4 py-2 text-[13px] leading-5 text-white">
-                        I want something bright, quick, and weeknight-friendly with chicken.
-                      </div>
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-[18px] bg-[color:var(--landing-accent)] px-4 py-2.5 text-[13px] leading-5 text-white">
+                      Creamy, bright shrimp pasta. Feels a little special, still weeknight-manageable.
                     </div>
-                    <div className="flex justify-start">
-                      <div className="max-w-[88%] rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] px-4 py-2 text-[13px] leading-5 text-[color:var(--landing-ink)]">
-                        Go lemon basil chicken pasta, or keep it lighter with one-pan herby chicken and blistered tomatoes. Cozy, fresh, or high-protein?
-                      </div>
+                    <div className="rounded-[18px] border border-[rgba(57,75,70,0.08)] bg-[rgba(250,248,242,0.94)] px-4 py-2.5 text-[13px] leading-5 text-[color:var(--landing-ink)]">
+                      Max turns that brief into a polished recipe, weekly plan, and grocery list.
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-[16px] border border-[rgba(74,106,96,0.15)] bg-[rgba(247,250,248,0.97)] p-4">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {heroHighlights.map((item) => (
+                    <span key={item} className="landing-ui-badge">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-[16px] border border-[rgba(74,106,96,0.15)] bg-[rgba(247,250,248,0.97)] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[16px] font-semibold leading-tight text-[color:var(--landing-ink)]">
-                        Lemon Basil Chicken Pasta
+                      <p className="text-[15px] font-semibold leading-tight text-[color:var(--landing-ink)]">
+                        Creamy Lemon Shrimp Pasta
                       </p>
-                      <div className="mt-1.5 flex items-center gap-2 text-[12px] text-[color:var(--landing-muted)]">
-                        <span>25 min</span>
-                        <span>·</span>
-                        <span>Fits your preferences</span>
-                      </div>
+                      <p className="mt-1 text-[12px] text-[color:var(--landing-muted)]">25 min · Best pick for tonight</p>
                     </div>
                     <span className="landing-score">Best pick</span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {heroHighlights.map((item) => (
-                      <span key={item} className="landing-ui-badge">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <span className="rounded-full border border-[rgba(74,106,96,0.2)] bg-white px-3 py-1.5 text-[12px] font-semibold text-[color:var(--landing-ink)]">
-                      Add to plan
-                    </span>
-                    <span className="rounded-full bg-[color:var(--landing-accent)] px-3 py-1.5 text-[12px] font-semibold text-white">
-                      Build recipe
-                    </span>
                   </div>
                 </div>
               </div>
