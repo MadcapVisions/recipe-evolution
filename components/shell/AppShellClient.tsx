@@ -268,7 +268,7 @@ export function AppShellClient({
     <AppShellContext.Provider value={contextValue}>
       <div className="min-h-screen">
         <header className="fixed inset-x-0 top-0 z-50 border-b border-[rgba(142,84,60,0.08)] bg-[linear-gradient(180deg,rgba(252,245,237,0.96)_0%,rgba(248,239,230,0.9)_100%)] shadow-[0_10px_28px_rgba(101,47,29,0.05)] backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-1.5 sm:px-6 lg:px-10 lg:py-2">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-3 py-1 sm:px-6 lg:px-10">
             <button
               type="button"
               onClick={() => setNavOpen(true)}
@@ -278,17 +278,14 @@ export function AppShellClient({
               <span className="text-xl leading-none">☰</span>
             </button>
 
-            <Link
-              href="/"
-              className="inline-flex shrink-0 items-center rounded-full border border-[rgba(142,84,60,0.08)] bg-[rgba(255,249,243,0.78)] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_8px_18px_rgba(101,47,29,0.05)]"
-            >
+            <Link href="/" className="inline-flex shrink-0 items-center">
               <Image
                 src="/assets/mealmaxer_logo.png"
                 alt="MealMaxer"
                 width={460}
                 height={88}
                 priority
-                className="h-[2.8rem] w-auto opacity-90 min-[380px]:h-[3rem] sm:h-[3.5rem] lg:h-[4rem]"
+                className="h-[3.4rem] w-auto opacity-90 min-[380px]:h-[3.6rem] sm:h-[4.2rem] lg:h-[4.8rem]"
               />
             </Link>
 

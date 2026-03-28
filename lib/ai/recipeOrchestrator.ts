@@ -71,19 +71,33 @@ export function analyzeHomeBuildRequest(input: {
   selectedDirectionLocked?: boolean;
   retryMode?: string | null;
 }): HomeBuildAnalysis {
-  const normalizedPrompt = input.prompt?.trim() || input.ideaTitle.trim();
+  const trimmedPrompt = input.prompt?.trim() ?? "";
+  const normalizedPrompt = trimmedPrompt || input.ideaTitle.trim();
+  const promptTurnAnalysis = trimmedPrompt
+    ? analyzeRecipeTurn({
+        userMessage: trimmedPrompt,
+        selectedDirectionLocked: input.selectedDirectionLocked,
+        hasRecipeContext: input.selectedDirectionLocked,
+      })
+    : null;
+  const canBuild = normalizedPrompt.length > 0 && (trimmedPrompt ? promptTurnAnalysis?.canBuildLatestRequest !== false : true);
 
   return {
     intent: "build_recipe",
     action: "build_recipe",
-    canBuild: normalizedPrompt.length > 0,
+    canBuild,
     normalizedBuildPrompt: normalizedPrompt,
     requestModeHint: input.selectedDirectionLocked
       ? input.retryMode
         ? "revise"
         : "locked"
       : "generate",
-    reason: normalizedPrompt.length > 0 ? null : "A recipe build needs a dish title or prompt.",
+    reason:
+      normalizedPrompt.length === 0
+        ? "A recipe build needs a dish title or prompt."
+        : !canBuild && trimmedPrompt
+        ? promptTurnAnalysis?.reason ?? "This looks like a recipe question, not a build instruction."
+        : null,
   };
 }
 

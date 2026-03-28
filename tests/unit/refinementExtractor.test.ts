@@ -69,6 +69,16 @@ test("extractRefinementDelta strips conversational filler from required ingredie
   assert.equal(result.extracted_changes.required_ingredients.includes("white beans to this"), false);
 });
 
+test("extractRefinementDelta ignores explanatory question fragments when extracting required ingredients", () => {
+  const result = extractRefinementDelta({
+    userText: "can I add red wine and what is gremolata",
+    assistantText: "Red wine works well here; gremolata is a parsley, garlic, and lemon garnish.",
+  });
+
+  assert.ok(result.extracted_changes.required_ingredients.includes("red wine"));
+  assert.ok(!result.extracted_changes.required_ingredients.includes("what is gremolata"));
+});
+
 test("extractRefinementDelta maps semantic style changes into structured tags", () => {
   const result = extractRefinementDelta({
     userText: "make it feel authentic and a bit heartier",

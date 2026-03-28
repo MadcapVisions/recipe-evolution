@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   analyzeRecipeTurn,
+  analyzeHomeBuildRequest,
   normalizeRecipeEditInstruction,
   wantsRecipeDirectionOptions,
 } from "../../lib/ai/recipeOrchestrator";
@@ -67,4 +68,46 @@ test("analyzeRecipeTurn keeps short fragments in clarify mode when there is no r
 test("wantsRecipeDirectionOptions detects option-seeking prompts", () => {
   assert.equal(wantsRecipeDirectionOptions("give me 3 options for this"), true);
   assert.equal(wantsRecipeDirectionOptions("make this spicier"), false);
+});
+
+test("analyzeHomeBuildRequest blocks pure recipe-process questions from the build path", () => {
+  const analysis = analyzeHomeBuildRequest({
+    ideaTitle: "Osso Buco",
+    prompt: "what temperature should I braise this at?",
+    selectedDirectionLocked: true,
+  });
+
+  assert.equal(analysis.canBuild, false);
+  assert.match(analysis.reason ?? "", /recipe question/i);
+});
+
+test("analyzeHomeBuildRequest blocks substitution questions that are still reply-only", () => {
+  const analysis = analyzeHomeBuildRequest({
+    ideaTitle: "Chicken Tinga",
+    prompt: "can I substitute greek yogurt for sour cream?",
+    selectedDirectionLocked: true,
+  });
+
+  assert.equal(analysis.canBuild, false);
+});
+
+test("analyzeHomeBuildRequest blocks equipment questions from the build path", () => {
+  const analysis = analyzeHomeBuildRequest({
+    ideaTitle: "Osso Buco",
+    prompt: "can I cook this in a Dutch oven?",
+    selectedDirectionLocked: true,
+  });
+
+  assert.equal(analysis.canBuild, false);
+});
+
+test("analyzeHomeBuildRequest still allows direct edit instructions in locked flows", () => {
+  const analysis = analyzeHomeBuildRequest({
+    ideaTitle: "Banana Bread Pudding",
+    prompt: "make it in a slow cooker",
+    selectedDirectionLocked: true,
+  });
+
+  assert.equal(analysis.canBuild, true);
+  assert.equal(analysis.normalizedBuildPrompt, "make it in a slow cooker");
 });

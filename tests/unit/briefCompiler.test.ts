@@ -152,3 +152,21 @@ test("compileCookingBrief sanitizes conversational ingredient phrases before the
   assert.deepEqual(brief.ingredients.required, ["white beans"]);
   assert.ok(!brief.directives.must_have.includes("white beans to this"));
 });
+
+test("compileCookingBrief does not convert explanatory questions into hard ingredient requirements", () => {
+  const brief = compileCookingBrief({
+    userMessage: "Can I add some red wine and tomato pulpa, what is gremolata",
+    conversationHistory: [
+      { role: "user", content: "Let's make osso buco in my cast iron skillet." },
+    ],
+  });
+
+  assert.ok(brief.ingredients.required.includes("red wine"));
+  assert.ok(brief.ingredients.required.includes("tomato pulpa"));
+  assert.ok(!brief.ingredients.required.includes("what is gremolata"));
+  assert.ok(
+    !(brief.ingredients.requiredNamedIngredients ?? []).some(
+      (ingredient) => ingredient.normalizedName === "what is gremolata"
+    )
+  );
+});

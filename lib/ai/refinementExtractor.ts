@@ -2,6 +2,7 @@ import type { BriefFieldState } from "./contracts/cookingBrief";
 import type { LockedDirectionRefinement } from "./contracts/lockedDirectionSession";
 import type { ResolvedIngredientIntent } from "./ingredientResolutionTypes";
 import { buildDistilledIngredientIntent } from "./ingredientCanonicalization";
+import { isQuestionLikeIngredientCandidate } from "./ingredientConstraintGuard";
 import { parseIngredientPhrase } from "./ingredientParsing";
 import { resolveIngredientPhrase } from "./ingredientResolver";
 import { isHardConstraintConfident, isSoftPreferenceConfident } from "./ingredientResolutionPolicy";
@@ -45,8 +46,16 @@ function extractDelimitedIngredients(text: string) {
 }
 
 function cleanIngredientCandidate(value: string) {
+  if (isQuestionLikeIngredientCandidate(value)) {
+    return null;
+  }
+
   const cleaned = parseIngredientPhrase(value);
   if (!cleaned) {
+    return null;
+  }
+
+  if (isQuestionLikeIngredientCandidate(cleaned)) {
     return null;
   }
 

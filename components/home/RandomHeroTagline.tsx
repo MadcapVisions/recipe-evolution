@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const TAGLINES = [
   { id: "talk-your-way", copy: "Talk your way to a better meal." },
@@ -9,7 +9,11 @@ const TAGLINES = [
 ] as const;
 
 export function RandomHeroTagline() {
-  const [selection] = useState(() => TAGLINES[Math.floor(Math.random() * TAGLINES.length)] ?? TAGLINES[0]);
+  const [selection, setSelection] = useState<(typeof TAGLINES)[number]>(TAGLINES[0]);
+
+  useEffect(() => {
+    setSelection(TAGLINES[Math.floor(Math.random() * TAGLINES.length)] ?? TAGLINES[0]);
+  }, []);
 
   return (
     <div className="space-y-4" data-tagline-id={selection.id}>

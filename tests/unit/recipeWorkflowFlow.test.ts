@@ -337,3 +337,15 @@ test("home build analysis normalizes the build instruction through the shared or
   assert.equal(analysis.requestModeHint, "locked");
   assert.equal(analysis.normalizedBuildPrompt, "make it in a slow cooker");
 });
+
+test("home build analysis rejects reply-only cooking questions when a prompt is supplied", () => {
+  const analysis = analyzeHomeBuildRequest({
+    ideaTitle: "Osso Buco",
+    prompt: "do I need to sear it first?",
+    selectedDirectionLocked: true,
+    retryMode: null,
+  });
+
+  assert.equal(analysis.canBuild, false);
+  assert.match(analysis.reason ?? "", /recipe question/i);
+});

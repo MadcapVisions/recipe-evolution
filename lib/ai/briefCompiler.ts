@@ -2,6 +2,7 @@ import type { AIMessage, RecipeContext } from "./chatPromptBuilder";
 import { createEmptyCookingBrief, type CookingBrief } from "./contracts/cookingBrief";
 import type { LockedDirectionSession } from "./contracts/lockedDirectionSession";
 import { sanitizeCookingBriefIngredients } from "./briefSanitization";
+import { isQuestionLikeIngredientCandidate } from "./ingredientConstraintGuard";
 import { parseIngredientPhrase } from "./ingredientParsing";
 import { deriveIdeaTitleFromConversationContext, detectRequestedDishFamily } from "./homeRecipeAlignment";
 import { deriveBriefRequestMode } from "./briefStateMachine";
@@ -125,8 +126,10 @@ function splitIngredientCandidates(value: string) {
   return value
     .split(/,|\band\b/gi)
     .map((item) => item.trim().replace(/^with\s+/i, ""))
+    .filter((item) => !isQuestionLikeIngredientCandidate(item))
     .map((item) => parseIngredientPhrase(item))
     .filter((item): item is string => Boolean(item))
+    .filter((item) => !isQuestionLikeIngredientCandidate(item))
     .filter((item) => item.split(/\s+/).length <= 4)
     .filter((item) => {
       const normalized = normalizeText(item);

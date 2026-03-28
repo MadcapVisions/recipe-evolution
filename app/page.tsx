@@ -2,22 +2,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { RandomHeroTagline } from "@/components/home/RandomHeroTagline";
 
-const benefitStrip = [
-  "Start with a craving, ingredient, or constraint",
-  "Max helps shape the dish conversationally",
-  "Recipe, plan, and grocery list in one place",
-];
-
 const heroHighlights = [
   "25 min weeknight-friendly",
   "High-protein options",
   "Add to your weekly plan",
 ];
 
-const heroQuickProof = [
-  { value: "Conversational", label: "shape the dish before building it" },
-  { value: "Full recipe", label: "built from your exact direction" },
-  { value: "Plan + list", label: "extend into a week and grocery run" },
+const heroFeatureProof = [
+  {
+    title: "Shape the meal first",
+    subtitle: "Refine the dish before committing to a recipe",
+  },
+  {
+    title: "Build real recipes",
+    subtitle: "From your exact direction, not generic ideas",
+  },
+  {
+    title: "Plan and shop instantly",
+    subtitle: "Turn meals into weekly plans and grocery lists",
+  },
 ];
 
 const entryModes = [
@@ -143,6 +146,31 @@ const stats = [
   { value: "Personalized", label: "built around your taste, time, and goals" },
 ];
 
+const maxOutputMeals = [
+  { name: "Lemon Basil Chicken Pasta", time: "25 min", tags: ["High protein", "Weeknight"] },
+  { name: "Smoky Black Bean Tacos", time: "20 min", tags: ["Vegetarian", "Quick"] },
+  { name: "Ginger Sesame Salmon Bowl", time: "30 min", tags: ["High protein", "Gluten-free"] },
+];
+
+const maxOutputWeekPlan = [
+  { day: "Mon", meal: "Lemon Basil Chicken" },
+  { day: "Tue", meal: "Black Bean Tacos" },
+  { day: "Wed", meal: "Salmon Bowl" },
+  { day: "Thu", meal: "Leftover night" },
+  { day: "Fri", meal: "Open slot" },
+];
+
+const maxOutputGrocery = [
+  "Chicken thighs · 1.5 lb",
+  "Fresh basil · 1 bunch",
+  "Pasta · 12 oz",
+  "Lemons · 3",
+  "Black beans · 2 cans",
+  "Corn tortillas · 1 pack",
+  "Salmon fillets · 2",
+  "Sesame oil · small bottle",
+];
+
 export default function HomePage() {
   return (
     <div className="landing-page mx-auto max-w-[1380px] space-y-8">
@@ -151,13 +179,16 @@ export default function HomePage() {
         <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.02fr)_minmax(380px,0.82fr)] lg:gap-12 lg:p-10">
           <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="landing-pill">Your AI cooking partner</span>
               <span className="landing-pill landing-pill-warm">AI meal creation, planning, and shopping</span>
             </div>
 
             <div className="mt-8">
               <RandomHeroTagline />
             </div>
+
+            <p className="mt-4 text-[16px] font-medium text-[color:var(--landing-muted)] sm:text-[18px]">
+              No more &ldquo;what should we eat?&rdquo;
+            </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/sign-up" className="landing-btn landing-btn-primary">
@@ -169,18 +200,10 @@ export default function HomePage() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {heroQuickProof.map((item) => (
-                <div key={item.value} className="landing-proof-chip">
-                  <p className="text-[17px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.value}</p>
-                  <p className="mt-1 text-[13px] leading-5 text-[color:var(--landing-muted)]">{item.label}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              {benefitStrip.map((item) => (
-                <div key={item} className="landing-chip-card">
-                  {item}
+              {heroFeatureProof.map((item) => (
+                <div key={item.title} className="landing-feature-proof-card">
+                  <p className="text-[15px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.title}</p>
+                  <p className="mt-1.5 text-[13px] leading-5 text-[color:var(--landing-muted)]">{item.subtitle}</p>
                 </div>
               ))}
             </div>
@@ -194,6 +217,7 @@ export default function HomePage() {
                   alt="Temporary homepage hero image"
                   fill
                   priority
+                  unoptimized
                   className="object-cover"
                   sizes="(max-width: 1024px) 100vw, 42vw"
                 />
@@ -201,7 +225,7 @@ export default function HomePage() {
 
               <div className="landing-ui-card">
                 <div>
-                  <p className="app-kicker">Chef session</p>
+                  <p className="app-kicker">Max in action</p>
                   <div className="mt-3 space-y-2">
                     <div className="flex justify-end">
                       <div className="max-w-[88%] rounded-[18px] bg-[color:var(--landing-accent)] px-4 py-2 text-[13px] leading-5 text-white">
@@ -306,12 +330,67 @@ export default function HomePage() {
                   }
                   alt={item.title}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="(max-width: 1024px) 100vw, 30vw"
                 />
               </div>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="landing-section">
+        <div className="max-w-3xl">
+          <p className="app-kicker">See what Max creates</p>
+          <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
+            One conversation. Three meals, a plan, and a list.
+          </h2>
+          <p className="mt-4 text-[16px] leading-7 text-[color:var(--landing-muted)] sm:text-[18px] sm:leading-8">
+            Tell Max what you want this week. Here&apos;s what comes out the other side.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          {maxOutputMeals.map((meal) => (
+            <article key={meal.name} className="landing-output-meal-card">
+              <p className="text-[17px] font-semibold leading-tight text-[color:var(--landing-ink)]">{meal.name}</p>
+              <p className="mt-1.5 text-[13px] text-[color:var(--landing-muted)]">{meal.time}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {meal.tags.map((tag) => (
+                  <span key={tag} className="rounded-full border border-[rgba(74,106,96,0.16)] bg-white px-3 py-1 text-[12px] font-medium text-[color:var(--landing-ink)]">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]">
+          <div className="landing-output-plan-card">
+            <p className="app-kicker mb-3">Weekly plan</p>
+            <div className="space-y-2">
+              {maxOutputWeekPlan.map((entry) => (
+                <div key={entry.day} className="flex items-center gap-3">
+                  <span className="w-8 shrink-0 text-[12px] font-semibold uppercase tracking-[0.14em] text-[color:var(--landing-muted)]">{entry.day}</span>
+                  <span className="text-[14px] text-[color:var(--landing-ink)]">{entry.meal}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="landing-output-grocery-card">
+            <p className="app-kicker mb-3">Grocery list</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {maxOutputGrocery.map((item) => (
+                <div key={item} className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--landing-accent)]" />
+                  <span className="text-[13px] leading-5 text-[color:var(--landing-ink)]">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -357,6 +436,7 @@ export default function HomePage() {
                   src={section.imageSrc}
                   alt={section.imageAlt}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="(max-width: 1024px) 100vw, 44vw"
                 />
@@ -401,6 +481,7 @@ export default function HomePage() {
                 src="/assets/homepage_photos/3 vairous dishes.jpg"
                 alt="Temporary homepage photo showing several dishes"
                 fill
+                unoptimized
                 className="object-cover"
                 sizes="(max-width: 1024px) 100vw, 30vw"
               />
@@ -458,6 +539,7 @@ export default function HomePage() {
             src="/assets/homepage_photos/woman eating dinner.jpg"
             alt="Temporary homepage lifestyle photo of a woman eating dinner"
             fill
+            unoptimized
             className="object-cover"
             sizes="100vw"
           />
