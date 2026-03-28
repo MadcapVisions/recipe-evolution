@@ -225,7 +225,7 @@ export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile, grace
       if (generatingRecipe || lower.includes("full recipe") || lower.includes("building")) {
         message = "Building dish...";
       } else {
-        message = "Chef is refining...";
+        message = "Max is refining...";
       }
     } else if (lower.includes("choose a direction") || lower.includes("select a direction")) {
       message = "Directions ready";

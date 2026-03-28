@@ -388,119 +388,12 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     if (typeof window === "undefined") {
       return;
     }
-
-    const storedConversationKey = window.localStorage.getItem(HOME_HUB_CONVERSATION_KEY_STORAGE);
-    if (storedConversationKey?.trim()) {
-      conversationKeyRef.current = storedConversationKey.trim();
-    } else {
-      window.localStorage.setItem(HOME_HUB_CONVERSATION_KEY_STORAGE, conversationKeyRef.current);
-    }
-
-    const rawMessages = window.localStorage.getItem(HOME_HUB_MESSAGES_STORAGE);
-    if (rawMessages) {
-      try {
-        const parsed = JSON.parse(rawMessages) as ChatMessage[];
-        if (Array.isArray(parsed)) {
-          setHeroChatMessages(
-            parsed.filter(
-              (item): item is ChatMessage =>
-                (item?.role === "user" || item?.role === "ai") &&
-                typeof item?.text === "string" &&
-                (item?.kind === undefined || item.kind === "message" || item.kind === "direction_selected")
-            )
-          );
-        }
-      } catch {
-        setHeroChatMessages([]);
-      }
-    }
-
-    const rawSelectedDirection = window.localStorage.getItem(HOME_HUB_SELECTED_DIRECTION_STORAGE);
-    if (rawSelectedDirection) {
-      try {
-        const parsed = JSON.parse(rawSelectedDirection) as SelectedChefDirection;
-        if (
-          typeof parsed?.replyIndex === "number" &&
-          typeof parsed?.optionId === "string" &&
-          typeof parsed?.title === "string" &&
-          typeof parsed?.summary === "string" &&
-          Array.isArray(parsed?.tags)
-        ) {
-          setSelectedChefDirection({
-            ...parsed,
-            tags: parsed.tags.filter((tag): tag is string => typeof tag === "string"),
-          });
-        }
-      } catch {
-        setSelectedChefDirection(null);
-      }
-    }
-
-    const rawLockedSession = window.localStorage.getItem(HOME_HUB_LOCKED_SESSION_STORAGE);
-    if (rawLockedSession) {
-      try {
-        const parsed = JSON.parse(rawLockedSession) as LockedDirectionSession;
-        if (
-          typeof parsed?.conversation_key === "string" &&
-          typeof parsed?.state === "string" &&
-          Array.isArray(parsed?.refinements)
-        ) {
-          setLockedSession(parsed);
-        }
-      } catch {
-        setLockedSession(null);
-      }
-    }
-
-    const conversationKey = conversationKeyRef.current;
-    const hydrationThread = threadIdentityRef.current;
-    const controller = new AbortController();
-    hydrationAbortRef.current = controller;
-    void (async () => {
-      try {
-        const response = await fetch(`/api/ai/home?conversationKey=${encodeURIComponent(conversationKey)}`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          return;
-        }
-        const data = (await response.json()) as {
-          messages?: ChatMessage[];
-          lockedSession?: LockedDirectionSession | null;
-        };
-        const serverMessages = Array.isArray(data.messages) ? data.messages : [];
-        const serverLockedSession = data.lockedSession ?? null;
-
-        if (
-          controller.signal.aborted ||
-          threadIdentityRef.current !== hydrationThread ||
-          conversationKeyRef.current !== conversationKey
-        ) {
-          return;
-        }
-
-        if (serverMessages.length > 0) {
-          setHeroChatMessages(serverMessages);
-          setHeroChatReadyToApply(true);
-        }
-        if (serverLockedSession?.selected_direction) {
-          setLockedSession(serverLockedSession);
-          setSelectedChefDirection(deriveSelectedDirectionFromSession(serverMessages, serverLockedSession));
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-        // Keep local state if rehydration fails.
-      }
-    })();
-
-    return () => {
-      controller.abort();
-      if (hydrationAbortRef.current === controller) {
-        hydrationAbortRef.current = null;
-      }
-    };
+    // Always start fresh on page load — clear any persisted session state.
+    conversationKeyRef.current = createConversationKey();
+    window.localStorage.setItem(HOME_HUB_CONVERSATION_KEY_STORAGE, conversationKeyRef.current);
+    window.localStorage.removeItem(HOME_HUB_MESSAGES_STORAGE);
+    window.localStorage.removeItem(HOME_HUB_SELECTED_DIRECTION_STORAGE);
+    window.localStorage.removeItem(HOME_HUB_LOCKED_SESSION_STORAGE);
   }, []);
 
   useEffect(() => {
@@ -514,6 +407,12 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       hydrationAbortRef.current?.abort();
       chatAbortRef.current?.abort();
       buildAbortRef.current?.abort();
+      // Clear persisted session state when user leaves the create page.
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(HOME_HUB_MESSAGES_STORAGE);
+        window.localStorage.removeItem(HOME_HUB_SELECTED_DIRECTION_STORAGE);
+        window.localStorage.removeItem(HOME_HUB_LOCKED_SESSION_STORAGE);
+      }
     };
   }, []);
 

@@ -53,32 +53,32 @@ function getStatusPresentation(input: { loading: boolean; generatingRecipe: bool
 
   if (input.generatingRecipe) {
     let stageLabel = "Building recipe";
-    let waitMessage = "Chef is assembling the final recipe. Stay here while the build finishes.";
+    let waitMessage = "Max is assembling the final recipe. Stay here while the build finishes.";
 
     if (normalized.includes("understanding")) {
       stageLabel = "Understanding your request";
-      waitMessage = "Chef is locking the dish direction before writing the recipe.";
+      waitMessage = "Max is locking the dish direction before writing the recipe.";
     } else if (normalized.includes("planning")) {
       stageLabel = "Planning the recipe";
-      waitMessage = "Chef is mapping the structure, ingredients, and technique.";
+      waitMessage = "Max is mapping the structure, ingredients, and technique.";
     } else if (normalized.includes("writing")) {
       stageLabel = "Writing the recipe";
-      waitMessage = "Chef is drafting the full recipe now.";
+      waitMessage = "Max is drafting the full recipe now.";
     } else if (normalized.includes("retrying")) {
       stageLabel = "Retrying";
-      waitMessage = "Chef is making another attempt at the recipe.";
+      waitMessage = "Max is making another attempt at the recipe.";
     } else if (normalized.includes("trying a different")) {
       stageLabel = "Trying a different approach";
-      waitMessage = "Chef is switching strategies to get you a better result.";
+      waitMessage = "Max is switching strategies to get you a better result.";
     } else if (normalized.includes("checking")) {
       stageLabel = "Checking the recipe";
-      waitMessage = "Chef is verifying that the recipe still matches your selected direction.";
+      waitMessage = "Max is verifying that the recipe still matches your selected direction.";
     } else if (normalized.includes("saving")) {
       stageLabel = "Saving your recipe";
-      waitMessage = "Chef finished the recipe. Saving it to your cookbook now.";
+      waitMessage = "Max finished the recipe. Saving it to your cookbook now.";
     } else if (normalized.includes("tightening")) {
       stageLabel = "Tightening constraints";
-      waitMessage = "Chef is correcting drift and rebuilding with stricter constraints.";
+      waitMessage = "Max is correcting drift and rebuilding with stricter constraints.";
     }
 
     return {
@@ -91,9 +91,9 @@ function getStatusPresentation(input: { loading: boolean; generatingRecipe: bool
 
   if (input.loading) {
     return {
-      kicker: "Chef is working",
+      kicker: "Max is working",
       stageLabel: "Refining the direction",
-      waitMessage: "Chef is thinking through your request. Give it a moment.",
+      waitMessage: "Max is thinking through your request. Give it a moment.",
       toneClass: "border-[rgba(181,123,77,0.14)] bg-[rgba(255,246,237,0.96)] text-[color:var(--text)]",
     };
   }
@@ -294,12 +294,12 @@ export function HomeHeroPanel({
       >
           <div className="space-y-4">
             <div className="space-y-3">
-              <p className="app-kicker">Your personal Chef</p>
+              <p className="app-kicker">Meet Max</p>
               <h1 className="font-display text-[24px] font-semibold leading-[0.98] tracking-tight text-[color:var(--text)] min-[480px]:text-[36px] sm:text-[52px] lg:text-[60px]">
-                What do you feel like cooking tonight?
+                What should Max help you make tonight?
               </h1>
               <p className="max-w-2xl text-[16px] leading-7 text-[color:var(--muted)] sm:text-[18px] sm:leading-8">
-                Bring a craving, ingredient, or constraint. Chef helps you shape the dish before it becomes a saved recipe in your cookbook.
+                Start with a craving, ingredient, or constraint. Max helps you shape the dish before turning it into a recipe, plan, or shopping list.
               </p>
             </div>
 
@@ -488,7 +488,7 @@ export function HomeHeroPanel({
                 {loading ? (
                   <div className="flex justify-start">
                     <div className="rounded-[22px] border border-[rgba(181,123,77,0.14)] bg-[rgba(255,246,237,0.96)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)]">
-                      Chef is refining your direction. Hold on.
+                      Max is refining your direction. Hold on.
                     </div>
                   </div>
                 ) : null}
@@ -572,7 +572,7 @@ export function HomeHeroPanel({
             disabled={loading || generatingRecipe}
             className="w-full rounded-full bg-[color:var(--primary)] px-5 py-3.5 text-[16px] font-semibold text-white transition hover:bg-[color:var(--primary-strong)] disabled:opacity-60"
           >
-            {loading ? "Chef is thinking..." : generatingRecipe ? "Building your dish..." : "Ask Chef"}
+            {loading ? "Max is thinking..." : generatingRecipe ? "Building your dish..." : "Ask Max"}
           </button>
         </div>
 
@@ -580,9 +580,9 @@ export function HomeHeroPanel({
           <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.1)] bg-[rgba(255,255,255,0.82)] px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[color:var(--primary)]" />
-              <p className="text-sm font-semibold text-[color:var(--text)]">Chef is working on your request.</p>
+              <p className="text-sm font-semibold text-[color:var(--text)]">Max is working on your request.</p>
             </div>
-            <p className="mt-1 text-sm text-[color:var(--muted)]">Wait for Chef to finish refining before sending another message.</p>
+            <p className="mt-1 text-sm text-[color:var(--muted)]">Wait for Max to finish refining before sending another message.</p>
           </div>
         ) : null}
         {!heroChatReadyToApply && !hasConversation && !error && !buildFailureState && !loading ? (
@@ -673,7 +673,7 @@ export function HomeHeroPanel({
         {/* ── Latency guardrail ─────────────────────────────────────────── */}
         {generatingRecipe && isBuildLong ? (
           <div className="mt-3 rounded-[20px] border border-[rgba(57,75,70,0.06)] bg-[rgba(255,255,255,0.7)] px-4 py-3">
-            <p className="text-[13px] text-[color:var(--muted)]">This is taking a bit longer than usual. Chef is still working — hang tight.</p>
+            <p className="text-[13px] text-[color:var(--muted)]">This is taking a bit longer than usual. Max is still working — hang tight.</p>
           </div>
         ) : null}
 
