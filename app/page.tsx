@@ -194,7 +194,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <p className="mt-4 text-[16px] font-medium tracking-[-0.01em] text-[color:var(--landing-muted)] sm:text-[18px]">
+            <p className="mt-4 hidden text-[16px] font-medium tracking-[-0.01em] text-[color:var(--landing-muted)] sm:block sm:text-[18px]">
               Fewer dead-end searches. More dinners you actually want to make.
             </p>
 
@@ -207,7 +207,7 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <div className="mt-7 hidden gap-3 sm:grid sm:grid-cols-3">
               {heroFeatureProof.map((item) => (
                 <div key={item.title} className="landing-feature-proof-card">
                   <p className="text-[15px] font-semibold leading-tight text-[color:var(--landing-ink)]">{item.title}</p>
@@ -269,7 +269,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section hidden lg:block">
         <div className="max-w-3xl">
           <p className="app-kicker">Start anywhere</p>
           <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
@@ -312,7 +312,7 @@ export default function HomePage() {
               </div>
               <h3 className="mt-5 text-[20px] font-semibold leading-tight text-[color:var(--landing-ink)] sm:text-[28px]">{item.title}</h3>
               <p className="mt-3 text-[16px] leading-7 text-[color:var(--landing-muted)]">{item.description}</p>
-              <div className="landing-step-image mt-6">
+              <div className="landing-step-image mt-6 hidden lg:block">
                 <Image
                   src={
                     index === 0
@@ -333,7 +333,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section hidden lg:block">
         <div className="max-w-3xl">
           <p className="app-kicker">See what Max creates</p>
           <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
@@ -387,7 +387,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section hidden lg:block">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
           <div>
             <p className="app-kicker">Not just recipe search</p>
@@ -439,7 +439,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="landing-section">
+      <section className="landing-section hidden lg:block">
         <div className="max-w-3xl">
           <p className="app-kicker">Planning</p>
           <h2 className="mt-3 font-display text-[26px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[42px]">
@@ -468,7 +468,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="landing-aside-panel">
+          <div className="landing-aside-panel hidden lg:block">
             <div className="landing-aside-image">
               <Image
                 src="/assets/homepage_photos/3 vairous dishes.jpg"
@@ -495,7 +495,7 @@ export default function HomePage() {
 
       <section className="landing-section">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
-          <div className="landing-proof">
+          <div className="landing-proof hidden lg:block">
             <p className="app-kicker">What you get</p>
             <h2 className="mt-3 font-display text-[24px] font-semibold tracking-[-0.04em] text-[color:var(--landing-ink)] sm:text-[40px]">
               The full loop, in one place.
@@ -513,8 +513,8 @@ export default function HomePage() {
           <div>
             <p className="app-kicker">Why home cooks keep coming back</p>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
-              {testimonials.map((item) => (
-                <article key={item.name} className="landing-testimonial">
+              {testimonials.map((item, index) => (
+                <article key={item.name} className={`landing-testimonial${index > 0 ? " hidden sm:block" : ""}`}>
                   <p className="text-[16px] leading-7 text-[color:var(--landing-ink)] sm:text-[18px] sm:leading-8">"{item.quote}"</p>
                   <p className="mt-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-[color:var(--landing-muted)]">
                     {item.name}
