@@ -5,6 +5,7 @@ export const RECIPE_BUILD_FAILURE_KINDS = [
   "invalid_payload",
   "structural_validation_failed",
   "generation_failed",
+  "input_conflict",
 ] as const;
 
 export type RecipeBuildFailureKind = (typeof RECIPE_BUILD_FAILURE_KINDS)[number];
@@ -72,6 +73,8 @@ export function getRecipeBuildFailureDetails(error: unknown, fallbackMessage = "
         ? "parse_failed"
         : error.kind === "structural_validation_failed"
         ? "schema_failed"
+        : error.kind === "input_conflict"
+        ? "blocked"
         : "generation_failed",
     } as const;
   }

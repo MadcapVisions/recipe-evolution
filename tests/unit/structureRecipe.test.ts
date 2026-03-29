@@ -69,9 +69,11 @@ test("structureRecipeFromRawText salvages an invalid payload through the adjudic
   const originalTaskSettingsExports = { ...taskSettingsModule };
 
   let callCount = 0;
+  const capturedPrompts: string[] = [];
 
-  const mockedCallAiForJson = (async () => {
+  const mockedCallAiForJson = (async (messages: Array<{ content: string }>) => {
     callCount += 1;
+    capturedPrompts.push(messages.map((message) => message.content ?? "").join("\n\n"));
 
     if (callCount === 1) {
       return {
@@ -176,12 +178,18 @@ test("structureRecipeFromRawText salvages an invalid payload through the adjudic
       supabase: createSupabaseMock() as never,
       userId: "user-1",
       rawText: "Tomato Soup: simmer tomatoes with olive oil until smooth.",
+      conversationHistory: [
+        { role: "user", content: "Keep it weeknight-friendly." },
+      ],
+      sessionMemory: "Session memory:\n- Active dish: tomato soup\n- Style targets: weeknight",
     });
 
     assert.equal(callCount, 2);
     assert.equal(result.recipe.title, "Tomato Soup");
     assert.ok(result.recipe.ingredients.some((ingredient) => /2 lb tomatoes/i.test(ingredient.name)));
     assert.ok(result.recipe.steps.some((step) => /olive oil/i.test(step.text)));
+    assert.match(capturedPrompts[0] ?? "", /Session memory:/i);
+    assert.match(capturedPrompts[1] ?? "", /"sessionMemory": "Session memory:/i);
   } finally {
     require.cache[jsonResponsePath]!.exports = originalJsonResponseExports;
     require.cache[taskSettingsPath]!.exports = originalTaskSettingsExports;

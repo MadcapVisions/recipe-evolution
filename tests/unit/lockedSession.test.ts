@@ -4,6 +4,7 @@ import { normalizeBuildSpec } from "../../lib/ai/contracts/buildSpec";
 import {
   appendLockedSessionRefinement,
   buildLockedBrief,
+  canonicalizeLockedSession,
   createLockedSessionFromDirection,
   markLockedSessionBuilt,
   refinementHasRecipeChanges,
@@ -194,6 +195,43 @@ test("buildLockedBrief preserves slow cooker constraints from the locked convers
   assert.ok(brief.constraints.equipment_limits.includes("slow cooker"));
   assert.ok(brief.directives.required_techniques.includes("slow_cook"));
   assert.equal(brief.field_state.constraints, "inferred");
+});
+
+test("canonicalizeLockedSession rebuilds lock-time build_spec from merged persisted history", () => {
+  const clientSession = createLockedSessionFromDirection({
+    conversationKey: "conv-canonical",
+    selectedDirection: {
+      id: "dir-1",
+      title: "Bread Pudding",
+      summary: "Keep it creamy and wet.",
+      tags: ["Comforting"],
+    },
+    conversationHistory: [
+      { role: "user", content: "Keep it creamy and wet." },
+    ],
+  });
+
+  const canonical = canonicalizeLockedSession({
+    session: clientSession,
+    conversationHistory: [
+      {
+        role: "user",
+        content: "Make banana bread pudding in a slow cooker with sourdough discard.",
+      },
+      {
+        role: "assistant",
+        content: "A slow cooker banana bread pudding will stay custardy if you cook it gently on low.",
+      },
+      {
+        role: "user",
+        content: "Keep it creamy and wet.",
+      },
+    ],
+  });
+
+  assert.ok(canonical?.build_spec);
+  assert.equal(canonical?.build_spec?.dish_family, "bread_pudding");
+  assert.ok(canonical?.build_spec?.required_ingredients.includes("sourdough discard"));
 });
 
 test("buildLockedBrief repairs generic locked directions from the full conversation branch", () => {

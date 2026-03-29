@@ -56,6 +56,7 @@ export function extractVerifierIssueCodes(
   if (checks.dish_family_match === false) codes.push("DISH_FAMILY_MISMATCH");
   if (checks.centerpiece_match === false) codes.push("CENTERPIECE_MISMATCH");
   if (checks.style_match === false) codes.push("STYLE_MISMATCH");
+  if (checks.selected_direction_match === false) codes.push("SPECIFIC_DISH_MISMATCH");
   if (checks.required_ingredients_present === false) codes.push("REQUIRED_INGREDIENT_MISSING");
   if (checks.forbidden_ingredients_avoided === false) codes.push("FORBIDDEN_INGREDIENT_PRESENT");
   if (checks.title_quality_pass === false) codes.push("TITLE_QUALITY_FAIL");
@@ -70,6 +71,7 @@ export function extractVerifierIssueCodes(
 export function extractFailureKindCode(failureKind: string | null | undefined): string | null {
   if (failureKind === "invalid_payload" || failureKind === "structural_validation_failed") return "PARSE_FAILED";
   if (failureKind === "generation_failed") return "GENERATION_FAILED";
+  if (failureKind === "input_conflict") return "INPUT_CONFLICT";
   return null;
 }
 
@@ -139,12 +141,13 @@ export function mapToLaunchDecision(input: {
   }
 
   // Constraint conflict (forbidden ingredient present or culinary structure invalid)
-  if (codeSet.has("FORBIDDEN_INGREDIENT_PRESENT") || codeSet.has("CULINARY_FAMILY_INVALID")) {
+  if (codeSet.has("FORBIDDEN_INGREDIENT_PRESENT") || codeSet.has("CULINARY_FAMILY_INVALID") || codeSet.has("INPUT_CONFLICT")) {
     return {
       mode: "CONSTRAINT_CONFLICT",
       confidence,
       primaryMessage: reasons[0] ?? "Your constraints may conflict with this dish style.",
       suggestedActions: [
+        { label: "Clarify the change", retryMode: "clarify" },
         { label: "Simplify and retry", retryMode: "simplify", retryParams: { simplifyRequest: true } },
       ],
       issueCodes,

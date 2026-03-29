@@ -110,3 +110,18 @@ test("getRecipeBuildFailureDetails preserves normalized recipe snapshots for dow
   assert.equal(details.provider, "openrouter");
   assert.equal(details.model, "openai/gpt-4.1");
 });
+
+test("getRecipeBuildFailureDetails maps input conflicts to blocked outcomes", () => {
+  const error = new RecipeBuildError({
+    message: "This conflicts with the locked slow-cook method.",
+    kind: "input_conflict",
+    retryStrategy: "clarify",
+  });
+
+  const details = getRecipeBuildFailureDetails(error);
+
+  assert.equal(details.kind, "input_conflict");
+  assert.equal(details.outcome, "blocked");
+  assert.equal(details.retryStrategy, "clarify");
+  assert.equal(details.reasons[0], "This conflicts with the locked slow-cook method.");
+});

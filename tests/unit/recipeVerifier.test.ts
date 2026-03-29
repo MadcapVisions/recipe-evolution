@@ -2,6 +2,50 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { compileCookingBrief } from "../../lib/ai/briefCompiler";
 import { verifyRecipeAgainstBrief } from "../../lib/ai/recipeVerifier";
+import type { CanonicalRecipeSessionState } from "../../lib/ai/contracts/sessionState";
+
+function createLockedSessionState(): CanonicalRecipeSessionState {
+  return {
+    conversation_key: "home-1",
+    scope: "home_hub",
+    recipe_id: null,
+    version_id: null,
+    active_dish: {
+      title: "Slow Cooker Banana Bread Pudding",
+      dish_family: "bread_pudding",
+      locked: true,
+    },
+    selected_direction: {
+      id: "opt-1",
+      title: "Slow Cooker Banana Bread Pudding",
+      summary: "Custardy banana bread pudding made in the slow cooker.",
+      tags: ["dessert"],
+    },
+    hard_constraints: {
+      required_named_ingredients: ["sourdough discard"],
+      required_ingredients: [],
+      forbidden_ingredients: [],
+      required_techniques: ["slow_cook"],
+      equipment_limits: ["slow cooker"],
+    },
+    soft_preferences: {
+      preferred_ingredients: [],
+      style_tags: [],
+      nice_to_have: [],
+    },
+    rejected_branches: [],
+    recipe_context: null,
+    conversation: {
+      last_user_message: "Make banana bread pudding in a slow cooker with sourdough discard.",
+      last_assistant_message: null,
+      turn_count: 2,
+    },
+    source: {
+      updated_by: "test",
+      brief_confidence: 0.93,
+    },
+  };
+}
 
 test("verifyRecipeAgainstBrief passes aligned focaccia pizza recipe", () => {
   const brief = compileCookingBrief({
@@ -168,4 +212,28 @@ test("verifyRecipeAgainstBrief fails when an explicit air fryer request drifts t
   assert.equal(result.passes, false);
   assert.equal(result.checks.required_techniques_present, false);
   assert.equal(result.checks.equipment_limits_present, false);
+});
+
+test("verifyRecipeAgainstBrief fails when a locked session title and method drift even if the brief is lossy", () => {
+  const brief = compileCookingBrief({
+    userMessage: "Make banana bread pudding",
+    conversationHistory: [],
+  });
+
+  const result = verifyRecipeAgainstBrief({
+    brief,
+    sessionState: createLockedSessionState(),
+    recipe: {
+      title: "Baked Banana Casserole",
+      description: "A baked banana casserole finished in the oven.",
+      ingredients: [{ name: "stale bread" }, { name: "milk" }, { name: "eggs" }],
+      steps: [{ text: "Bake the banana casserole in the oven until set." }],
+    },
+  });
+
+  assert.equal(result.passes, false);
+  assert.equal(result.checks.selected_direction_match, false);
+  assert.equal(result.checks.required_techniques_present, false);
+  assert.equal(result.checks.equipment_limits_present, false);
+  assert.ok(result.reasons.some((reason) => reason.includes("locked direction")));
 });

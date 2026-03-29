@@ -20,7 +20,8 @@ import { upsertCookingBrief } from "@/lib/ai/briefStore";
 import { mergeCookingBriefs, resolveRecipeSessionBrief } from "@/lib/ai/recipeSessionStore";
 import { createEmptyCookingBrief } from "@/lib/ai/contracts/cookingBrief";
 import { buildChefIntelligence, deriveChefActions } from "@/lib/ai/chefIntelligence";
-import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory, updateCanonicalSessionState } from "@/lib/ai/sessionContext";
+import { getCanonicalSessionState, upsertCanonicalSessionState } from "@/lib/ai/sessionStateStore";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -126,6 +127,14 @@ export async function POST(request: Request) {
             scope: "recipe_detail",
           })
         : Promise.resolve([]);
+    const persistedSessionStatePromise =
+      conversationKey
+        ? getCanonicalSessionState(access.supabase as SupabaseClient, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "recipe_detail",
+          })
+        : Promise.resolve(null);
     const preflightOrchestration = analyzeRecipeTurn({
       userMessage,
       selectedDirectionLocked: clientConversationHistory.some((message) =>
@@ -197,7 +206,11 @@ export async function POST(request: Request) {
     }
 
     // Start both AI calls now — ownership is confirmed, no more early returns after this point.
-    const [persistedTurns, sessionBrief] = await Promise.all([persistedTurnsPromise, sessionBriefPromise]);
+    const [persistedTurns, sessionBrief, persistedSessionState] = await Promise.all([
+      persistedTurnsPromise,
+      sessionBriefPromise,
+      persistedSessionStatePromise,
+    ]);
     const conversationHistory = mergeSessionConversationHistory({
       persistedTurns,
       clientHistory: clientConversationHistory,
@@ -210,6 +223,7 @@ export async function POST(request: Request) {
       hasRecipeContext: Boolean(body.recipeContext || body.recipe || body.recipeId || body.versionId),
     });
     const sessionMemory = buildSessionMemoryBlock({
+      sessionState: persistedSessionState?.state_json ?? null,
       brief: sessionBrief,
       recipeContext: body.recipeContext ?? null,
       conversationHistory,
@@ -361,6 +375,28 @@ export async function POST(request: Request) {
                   : { orchestration, actions, chefIntelligence },
             },
           ],
+        }),
+        upsertCanonicalSessionState(access.supabase as SupabaseClient, {
+          ownerId: access.userId,
+          conversationKey,
+          scope: "recipe_detail",
+          recipeId,
+          versionId,
+          state: updateCanonicalSessionState({
+            conversationKey,
+            scope: "recipe_detail",
+            recipeId,
+            versionId,
+            brief: persistedBrief,
+            recipeContext: body.recipeContext ?? null,
+            conversationHistory: [
+              ...conversationHistory,
+              { role: "user", content: userMessage },
+              { role: "assistant", content: envelope.reply },
+            ],
+            previousState: persistedSessionState?.state_json ?? null,
+            updatedBy: "recipe_chat",
+          }),
         }),
       ]);
       for (const result of persistenceResults) {

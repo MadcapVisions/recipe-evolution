@@ -16,7 +16,8 @@ import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import type { CookingBrief } from "@/lib/ai/contracts/cookingBrief";
 import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
 import { getConversationTurns } from "@/lib/ai/conversationStore";
-import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory, updateCanonicalSessionState } from "@/lib/ai/sessionContext";
+import { getCanonicalSessionState, upsertCanonicalSessionState } from "@/lib/ai/sessionStateStore";
 
 const improveRecipeRequestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
       resolvedSessionBrief,
       resolvedPreviousAttempt,
       persistedTurns,
+      persistedSessionState,
     ] = await Promise.all([
       access.supabase
         .from("recipes")
@@ -98,6 +100,11 @@ export async function POST(request: Request) {
         scope: "recipe_detail",
       }),
       getConversationTurns(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "recipe_detail",
+      }),
+      getCanonicalSessionState(access.supabase as SupabaseClient, {
         ownerId: access.userId,
         conversationKey,
         scope: "recipe_detail",
@@ -130,6 +137,7 @@ export async function POST(request: Request) {
       clientHistory: [],
     });
     const sessionMemory = buildSessionMemoryBlock({
+      sessionState: persistedSessionState?.state_json ?? null,
       brief: resolvedSessionBrief,
       recipeContext: {
         title: recipe.title,
@@ -255,6 +263,29 @@ export async function POST(request: Request) {
         outcome: "passed",
         stage_metrics: [],
       },
+    });
+
+    await upsertCanonicalSessionState(access.supabase as SupabaseClient, {
+      ownerId: access.userId,
+      conversationKey,
+      scope: "recipe_detail",
+      recipeId,
+      versionId,
+      state: updateCanonicalSessionState({
+        conversationKey,
+        scope: "recipe_detail",
+        recipeId,
+        versionId,
+        brief: resolvedSessionBrief,
+        recipeContext: {
+          title: result.recipe.title,
+          ingredients: result.recipe.ingredients.map((item) => item.name),
+          steps: result.recipe.steps.map((item) => item.text),
+        },
+        conversationHistory,
+        previousState: persistedSessionState?.state_json ?? null,
+        updatedBy: "recipe_improve",
+      }),
     });
 
     return NextResponse.json({ result });

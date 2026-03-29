@@ -6,6 +6,7 @@ import { normalizeAiIngredients } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 import { adjudicateRecipeFailure } from "./failureAdjudicator";
 import { storeCiaAdjudication } from "./ciaStore";
+import type { AIMessage } from "./chatPromptBuilder";
 
 type PreferredUnits = "metric" | "imperial";
 
@@ -150,6 +151,8 @@ export async function structureRecipeFromRawText(input: {
   rawText: string;
   preferredUnits?: PreferredUnits;
   conversationKey?: string | null;
+  conversationHistory?: AIMessage[] | null;
+  sessionMemory?: string | null;
 }): Promise<AiRecipeResult> {
   const rawText = input.rawText.trim();
   if (!rawText) {
@@ -274,6 +277,8 @@ Rules:
 - Extract servings, prep_time_min, cook_time_min, and difficulty from the source if present; otherwise use null.
 - Tags should reflect the cuisine, meal type, or dietary style (e.g. "Italian", "vegetarian", "weeknight").
 
+${input.sessionMemory?.trim() ? `${input.sessionMemory.trim()}\n\n` : ""}
+
 Recipe text:
 ${rawText}`;
 
@@ -310,6 +315,8 @@ ${rawText}`;
     const ciaPacket = {
       flow: "recipe_import",
       rawRecipeText: rawText,
+      conversationHistory: input.conversationHistory ?? null,
+      sessionMemory: input.sessionMemory ?? null,
       preferredUnits,
       reasons: ["AI response must include a quantity for every ingredient."],
       rawModelOutput: {
@@ -325,6 +332,8 @@ ${rawText}`;
       taskSetting: ciaTaskSetting,
       failureKind: "invalid_payload",
       rawRecipeText: rawText,
+      conversationHistory: input.conversationHistory ?? null,
+      sessionMemory: input.sessionMemory ?? null,
       reasons: ["AI response must include a quantity for every ingredient."],
       rawModelOutput: {
         provider: aiResult.provider,

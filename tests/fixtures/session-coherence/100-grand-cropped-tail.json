@@ -1,0 +1,68 @@
+{
+  "id": "100-grand-cropped-tail",
+  "kind": "cropped_option_tail",
+  "conversation_key": "home-100-grand",
+  "scope": "home_hub",
+  "persisted_turns": [
+    {
+      "role": "user",
+      "message": "I want a dessert inspired by a 100 Grand bar."
+    },
+    {
+      "role": "assistant",
+      "message": "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae."
+    }
+  ],
+  "client_history": [
+    {
+      "role": "assistant",
+      "content": "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae."
+    },
+    {
+      "role": "user",
+      "content": "Those are the same options you first gave me, I want 3 different options."
+    }
+  ],
+  "latest_user_message": "Give me 3 other options",
+  "previous_state": {
+    "conversation_key": "home-100-grand",
+    "scope": "home_hub",
+    "recipe_id": null,
+    "version_id": null,
+    "active_dish": {
+      "title": "100 Grand-Inspired Dessert",
+      "dish_family": "dessert",
+      "locked": true
+    },
+    "selected_direction": null,
+    "hard_constraints": {
+      "required_named_ingredients": [],
+      "required_ingredients": [],
+      "forbidden_ingredients": [],
+      "required_techniques": [],
+      "equipment_limits": []
+    },
+    "soft_preferences": {
+      "preferred_ingredients": [],
+      "style_tags": [],
+      "nice_to_have": []
+    },
+    "rejected_branches": [],
+    "recipe_context": null,
+    "conversation": {
+      "last_user_message": "I want a dessert inspired by a 100 Grand bar.",
+      "last_assistant_message": "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae.",
+      "turn_count": 2
+    },
+    "source": {
+      "updated_by": "fixture",
+      "brief_confidence": 0.82
+    }
+  },
+  "expected": {
+    "history_anchor_hint": "100 Grand",
+    "active_dish_hint": "100 Grand",
+    "merged_turn_count": 4,
+    "last_user_message": "Give me 3 other options"
+  }
+}

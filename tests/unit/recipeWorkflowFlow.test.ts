@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { compileCookingBrief } from "../../lib/ai/briefCompiler";
 import { upsertCookingBrief } from "../../lib/ai/briefStore";
+import { getConversationTurns, storeConversationTurns } from "../../lib/ai/conversationStore";
 import { createAiStageMetric } from "../../lib/ai/contracts/stageMetrics";
 import { getLatestGenerationAttempt, storeGenerationAttempt } from "../../lib/ai/generationAttemptStore";
+import { createLockedSessionFromDirection, buildLockedBrief, canonicalizeLockedSession } from "../../lib/ai/lockedSession";
 import { analyzeHomeBuildRequest, analyzeRecipeTurn, buildAttemptOrchestrationState } from "../../lib/ai/recipeOrchestrator";
 import {
   getRecipeSessionConversationKey,
@@ -12,12 +14,16 @@ import {
   resolveRecipeSessionBrief,
   seedRecipeSessionFromSavedRecipe,
 } from "../../lib/ai/recipeSessionStore";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "../../lib/ai/sessionContext";
+import { upsertLockedDirectionSession } from "../../lib/ai/lockedSessionStore";
 
 function createMockSupabase() {
   const briefs = new Map<string, Record<string, unknown>>();
   const attempts: Record<string, unknown>[] = [];
   const recipes = new Map<string, Record<string, unknown>>();
   const versions = new Map<string, Record<string, unknown>>();
+  const turns: Record<string, unknown>[] = [];
+  const lockedSessions = new Map<string, Record<string, unknown>>();
 
   const makeChain = (table: string) => {
     const filters: Record<string, unknown> = {};
@@ -95,18 +101,68 @@ function createMockSupabase() {
           }
           return Promise.resolve({ data: rows[0] ?? null, error: null });
         }
+        if (table === "ai_locked_direction_sessions") {
+          const key = `${filters.owner_id}:${filters.conversation_key}:${filters.scope}`;
+          return Promise.resolve({ data: lockedSessions.get(key) ?? null, error: null });
+        }
         return Promise.resolve({ data: null, error: null });
+      },
+      then(resolve: (value: { data: unknown; error: null }) => unknown) {
+        if (table === "ai_conversation_turns") {
+          let rows = turns.filter(
+            (row) =>
+              row.owner_id === filters.owner_id &&
+              row.conversation_key === filters.conversation_key &&
+              row.scope === filters.scope
+          );
+          if (sortColumn) {
+            const column = sortColumn;
+            rows = rows.sort((a, b) => {
+              const left = String(a[column] ?? "");
+              const right = String(b[column] ?? "");
+              return sortAscending ? left.localeCompare(right) : right.localeCompare(left);
+            });
+          }
+          if (rowLimit != null) {
+            rows = rows.slice(0, rowLimit);
+          }
+          return Promise.resolve(resolve({ data: rows, error: null }));
+        }
+        return Promise.resolve(resolve({ data: null, error: null }));
       },
       upsert(payload: Record<string, unknown>) {
         if (table === "ai_cooking_briefs") {
           const key = `${payload.owner_id}:${payload.conversation_key}:${payload.scope}`;
           briefs.set(key, payload);
         }
+        if (table === "ai_locked_direction_sessions") {
+          const key = `${payload.owner_id}:${payload.conversation_key}:${payload.scope}`;
+          lockedSessions.set(key, {
+            id: key,
+            owner_id: payload.owner_id,
+            conversation_key: payload.conversation_key,
+            scope: payload.scope,
+            session_json: payload.session_json,
+            state: payload.state,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
         return Promise.resolve({ error: null });
       },
-      insert(payload: Record<string, unknown>) {
+      insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
         if (table === "ai_generation_attempts") {
-          attempts.push(payload);
+          attempts.push(payload as Record<string, unknown>);
+        }
+        if (table === "ai_conversation_turns") {
+          const rows = Array.isArray(payload) ? payload : [payload];
+          for (const row of rows) {
+            turns.push({
+              id: `turn-${turns.length + 1}`,
+              ...row,
+              created_at: new Date(turns.length + 1).toISOString(),
+            });
+          }
         }
         return Promise.resolve({ error: null });
       },
@@ -123,6 +179,8 @@ function createMockSupabase() {
     attempts,
     recipes,
     versions,
+    turns,
+    lockedSessions,
   };
 }
 
@@ -322,6 +380,144 @@ test("persisted orchestration metadata survives across a failed build and a late
   assert.equal(nextAttempt.previousAttempt?.outcome, "generation_failed");
   assert.equal(nextAttempt.usedSessionRecovery, true);
   assert.deepEqual(nextAttempt.sessionConstraintSummary?.equipment_limits, ["slow cooker"]);
+});
+
+test("merged session memory keeps the active dish coherent from home lock through recipe-detail follow-up", async () => {
+  const { supabase } = createMockSupabase();
+  const ownerId = "user-1";
+  const homeConversationKey = "home-coherence";
+  const recipeId = "recipe-coherence";
+
+  await storeConversationTurns(supabase, {
+    ownerId,
+    conversationKey: homeConversationKey,
+    scope: "home_hub",
+    turns: [
+      {
+        role: "user",
+        message: "Make banana bread pudding in a slow cooker with sourdough discard.",
+      },
+      {
+        role: "assistant",
+        message: "A slow cooker banana bread pudding will stay custardy if you cook it gently on low.",
+      },
+      {
+        role: "user",
+        message: "Keep it creamy and wet.",
+      },
+    ],
+  });
+
+  const persistedTurns = await getConversationTurns(supabase, {
+    ownerId,
+    conversationKey: homeConversationKey,
+    scope: "home_hub",
+  });
+  const mergedHomeHistory = mergeSessionConversationHistory({
+    persistedTurns,
+    clientHistory: [
+      { role: "user", content: "Keep it creamy and wet." },
+    ],
+    maxMessages: 16,
+  });
+
+  const clientLockedSession = createLockedSessionFromDirection({
+    conversationKey: homeConversationKey,
+    selectedDirection: {
+      id: "dir-1",
+      title: "Bread Pudding",
+      summary: "Keep it creamy and wet.",
+      tags: ["Comforting"],
+    },
+    conversationHistory: [
+      { role: "user", content: "Keep it creamy and wet." },
+    ],
+  });
+
+  const canonicalLockedSession = canonicalizeLockedSession({
+    session: clientLockedSession,
+    conversationHistory: mergedHomeHistory,
+  });
+  assert.ok(canonicalLockedSession?.build_spec?.required_ingredients.includes("sourdough discard"));
+
+  await upsertLockedDirectionSession(supabase, {
+    ownerId,
+    conversationKey: homeConversationKey,
+    scope: "home_hub",
+    session: canonicalLockedSession!,
+  });
+
+  const lockedBrief = buildLockedBrief({
+    session: canonicalLockedSession!,
+    conversationHistory: mergedHomeHistory,
+  });
+  assert.equal(lockedBrief.dish.dish_family, "bread_pudding");
+  assert.ok(lockedBrief.constraints.equipment_limits.includes("slow cooker"));
+  assert.ok(
+    (lockedBrief.ingredients.requiredNamedIngredients ?? []).some((item) => item.normalizedName === "sourdough discard")
+  );
+
+  await upsertCookingBrief(supabase, {
+    ownerId,
+    conversationKey: homeConversationKey,
+    scope: "home_hub",
+    brief: lockedBrief,
+    isLocked: true,
+  });
+
+  await seedRecipeSessionFromSavedRecipe(supabase, {
+    ownerId,
+    recipeId,
+    versionId: "version-coherence",
+    draft: {
+      title: "Banana Bread Pudding",
+      ingredients: [{ name: "8 cups stale bread" }, { name: "1 cup sourdough discard" }, { name: "4 eggs" }],
+      steps: [{ text: "Whisk the custard." }, { text: "Cook in the slow cooker until set." }],
+    },
+    seed: {
+      sourceConversationKey: homeConversationKey,
+      sourceScope: "home_hub",
+      instruction: "Make banana bread pudding in a slow cooker with sourdough discard",
+    },
+  });
+
+  const recipeConversationKey = getRecipeSessionConversationKey(recipeId);
+  await storeConversationTurns(supabase, {
+    ownerId,
+    conversationKey: recipeConversationKey,
+    scope: "recipe_detail",
+    recipeId,
+    versionId: "version-coherence",
+    turns: [
+      { role: "user", message: "more eggs and rum" },
+      { role: "assistant", message: "Add one more egg and a splash of dark rum to deepen the custard." },
+    ],
+  });
+
+  const recipeTurns = await getConversationTurns(supabase, {
+    ownerId,
+    conversationKey: recipeConversationKey,
+    scope: "recipe_detail",
+  });
+  const recipeSession = await getRecipeSessionBrief(supabase, { ownerId, recipeId });
+  const recipeMemory = buildSessionMemoryBlock({
+    brief: recipeSession?.brief_json ?? null,
+    recipeContext: {
+      title: "Banana Bread Pudding",
+      ingredients: ["8 cups stale bread", "1 cup sourdough discard", "4 eggs"],
+      steps: ["Whisk the custard.", "Cook in the slow cooker until set."],
+    },
+    conversationHistory: mergeSessionConversationHistory({
+      persistedTurns: recipeTurns,
+      clientHistory: [],
+      maxMessages: 16,
+    }),
+  });
+
+  assert.match(recipeMemory ?? "", /Active dish: Banana Bread Pudding/i);
+  assert.match(recipeMemory ?? "", /Must keep: sourdough discard/i);
+  assert.match(recipeMemory ?? "", /Equipment constraints: slow cooker/i);
+  assert.match(recipeMemory ?? "", /Required methods: slow_cook/i);
 });
 
 test("home build analysis normalizes the build instruction through the shared orchestrator", () => {

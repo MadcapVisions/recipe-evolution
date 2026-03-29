@@ -8,6 +8,7 @@ import { getLatestGenerationAttempt, storeGenerationAttempt } from "../../lib/ai
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "../../lib/ai/lockedSessionStore";
 import { createLockedSessionFromDirection } from "../../lib/ai/lockedSession";
 import { getConversationTurns } from "../../lib/ai/conversationStore";
+import { getCanonicalSessionState, upsertCanonicalSessionState } from "../../lib/ai/sessionStateStore";
 
 test("upsertCookingBrief writes the normalized brief payload", async () => {
   let recordedArgs: unknown[] = [];
@@ -272,6 +273,147 @@ test("getLockedDirectionSession returns the fetched locked session row", async (
   assert.ok(result);
   assert.equal(result?.state, "direction_locked");
   assert.equal(result?.session_json.selected_direction?.title, "Chicken Tostadas");
+});
+
+test("upsertCanonicalSessionState writes the canonical state payload", async () => {
+  let recordedArgs: unknown[] = [];
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_recipe_session_states");
+      return {
+        upsert(...args: unknown[]) {
+          recordedArgs = args;
+          return Promise.resolve({ error: null });
+        },
+      };
+    },
+  };
+
+  await upsertCanonicalSessionState(supabase as unknown as SupabaseClient, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "recipe_detail",
+    recipeId: "recipe-1",
+    versionId: "version-1",
+    state: {
+      conversation_key: "conv-1",
+      scope: "recipe_detail",
+      recipe_id: "recipe-1",
+      version_id: "version-1",
+      active_dish: {
+        title: "Banana Bread Pudding",
+        dish_family: "bread_pudding",
+        locked: true,
+      },
+      selected_direction: null,
+      hard_constraints: {
+        required_named_ingredients: ["sourdough discard"],
+        required_ingredients: [],
+        forbidden_ingredients: [],
+        required_techniques: ["slow_cook"],
+        equipment_limits: ["slow cooker"],
+      },
+      soft_preferences: {
+        preferred_ingredients: ["rum"],
+        style_tags: ["custardy"],
+        nice_to_have: [],
+      },
+      rejected_branches: [],
+      recipe_context: null,
+      conversation: {
+        last_user_message: "more eggs and rum",
+        last_assistant_message: null,
+        turn_count: 1,
+      },
+      source: {
+        updated_by: "test",
+        brief_confidence: 0.9,
+      },
+    },
+  });
+
+  const [payload, options] = recordedArgs as [Record<string, unknown>, Record<string, unknown>];
+  assert.equal(payload.owner_id, "user-1");
+  assert.equal(payload.conversation_key, "conv-1");
+  assert.equal(payload.scope, "recipe_detail");
+  assert.equal(payload.recipe_id, "recipe-1");
+  assert.deepEqual(options, { onConflict: "owner_id,conversation_key,scope" });
+});
+
+test("getCanonicalSessionState returns the fetched canonical session state row", async () => {
+  const supabase = {
+    from(table: string) {
+      assert.equal(table, "ai_recipe_session_states");
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: {
+              id: "state-1",
+              owner_id: "user-1",
+              conversation_key: "conv-1",
+              scope: "recipe_detail",
+              recipe_id: "recipe-1",
+              version_id: "version-1",
+              state_json: {
+                conversation_key: "conv-1",
+                scope: "recipe_detail",
+                recipe_id: "recipe-1",
+                version_id: "version-1",
+                active_dish: {
+                  title: "Banana Bread Pudding",
+                  dish_family: "bread_pudding",
+                  locked: true,
+                },
+                selected_direction: null,
+                hard_constraints: {
+                  required_named_ingredients: ["sourdough discard"],
+                  required_ingredients: [],
+                  forbidden_ingredients: [],
+                  required_techniques: ["slow_cook"],
+                  equipment_limits: ["slow cooker"],
+                },
+                soft_preferences: {
+                  preferred_ingredients: ["rum"],
+                  style_tags: ["custardy"],
+                  nice_to_have: [],
+                },
+                rejected_branches: [],
+                recipe_context: null,
+                conversation: {
+                  last_user_message: "more eggs and rum",
+                  last_assistant_message: null,
+                  turn_count: 1,
+                },
+                source: {
+                  updated_by: "test",
+                  brief_confidence: 0.9,
+                },
+              },
+              created_at: "2026-03-29T12:00:00Z",
+              updated_at: "2026-03-29T12:00:01Z",
+            },
+            error: null,
+          });
+        },
+      };
+    },
+  };
+
+  const result = await getCanonicalSessionState(supabase as unknown as SupabaseClient, {
+    ownerId: "user-1",
+    conversationKey: "conv-1",
+    scope: "recipe_detail",
+  });
+
+  assert.ok(result);
+  assert.equal(result?.state_json.active_dish.title, "Banana Bread Pudding");
+  assert.deepEqual(result?.state_json.hard_constraints.required_techniques, ["slow_cook"]);
 });
 
 test("deleteLockedDirectionSession clears a persisted session", async () => {

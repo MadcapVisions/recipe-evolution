@@ -13,7 +13,7 @@ import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import { getCookingBrief, upsertCookingBrief } from "@/lib/ai/briefStore";
-import { appendLockedSessionRefinementDelta, buildLockedBrief, refinementHasRecipeChanges } from "@/lib/ai/lockedSession";
+import { appendLockedSessionRefinementDelta, buildLockedBrief, canonicalizeLockedSession, refinementHasRecipeChanges } from "@/lib/ai/lockedSession";
 import { deleteLockedDirectionSession, getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
@@ -22,7 +22,9 @@ import { looksLikePivotRequest } from "@/lib/ai/briefStateMachine";
 import { extractRefinementDeltaWithFallback } from "@/lib/ai/refinementExtraction.server";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
 import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSchema";
-import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory, updateCanonicalSessionState } from "@/lib/ai/sessionContext";
+import { getCanonicalSessionState, upsertCanonicalSessionState } from "@/lib/ai/sessionStateStore";
+import type { CanonicalRecipeSessionState } from "@/lib/ai/contracts/sessionState";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -79,6 +81,53 @@ const homeAiRequestSchema = z.discriminatedUnion("mode", [
     requested_count: z.number().optional(),
   }),
 ]);
+
+const REJECT_OPTION_PATTERNS = [
+  /\bother options?\b/i,
+  /\bdifferent options?\b/i,
+  /\bnew options?\b/i,
+  /\bmore options?\b/i,
+  /\banother option\b/i,
+  /\bnone of (?:these|those)\b/i,
+  /\bnot (?:these|those)\b/i,
+  /\bthe same options?\b/i,
+  /\bother directions?\b/i,
+  /\bdifferent directions?\b/i,
+];
+
+function looksLikeOptionRejectionRequest(message: string) {
+  return REJECT_OPTION_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function appendRejectedBranches(
+  previousState: CanonicalRecipeSessionState | null,
+  persistedTurns: Array<{ metadata_json: Record<string, unknown> | null }> | null | undefined,
+  latestUserMessage: string
+) {
+  const current = previousState?.rejected_branches ?? [];
+  if (!looksLikeOptionRejectionRequest(latestUserMessage)) {
+    return current;
+  }
+
+  const latestAssistantEnvelope = [...(persistedTurns ?? [])]
+    .reverse()
+    .map((turn) => normalizeChefChatEnvelope(turn.metadata_json))
+    .find((envelope) => envelope?.options.length);
+
+  if (!latestAssistantEnvelope) {
+    return current;
+  }
+
+  const seen = new Set(current.map((item) => item.title.toLowerCase()));
+  const additions = latestAssistantEnvelope.options
+    .filter((option) => !seen.has(option.title.toLowerCase()))
+    .map((option) => ({
+      title: option.title,
+      reason: "user_rejected_option_set",
+    }));
+
+  return [...current, ...additions].slice(-12);
+}
 
 export async function POST(request: Request) {
   let trackedAccess:
@@ -153,7 +202,7 @@ export async function POST(request: Request) {
         ? body.conversationKey.trim()
         : null;
       const isSessionReset = body.reset_session === true;
-      const [persistedSession, persistedBrief, persistedTurns] =
+      const [persistedSession, persistedBrief, persistedTurns, persistedSessionState] =
         conversationKey && !isSessionReset
           ? await Promise.all([
               getLockedDirectionSession(access.supabase as SupabaseClient, {
@@ -171,8 +220,13 @@ export async function POST(request: Request) {
                 conversationKey,
                 scope: "home_hub",
               }),
+              getCanonicalSessionState(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              }),
             ])
-          : [null, null, []];
+          : [null, null, [], null];
       const mergedConversationHistory = mergeSessionConversationHistory({
         persistedTurns,
         clientHistory: conversationHistory,
@@ -184,11 +238,15 @@ export async function POST(request: Request) {
           scope: "home_hub",
         }).catch((e) => console.error("deleteLockedDirectionSession failed", e));
       }
-      const rawCurrentSession = isSessionReset ? null : (body.lockedSession ?? persistedSession?.session_json ?? null);
-      const currentSession: LockedDirectionSession | null = rawCurrentSession
-        ? { ...rawCurrentSession, build_spec: normalizeBuildSpec(rawCurrentSession.build_spec) }
-        : null;
+      const rawCurrentSession = isSessionReset ? null : (persistedSession?.session_json ?? body.lockedSession ?? null);
+      const currentSession: LockedDirectionSession | null = canonicalizeLockedSession({
+        session: rawCurrentSession
+          ? { ...rawCurrentSession, build_spec: normalizeBuildSpec(rawCurrentSession.build_spec) }
+          : null,
+        conversationHistory: mergedConversationHistory,
+      });
       const sessionMemory = buildSessionMemoryBlock({
+        sessionState: persistedSessionState?.state_json ?? null,
         brief: persistedBrief?.brief_json ?? null,
         lockedSession: currentSession,
         recipeContext: body.recipeContext ?? null,
@@ -239,6 +297,33 @@ export async function POST(request: Request) {
               latestAssistantMode: envelope.mode,
             });
 
+      const nextSessionState =
+        conversationKey
+          ? updateCanonicalSessionState({
+              conversationKey,
+              scope: "home_hub",
+              brief: compiledBrief,
+              lockedSession: refinedSession ?? currentSession,
+              recipeContext: body.recipeContext ?? null,
+              conversationHistory: [
+                ...mergedConversationHistory,
+                { role: "user", content: userMessage },
+                { role: "assistant", content: envelope.reply },
+              ],
+              previousState: {
+                ...(persistedSessionState?.state_json ?? {
+                  rejected_branches: [],
+                }),
+                rejected_branches: appendRejectedBranches(
+                  persistedSessionState?.state_json ?? null,
+                  persistedTurns,
+                  userMessage
+                ),
+              } as CanonicalRecipeSessionState,
+              updatedBy: "home_chat",
+            })
+          : null;
+
       if (conversationKey) {
         const persistenceTasks: Promise<unknown>[] = [
           storeConversationTurns(access.supabase as SupabaseClient, {
@@ -264,6 +349,17 @@ export async function POST(request: Request) {
             brief: compiledBrief,
           }),
         ];
+
+        if (nextSessionState) {
+          persistenceTasks.push(
+            upsertCanonicalSessionState(access.supabase as SupabaseClient, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+              state: nextSessionState,
+            })
+          );
+        }
 
         if (refinedSession) {
           persistenceTasks.push(
@@ -403,7 +499,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [turns, lockedSession, brief] = await Promise.all([
+    const [turns, lockedSession, brief, sessionState] = await Promise.all([
       getConversationTurns(access.supabase as SupabaseClient, {
         ownerId: access.userId,
         conversationKey,
@@ -415,6 +511,11 @@ export async function GET(request: Request) {
         scope: "home_hub",
       }),
       getCookingBrief(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "home_hub",
+      }),
+      getCanonicalSessionState(access.supabase as SupabaseClient, {
         ownerId: access.userId,
         conversationKey,
         scope: "home_hub",
@@ -437,6 +538,7 @@ export async function GET(request: Request) {
       messages,
       lockedSession: lockedSession?.session_json ?? null,
       brief: brief?.brief_json ?? null,
+      sessionState: sessionState?.state_json ?? null,
     });
   } catch (error) {
     console.error("Home session GET failed", error);

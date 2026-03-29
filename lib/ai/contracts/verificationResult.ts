@@ -7,6 +7,7 @@ export const VERIFICATION_RETRY_STRATEGIES = [
   "upgrade_model",
   "try_fallback_model",
   "ask_user",
+  "clarify",
 ] as const;
 
 export type VerificationRetryStrategy = (typeof VERIFICATION_RETRY_STRATEGIES)[number];
@@ -26,6 +27,7 @@ export type VerificationResult = {
     forbidden_ingredients_avoided: boolean;
     required_techniques_present?: boolean;
     equipment_limits_present?: boolean;
+    selected_direction_match?: boolean;
     title_quality_pass: boolean;
     recipe_completeness_pass: boolean;
     culinary_family_valid?: boolean;

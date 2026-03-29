@@ -1,11 +1,12 @@
 import type { CookingBrief } from "./contracts/cookingBrief";
+import type { CanonicalRecipeSessionState } from "./contracts/sessionState";
 import type { VerificationResult } from "./contracts/verificationResult";
 import { recipeMatchesRequestedDirection } from "./homeRecipeAlignment";
 import { ingredientPhraseMatches } from "./ingredientCanonicalization";
 import { createCachedResolver } from "./ingredientResolver";
 import { ingredientsMatch } from "./ingredientMatching";
 import { validateCulinaryFit } from "./culinaryValidator";
-import { matchesRequiredIngredient, ingredientMentionedInSteps } from "./requiredNamedIngredient";
+import { buildRequiredNamedIngredient, matchesRequiredIngredient, ingredientMentionedInSteps } from "./requiredNamedIngredient";
 import { stepMentionsEquipment, stepSatisfiesMethod } from "./methodRegistry";
 
 type RecipeLike = {
@@ -195,6 +196,41 @@ function specificDishNameMatch(recipe: RecipeLike, brief: CookingBrief) {
   return matchedTokenCount >= requiredMatches;
 }
 
+function sessionSelectedDirectionMatch(recipe: RecipeLike, sessionState: CanonicalRecipeSessionState | null | undefined) {
+  if (!sessionState?.active_dish.locked) {
+    return true;
+  }
+
+  const candidateTitle = sessionState.selected_direction?.title?.trim() || sessionState.active_dish.title?.trim() || "";
+  if (!candidateTitle) {
+    return true;
+  }
+
+  const text = `${recipe.title} ${recipe.description ?? ""}`.toLowerCase();
+  const normalizedTitle = candidateTitle.toLowerCase();
+  if (text.includes(normalizedTitle)) {
+    return true;
+  }
+
+  const titleTokens = normalizedTitle
+    .split(/\s+/)
+    .map(normalizeMatchToken)
+    .filter((token) => token.length > 2 && !CENTERPIECE_STOP_WORDS.has(token));
+  if (titleTokens.length === 0) {
+    return true;
+  }
+
+  const recipeTokens = new Set(
+    text
+      .split(/\s+/)
+      .map(normalizeMatchToken)
+      .filter((token) => token.length > 2)
+  );
+  const matchedTokenCount = titleTokens.filter((token) => recipeTokens.has(token)).length;
+  const requiredMatches = titleTokens.length <= 2 ? titleTokens.length : Math.ceil(titleTokens.length * 0.6);
+  return matchedTokenCount >= requiredMatches;
+}
+
 // Style synonyms so that e.g. "crispy" in the brief passes when the AI writes "crunchy".
 const STYLE_TAG_SYNONYMS: Record<string, string[]> = {
   crispy: ["crunchy", "crisp"],
@@ -243,6 +279,7 @@ export function verifyRecipeAgainstBrief(input: {
   recipe: RecipeLike;
   brief: CookingBrief | null | undefined;
   fallbackContext?: string;
+  sessionState?: CanonicalRecipeSessionState | null;
 }): VerificationResult {
   const brief = input.brief;
   if (!brief) {
@@ -268,13 +305,26 @@ export function verifyRecipeAgainstBrief(input: {
   const context = buildVerificationContext(brief, input.fallbackContext);
   const resolve = createCachedResolver();
   const dishFamilyMatch = recipeMatchesRequestedDirection(input.recipe, context) && specificDishNameMatch(input.recipe, brief);
+  const selectedDirectionMatch = sessionSelectedDirectionMatch(input.recipe, input.sessionState);
   const titlePass = titleQualityPass(input.recipe.title);
   const requiredPass = requiredIngredientsPresent(input.recipe, brief, resolve);
   const forbiddenPass = forbiddenIngredientsAvoided(input.recipe, brief, resolve);
   const centerpiecePass = centerpieceMatch(input.recipe, brief);
   const stylePass = styleMatch(input.recipe, brief);
-  const requiredTechniquesPass = requiredTechniquesPresent(input.recipe, brief);
-  const equipmentPass = equipmentLimitsPresent(input.recipe, brief);
+  const requiredTechniquesPass =
+    requiredTechniquesPresent(input.recipe, brief) &&
+    (input.sessionState?.hard_constraints.required_techniques.length
+      ? input.sessionState.hard_constraints.required_techniques.every((method) =>
+          input.recipe.steps.some((step) => stepSatisfiesMethod(step, method))
+        )
+      : true);
+  const equipmentPass =
+    equipmentLimitsPresent(input.recipe, brief) &&
+    (input.sessionState?.hard_constraints.equipment_limits.length
+      ? input.sessionState.hard_constraints.equipment_limits.every((equipment) =>
+          input.recipe.steps.some((step) => stepMentionsEquipment(step, equipment))
+        )
+      : true);
   const completenessPass = input.recipe.ingredients.length > 0 && input.recipe.steps.length > 0;
 
   const culinary = validateCulinaryFit(
@@ -287,27 +337,37 @@ export function verifyRecipeAgainstBrief(input: {
   const hardRequired = (brief.ingredients.requiredNamedIngredients ?? []).filter(
     (r) => r.requiredStrength === "hard"
   );
+  const sessionHardRequired = (input.sessionState?.hard_constraints.required_named_ingredients ?? [])
+    .filter((name) => name.trim().length > 0)
+    .map((name) => buildRequiredNamedIngredient(name, "must_include"));
+  const mergedHardRequired = [...hardRequired];
+  for (const req of sessionHardRequired) {
+    if (!mergedHardRequired.some((existing) => existing.normalizedName === req.normalizedName)) {
+      mergedHardRequired.push(req);
+    }
+  }
   const recipeIngredientNames = input.recipe.ingredients.map((i) => i.name);
-  const missingFromList = hardRequired.filter(
+  const missingFromList = mergedHardRequired.filter(
     (req) => !recipeIngredientNames.some((name) => matchesRequiredIngredient(name, req))
   );
-  const missingFromSteps = hardRequired.filter(
+  const missingFromSteps = mergedHardRequired.filter(
     (req) =>
       recipeIngredientNames.some((name) => matchesRequiredIngredient(name, req)) &&
       !ingredientMentionedInSteps(req, input.recipe.steps)
   );
   const namedListPass = missingFromList.length === 0;
   const namedStepsPass = missingFromSteps.length === 0;
-  const hasNamedRequirements = hardRequired.length > 0;
+  const hasNamedRequirements = mergedHardRequired.length > 0;
 
   const checks = {
-    dish_family_match: dishFamilyMatch,
+    dish_family_match: dishFamilyMatch && selectedDirectionMatch,
     style_match: stylePass,
     centerpiece_match: centerpiecePass,
     required_ingredients_present: requiredPass,
     forbidden_ingredients_avoided: forbiddenPass,
     required_techniques_present: requiredTechniquesPass,
     equipment_limits_present: equipmentPass,
+    selected_direction_match: selectedDirectionMatch,
     title_quality_pass: titlePass,
     recipe_completeness_pass: completenessPass,
     culinary_family_valid: culinary.valid,
@@ -319,6 +379,7 @@ export function verifyRecipeAgainstBrief(input: {
   const reasons: string[] = [];
 
   if (!dishFamilyMatch) reasons.push("Recipe drifted from the requested dish family or direction.");
+  if (!selectedDirectionMatch) reasons.push("Recipe no longer matches the locked direction this session committed to.");
   if (!stylePass) reasons.push("Recipe does not reflect the requested style or texture cues.");
   if (!centerpiecePass) {
     if (brief.dish.dish_family === "bread_pudding") {

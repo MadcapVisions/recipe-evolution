@@ -371,6 +371,43 @@ export function buildLockedBrief(input: {
   return sanitizeCookingBriefIngredients(brief);
 }
 
+export function canonicalizeLockedSession(input: {
+  session?: LockedDirectionSession | null;
+  conversationHistory?: AIMessage[] | null;
+}): LockedDirectionSession | null {
+  const session = input.session ?? null;
+  if (!session) {
+    return null;
+  }
+
+  const normalizedBuildSpec = normalizeBuildSpec(session.build_spec);
+  const conversationHistory =
+    input.conversationHistory?.filter(
+      (message): message is AIMessage =>
+        (message.role === "user" || message.role === "assistant") &&
+        typeof message.content === "string" &&
+        message.content.trim().length > 0
+    ) ?? [];
+
+  if (!session.selected_direction || !conversationHistory.some((message) => message.role === "user")) {
+    return {
+      ...session,
+      build_spec: normalizedBuildSpec,
+    };
+  }
+
+  return {
+    ...session,
+    build_spec: deriveBuildSpec({
+      selectedDirection: session.selected_direction,
+      conversationHistory,
+      modelDishFamily: normalizedBuildSpec?.dish_family_source === "model" ? normalizedBuildSpec.dish_family : null,
+      modelAnchor: normalizedBuildSpec?.anchor_source === "model" ? normalizedBuildSpec.primary_anchor_value : null,
+      modelAnchorType: normalizedBuildSpec?.anchor_source === "model" ? normalizedBuildSpec.primary_anchor_type : null,
+    }),
+  };
+}
+
 export function createLockedSessionFromDirection(input: {
   conversationKey: string;
   selectedDirection: LockedDirectionSelected;

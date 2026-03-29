@@ -18,7 +18,7 @@ import type { RecipePlan } from "@/lib/ai/contracts/recipePlan";
 import { getRecipeBuildFailureDetails, RecipeBuildError, type RecipeBuildFailureKind } from "@/lib/ai/recipeBuildError";
 import type { VerificationRetryStrategy } from "@/lib/ai/contracts/verificationResult";
 import { buildRetryRecipePlan, shouldAutoRetryRecipeBuild } from "@/lib/ai/homeRecipeRetry";
-import { buildLockedBrief, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
+import { buildLockedBrief, canonicalizeLockedSession, markLockedSessionBuilt } from "@/lib/ai/lockedSession";
 import { getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/ai/lockedSessionStore";
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
@@ -42,8 +42,9 @@ import {
 } from "@/lib/ai/runIssueCollector";
 import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
 import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSchema";
-import { mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
-import { buildSessionMemoryBlock } from "@/lib/ai/sessionContext";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory, updateCanonicalSessionState } from "@/lib/ai/sessionContext";
+import { getCanonicalSessionState, upsertCanonicalSessionState } from "@/lib/ai/sessionStateStore";
+import { detectSessionContradictions } from "@/lib/ai/sessionContradictions";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -198,7 +199,7 @@ export async function POST(request: Request) {
         const taskSettingPromise = resolveAiTaskSettings("home_recipe");
         const ciaTaskSettingPromise = resolveAiTaskSettings("recipe_cia");
         const gracefulModePromise = getFeatureFlag("graceful_mode", false);
-        const [persistedBrief, persistedSession, persistedTurns] = await Promise.all([
+        const [persistedBrief, persistedSession, persistedTurns, persistedSessionState] = await Promise.all([
           conversationKey
             ? getCookingBrief(access.supabase as SupabaseClient, {
                 ownerId: access.userId,
@@ -220,6 +221,13 @@ export async function POST(request: Request) {
                 scope: "home_hub",
               })
             : Promise.resolve([]),
+          conversationKey
+            ? getCanonicalSessionState(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              })
+            : Promise.resolve(null),
         ]);
         previousAttempt = conversationKey
           ? await getLatestGenerationAttempt(access.supabase as SupabaseClient, {
@@ -235,10 +243,40 @@ export async function POST(request: Request) {
         });
         // Normalize build_spec: malformed/stale objects become null so the session
         // falls back to legacy reconstruction rather than crashing the fast path.
-        const rawSession = body.lockedSession ?? persistedSession?.session_json ?? null;
-        lockedSession = rawSession
-          ? { ...rawSession, build_spec: normalizeBuildSpec(rawSession.build_spec) }
-          : null;
+        const rawSession = persistedSession?.session_json ?? body.lockedSession ?? null;
+        lockedSession = canonicalizeLockedSession({
+          session: rawSession
+            ? { ...rawSession, build_spec: normalizeBuildSpec(rawSession.build_spec) }
+            : null,
+          conversationHistory: effectiveConversationHistory,
+        });
+        const sessionContradictions = detectSessionContradictions(
+          persistedSessionState?.state_json ?? null,
+          prompt || body.ideaTitle
+        );
+        if (sessionContradictions.length > 0) {
+          send({
+            type: "graceful_failure",
+            message: sessionContradictions[0]?.message ?? "This conflicts with the locked session.",
+            failure_kind: "input_conflict",
+            failure_stage: "brief_compile",
+            retry_strategy: "clarify",
+            reasons: sessionContradictions.map((item) => item.message),
+            failure_context: {
+              contradictions: sessionContradictions,
+            },
+            launchDecision: mapToLaunchDecision({
+              reasons: sessionContradictions.map((item) => item.message),
+              issueCodes: ["INPUT_CONFLICT"],
+              plannerRetries: 0,
+              repairAttempts: 0,
+              usedFallback: false,
+              requiredNamedIngredientNames: [],
+            }),
+          });
+          controller.close();
+          return;
+        }
         // Use the persisted (locked) brief when available — it was compiled from
         // the full conversation at lock time and should not be recompiled from
         // the current prompt, which may have slightly different phrasing.
@@ -380,6 +418,7 @@ export async function POST(request: Request) {
               brief: effectiveBrief,
               recipe: attemptResult.recipe,
               fallbackContext: `${resolvedIdeaTitle} ${prompt ?? ""}`,
+              sessionState: persistedSessionState?.state_json ?? null,
             });
             if (!attemptVerification.passes) {
               throw new RecipeBuildError({
@@ -430,6 +469,7 @@ export async function POST(request: Request) {
                 userMessage: prompt ?? body.ideaTitle,
                 conversationHistory: effectiveConversationHistory,
                 sessionMemory: buildSessionMemoryBlock({
+                  sessionState: persistedSessionState?.state_json ?? null,
                   brief: effectiveBrief,
                   lockedSession,
                   recipeContext: {
@@ -464,6 +504,7 @@ export async function POST(request: Request) {
                 userMessage: prompt ?? body.ideaTitle,
                 conversationHistory: effectiveConversationHistory,
                 sessionMemory: buildSessionMemoryBlock({
+                  sessionState: persistedSessionState?.state_json ?? null,
                   brief: effectiveBrief,
                   lockedSession,
                   recipeContext: {
@@ -735,14 +776,41 @@ export async function POST(request: Request) {
         })();
 
         if (conversationKey) {
+          const persistenceTasks: Promise<unknown>[] = [];
           if (lockedSession?.selected_direction) {
-            void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
+            persistenceTasks.push(
+              upsertLockedDirectionSession(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+                session: markLockedSessionBuilt(lockedSession, effectiveBrief),
+              })
+            );
+          }
+          persistenceTasks.push(
+            upsertCanonicalSessionState(access.supabase as SupabaseClient, {
               ownerId: access.userId,
               conversationKey,
               scope: "home_hub",
-              session: markLockedSessionBuilt(lockedSession, effectiveBrief),
-            }).catch((e) => console.error("upsertLockedDirectionSession failed", e));
-          }
+              state: updateCanonicalSessionState({
+                conversationKey,
+                scope: "home_hub",
+                brief: effectiveBrief,
+                lockedSession: lockedSession?.selected_direction ? markLockedSessionBuilt(lockedSession, effectiveBrief) : lockedSession,
+                recipeContext: {
+                  title: body.ideaTitle,
+                  ingredients,
+                  steps: Array.isArray(result.recipe?.steps)
+                    ? result.recipe.steps.map((item) => item.text).filter((value): value is string => typeof value === "string")
+                    : [],
+                },
+                conversationHistory: effectiveConversationHistory,
+                previousState: persistedSessionState?.state_json ?? null,
+                updatedBy: "home_build",
+              }),
+            })
+          );
+          void Promise.allSettled(persistenceTasks).catch((e) => console.error("home build state persistence failed", e));
           void storeGenerationAttempt(access.supabase as SupabaseClient, {
             ownerId: access.userId,
             conversationKey,
