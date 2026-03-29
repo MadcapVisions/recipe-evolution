@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { deriveIngredientDetails } from "./canonicalEnrichment";
+import { normalizeMeasurementUnit } from "./measurements";
 
 const nullableTrimmedString = z
   .union([z.string(), z.null(), z.undefined()])
@@ -36,6 +37,34 @@ export function formatIngredientLine(input: {
   const optional = input.optional === true ? "optional" : null;
 
   return [amount, unit, name, prep, optional].filter((part) => Boolean(part)).join(" ").replace(/\s+/g, " ").trim();
+}
+
+function stripLeadingAmountFromIngredientName(value: string) {
+  const original = value.trim();
+  const details = deriveIngredientDetails(original);
+  if (details.quantity == null) {
+    return original;
+  }
+
+  // Avoid mangling ingredient names like "1000 island dressing" when the
+  // leading number is part of the product name rather than a measurement.
+  if (!details.unit && details.quantity >= 100) {
+    return original;
+  }
+
+  const quantityMatch = original.match(
+    /^((?:about|approx\.?|approximately)\s+)?(\d+(?:\.\d+)?(?:\/\d+)?(?:\s+\d+\/\d+)?|[\d¼½¾⅐⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]+(?:\s*(?:-|to)\s*[\d¼½¾⅐⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞/. ]+)?)\s+(.+)$/i
+  );
+  let remainder = quantityMatch ? quantityMatch[3].trim() : original;
+
+  if (details.unit) {
+    const [firstToken, ...restTokens] = remainder.split(/\s+/);
+    if (normalizeMeasurementUnit(firstToken ?? null) === normalizeMeasurementUnit(details.unit)) {
+      remainder = restTokens.join(" ").trim();
+    }
+  }
+
+  return remainder || original;
 }
 
 const measuredIngredientNameSchema = z
@@ -452,16 +481,22 @@ export function normalizeAiIngredients(value: unknown): RecipeDraftIngredient[] 
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const raw = item as Record<string, unknown>;
+      const quantity = typeof raw.quantity === "number" ? raw.quantity : null;
+      const unit = typeof raw.unit === "string" ? raw.unit : null;
       const name = typeof raw.name === "string" ? raw.name.trim() : "";
       if (!name) return null;
+
+      const normalizedName =
+        quantity != null && deriveIngredientDetails(name).quantity != null ? stripLeadingAmountFromIngredientName(name) : name;
+
       return {
         name:
           formatIngredientLine({
-            name,
-            quantity: typeof raw.quantity === "number" ? raw.quantity : null,
-            unit: typeof raw.unit === "string" ? raw.unit : null,
+            name: normalizedName,
+            quantity,
+            unit,
             prep: typeof raw.prep === "string" ? raw.prep : null,
-          }) || name,
+          }) || normalizedName,
       };
     })
     .filter((item): item is { name: string } => item !== null);

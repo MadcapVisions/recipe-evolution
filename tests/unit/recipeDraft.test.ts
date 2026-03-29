@@ -4,6 +4,7 @@ import {
   coerceIngredientLineWithAmount,
   formatIngredientLine,
   ingredientLineHasAmount,
+  normalizeAiIngredients,
   normalizeRecipeDraft,
   normalizeRecipeVersionPayload,
   parseIngredientLines,
@@ -49,6 +50,21 @@ test("repairRecipeDraftIngredientLines converts bare ingredient names into measu
     { name: "1 cup rice" },
     { name: "1/2 tsp black pepper" },
   ]);
+});
+
+test("normalizeAiIngredients removes duplicated leading measurements from structured AI ingredients", () => {
+  assert.deepEqual(
+    normalizeAiIngredients([
+      { name: "6 cup crispy rice cereal", quantity: 6, unit: "cup", prep: null },
+      { name: "1.5 cup dark chocolate chunks", quantity: 2, unit: "cup", prep: null },
+      { name: "8 tortillas", quantity: 8, unit: null, prep: null },
+    ]),
+    [
+      { name: "6 cup crispy rice cereal" },
+      { name: "2 cup dark chocolate chunks" },
+      { name: "8 tortillas" },
+    ]
+  );
 });
 
 test("parseStepLines trims lines and drops blanks", () => {
