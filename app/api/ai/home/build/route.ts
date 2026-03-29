@@ -6,6 +6,7 @@ import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import type { AIMessage } from "@/lib/ai/chatPromptBuilder";
 import { getCookingBrief } from "@/lib/ai/briefStore";
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
+import { getConversationTurns } from "@/lib/ai/conversationStore";
 import { generateHomeRecipe } from "@/lib/ai/homeHub";
 import { getLatestGenerationAttempt, storeGenerationAttempt } from "@/lib/ai/generationAttemptStore";
 import { createAiStageMetric } from "@/lib/ai/contracts/stageMetrics";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/ai/runIssueCollector";
 import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
 import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSchema";
+import { mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -184,6 +186,7 @@ export async function POST(request: Request) {
       let adjudicatorRetryUsed = false;
       let terminalFailureStored = false;
       let lockedSession: LockedDirectionSession | null = null;
+      let effectiveConversationHistory: AIMessage[] = conversationHistory ?? [];
       let previousAttempt: PreviousAttemptSnapshot = null;
       const issueCollector = createRunIssueCollector();
 
@@ -194,7 +197,7 @@ export async function POST(request: Request) {
         const taskSettingPromise = resolveAiTaskSettings("home_recipe");
         const ciaTaskSettingPromise = resolveAiTaskSettings("recipe_cia");
         const gracefulModePromise = getFeatureFlag("graceful_mode", false);
-        const [persistedBrief, persistedSession] = await Promise.all([
+        const [persistedBrief, persistedSession, persistedTurns] = await Promise.all([
           conversationKey
             ? getCookingBrief(access.supabase as SupabaseClient, {
                 ownerId: access.userId,
@@ -209,6 +212,13 @@ export async function POST(request: Request) {
                 scope: "home_hub",
               })
             : Promise.resolve(null),
+          conversationKey
+            ? getConversationTurns(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              })
+            : Promise.resolve([]),
         ]);
         previousAttempt = conversationKey
           ? await getLatestGenerationAttempt(access.supabase as SupabaseClient, {
@@ -217,6 +227,11 @@ export async function POST(request: Request) {
               scope: "home_hub",
             })
           : null;
+        effectiveConversationHistory = mergeSessionConversationHistory({
+          persistedTurns,
+          clientHistory: conversationHistory,
+          maxMessages: 16,
+        });
         // Normalize build_spec: malformed/stale objects become null so the session
         // falls back to legacy reconstruction rather than crashing the fast path.
         const rawSession = body.lockedSession ?? persistedSession?.session_json ?? null;
@@ -230,7 +245,7 @@ export async function POST(request: Request) {
           ? persistedBrief.brief_json
           : compileCookingBrief({
               userMessage: prompt || body.ideaTitle,
-              conversationHistory,
+              conversationHistory: effectiveConversationHistory,
               recipeContext: {
                 title: body.ideaTitle,
                 ingredients,
@@ -240,7 +255,7 @@ export async function POST(request: Request) {
         effectiveBrief = lockedSession?.selected_direction
           ? buildLockedBrief({
               session: lockedSession,
-              conversationHistory,
+              conversationHistory: effectiveConversationHistory,
             })
           : compiledBrief;
         briefCompiledAt = new Date().toISOString();
@@ -326,7 +341,7 @@ export async function POST(request: Request) {
                 ideaTitle: resolvedIdeaTitle,
                 prompt,
                 ingredients,
-                conversationHistory,
+                conversationHistory: effectiveConversationHistory,
                 cookingBrief: effectiveBrief,
                 recipePlan: activeRecipePlan,
                 retryContext:
@@ -412,14 +427,14 @@ export async function POST(request: Request) {
                 flow: "home_create",
                 failureKind: failure.kind,
                 userMessage: prompt ?? body.ideaTitle,
-                conversationHistory,
+                conversationHistory: effectiveConversationHistory,
                 selectedDirection: lockedSession?.selected_direction ?? null,
                 cookingBrief: effectiveBrief,
                 constraintProvenance: buildCiaConstraintProvenance({
                   flow: "home_create",
                   failureKind: failure.kind,
                   userMessage: prompt ?? body.ideaTitle,
-                  conversationHistory,
+                  conversationHistory: effectiveConversationHistory,
                   selectedDirection: lockedSession?.selected_direction ?? null,
                   cookingBrief: effectiveBrief,
                   recipeCandidate: failure.normalizedRecipe,
@@ -437,7 +452,7 @@ export async function POST(request: Request) {
                 taskSetting: ciaTaskSetting,
                 failureKind: failure.kind,
                 userMessage: prompt ?? body.ideaTitle,
-                conversationHistory,
+                conversationHistory: effectiveConversationHistory,
                 selectedDirection: lockedSession?.selected_direction ?? null,
                 cookingBrief: effectiveBrief,
                 recipeCandidate: failure.normalizedRecipe,
@@ -529,10 +544,10 @@ export async function POST(request: Request) {
                 stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
                 stateAfter: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
                 attempt: {
-                  conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
+                  conversation_snapshot: effectiveConversationHistory.map((message) => `${message.role}: ${message.content}`).join("\n"),
                   cooking_brief: effectiveBrief ?? compileCookingBrief({
                     userMessage: prompt || body.ideaTitle,
-                    conversationHistory,
+                    conversationHistory: effectiveConversationHistory,
                   }),
                   recipe_plan: activeRecipePlan,
                   generator_input: {
@@ -717,7 +732,7 @@ export async function POST(request: Request) {
             stateBefore: lockedSession?.selected_direction ? lockedSession.state : "ready_for_recipe",
             stateAfter: lockedSession?.selected_direction ? "built" : "recipe_generated",
             attempt: {
-              conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
+              conversation_snapshot: effectiveConversationHistory.map((message) => `${message.role}: ${message.content}`).join("\n"),
               cooking_brief: effectiveBrief,
               recipe_plan: recipePlan,
               generator_input: {
@@ -783,10 +798,10 @@ export async function POST(request: Request) {
             stateBefore: "ready_for_recipe",
             stateAfter: "ready_for_recipe",
             attempt: {
-              conversation_snapshot: (conversationHistory ?? []).map((message) => `${message.role}: ${message.content}`).join("\n"),
+              conversation_snapshot: effectiveConversationHistory.map((message) => `${message.role}: ${message.content}`).join("\n"),
               cooking_brief: effectiveBrief ?? compileCookingBrief({
                 userMessage: prompt || body.ideaTitle,
-                conversationHistory,
+                conversationHistory: effectiveConversationHistory,
               }),
               recipe_plan: recipePlan,
               generator_input: {

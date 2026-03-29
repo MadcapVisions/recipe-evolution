@@ -6,6 +6,19 @@ type HomeChatMessage = {
   kind?: "message" | "direction_selected";
 };
 
+const OPTION_FOLLOW_UP_PATTERNS = [
+  /\bother options?\b/i,
+  /\bdifferent options?\b/i,
+  /\bnew options?\b/i,
+  /\bmore options?\b/i,
+  /\banother option\b/i,
+  /\bnone of (?:these|those)\b/i,
+  /\bnot (?:these|those)\b/i,
+  /\bthe same options?\b/i,
+  /\bother directions?\b/i,
+  /\bdifferent directions?\b/i,
+];
+
 function toAiMessages(messages: HomeChatMessage[]): AIMessage[] {
   return messages
     .filter((message) => message.kind !== "direction_selected")
@@ -13,6 +26,42 @@ function toAiMessages(messages: HomeChatMessage[]): AIMessage[] {
       role: message.role === "user" ? "user" : "assistant",
       content: message.text,
     }));
+}
+
+function isOptionFollowUpMessage(message: HomeChatMessage | undefined) {
+  if (!message || message.role !== "user") {
+    return false;
+  }
+
+  return OPTION_FOLLOW_UP_PATTERNS.some((pattern) => pattern.test(message.text));
+}
+
+function buildAnchoredTail(messages: HomeChatMessage[], tailStart: number) {
+  const tail = messages.slice(tailStart);
+  if (tail.length <= 6) {
+    const firstUserIndex = messages.findIndex((message) => message.role === "user");
+    if (firstUserIndex <= -1 || firstUserIndex >= tailStart) {
+      return tail;
+    }
+    const anchorEnd = Math.min(firstUserIndex + 2, messages.length);
+    return [...messages.slice(firstUserIndex, anchorEnd), ...tail];
+  }
+
+  const firstUserIndex = messages.findIndex((message) => message.role === "user");
+  if (firstUserIndex === -1) {
+    return tail.slice(-6);
+  }
+
+  const anchorEnd = Math.min(firstUserIndex + 2, messages.length);
+  const anchor = messages.slice(firstUserIndex, anchorEnd);
+  const tailBudget = Math.max(0, 6 - anchor.length);
+  const tailSlice = messages.slice(-tailBudget);
+  const dedupedTail = tailSlice.filter((message, index) => {
+    const tailIndex = messages.length - tailSlice.length + index;
+    return tailIndex >= anchorEnd;
+  });
+
+  return [...anchor, ...dedupedTail];
 }
 
 export function buildFocusedChatHistory(messages: HomeChatMessage[]): AIMessage[] {
@@ -28,7 +77,12 @@ export function buildFocusedChatHistory(messages: HomeChatMessage[]): AIMessage[
   }
 
   const start = Math.max(0, resolvedLastAiIndex - 1);
-  return toAiMessages(messages.slice(start).slice(-6));
+  const focusedTail = messages.slice(start);
+  if (isOptionFollowUpMessage(messages[resolvedLastAiIndex - 1])) {
+    return toAiMessages(buildAnchoredTail(messages, start));
+  }
+
+  return toAiMessages(focusedTail.slice(-6));
 }
 
 export function buildFocusedRecipeConversation(messages: HomeChatMessage[]): HomeChatMessage[] {
@@ -45,7 +99,12 @@ export function buildFocusedRecipeConversation(messages: HomeChatMessage[]): Hom
   }
 
   const start = Math.max(0, resolvedLastAiIndex - 1);
-  return relevantMessages.slice(start);
+  const focusedTail = relevantMessages.slice(start);
+  if (isOptionFollowUpMessage(relevantMessages[resolvedLastAiIndex - 1])) {
+    return buildAnchoredTail(relevantMessages, start);
+  }
+
+  return focusedTail;
 }
 
 export function buildReplyBranch(messages: HomeChatMessage[], replyIndex: number): HomeChatMessage[] {

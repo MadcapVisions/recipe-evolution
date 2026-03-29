@@ -38,6 +38,38 @@ test("buildFocusedRecipeConversation drops earlier option chatter once a newer d
   ]);
 });
 
+test("buildFocusedChatHistory keeps the original dish anchor when the user asks for different options again", () => {
+  const history = buildFocusedChatHistory([
+    { role: "user", text: "I want a dessert inspired by a 100 Grand bar." },
+    { role: "ai", text: "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae." },
+    { role: "user", text: "Those are the same options you first gave me, I want 3 different options." },
+    { role: "ai", text: "Here are three other 100 Grand-inspired directions." },
+  ]);
+
+  assert.deepEqual(history, [
+    { role: "user", content: "I want a dessert inspired by a 100 Grand bar." },
+    { role: "assistant", content: "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae." },
+    { role: "user", content: "Those are the same options you first gave me, I want 3 different options." },
+    { role: "assistant", content: "Here are three other 100 Grand-inspired directions." },
+  ]);
+});
+
+test("buildFocusedRecipeConversation keeps the original dish anchor across repeated option requests", () => {
+  const focused = buildFocusedRecipeConversation([
+    { role: "user", text: "I want a dessert inspired by a 100 Grand bar." },
+    { role: "ai", text: "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae." },
+    { role: "user", text: "Those are the same options you first gave me, I want 3 different options." },
+    { role: "ai", text: "Here are three other 100 Grand-inspired directions." },
+  ]);
+
+  assert.deepEqual(focused, [
+    { role: "user", text: "I want a dessert inspired by a 100 Grand bar." },
+    { role: "ai", text: "Option 1 caramel crunch tart. Option 2 no-bake bar. Option 3 ice cream sundae." },
+    { role: "user", text: "Those are the same options you first gave me, I want 3 different options." },
+    { role: "ai", text: "Here are three other 100 Grand-inspired directions." },
+  ]);
+});
+
 test("buildReplyBranch isolates a specific assistant direction", () => {
   const branch = buildReplyBranch(
     [

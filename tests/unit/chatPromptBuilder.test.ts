@@ -18,3 +18,11 @@ test("buildChefChatPrompt includes user taste profile section", () => {
   assert.match(systemMessages, /User Taste Profile:/);
   assert.match(systemMessages, /Prefers spicy food\./);
 });
+
+test("buildChefChatPrompt includes session memory when provided", () => {
+  const messages = buildChefChatPrompt("Give me other options.", null, [], undefined, "Session memory:\n- Active dish: 100 Grand dessert");
+  const systemMessages = messages.filter((message) => message.role === "system").map((message) => message.content).join("\n");
+
+  assert.match(systemMessages, /Session memory:/);
+  assert.match(systemMessages, /Active dish: 100 Grand dessert/);
+});

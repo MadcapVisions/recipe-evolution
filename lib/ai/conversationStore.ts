@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type ConversationScope = "home_hub" | "recipe_detail";
 type ConversationRole = "user" | "assistant";
-type ConversationTurnRow = {
+export type ConversationTurnRow = {
   id: string;
   owner_id: string;
   conversation_key: string;

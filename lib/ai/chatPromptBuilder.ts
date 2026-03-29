@@ -20,7 +20,8 @@ export function buildChefChatPrompt(
   userMessage: string,
   recipeContext: RecipeContext,
   conversationHistory: AIMessage[] = [],
-  userTasteSummary?: string
+  userTasteSummary?: string,
+  sessionMemory?: string | null
 ): AIMessage[] {
   let contextText = "";
 
@@ -48,6 +49,14 @@ ${recipeContext.steps?.join("\n") ?? "None provided"}
       role: "system",
       content: CHEF_SYSTEM_PROMPT,
     },
+    ...(sessionMemory?.trim()
+      ? [
+          {
+            role: "system" as const,
+            content: sessionMemory.trim(),
+          },
+        ]
+      : []),
     {
       role: "system",
       content: `

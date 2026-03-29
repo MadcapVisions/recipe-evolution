@@ -9,6 +9,7 @@ import { requireAuthenticatedAiAccess } from "@/lib/ai/routeSecurity";
 import { trackServerEvent } from "@/lib/trackServerEvent";
 import { getCachedUserTasteSummary } from "@/lib/ai/userTasteProfile";
 import { storeConversationTurns } from "@/lib/ai/conversationStore";
+import { getConversationTurns } from "@/lib/ai/conversationStore";
 import { COOKING_SCOPE_MESSAGE, guardCookingTopic } from "@/lib/ai/topicGuard";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
@@ -19,6 +20,7 @@ import { upsertCookingBrief } from "@/lib/ai/briefStore";
 import { mergeCookingBriefs, resolveRecipeSessionBrief } from "@/lib/ai/recipeSessionStore";
 import { createEmptyCookingBrief } from "@/lib/ai/contracts/cookingBrief";
 import { buildChefIntelligence, deriveChefActions } from "@/lib/ai/chefIntelligence";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ mode: "refine", reply: COOKING_SCOPE_MESSAGE, options: [], recommended_option_id: null, suggestion: null });
     }
 
-    const conversationHistory = Array.isArray(body.conversationHistory)
+    const clientConversationHistory = Array.isArray(body.conversationHistory)
       ? body.conversationHistory.filter(
           (message): message is AIMessage =>
             Boolean(message) &&
@@ -115,9 +117,18 @@ export async function POST(request: Request) {
             message.content.trim().length > 0
         )
       : [];
-    const orchestration = analyzeRecipeTurn({
+    const conversationKey = body.conversationKey?.trim() || null;
+    const persistedTurnsPromise =
+      conversationKey
+        ? getConversationTurns(access.supabase as SupabaseClient, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "recipe_detail",
+          })
+        : Promise.resolve([]);
+    const preflightOrchestration = analyzeRecipeTurn({
       userMessage,
-      selectedDirectionLocked: conversationHistory.some((message) =>
+      selectedDirectionLocked: clientConversationHistory.some((message) =>
         message.role === "assistant" && /^Locked direction:/i.test(message.content)
       ),
       hasRecipeContext: Boolean(body.recipeContext || body.recipe || body.recipeId || body.versionId),
@@ -159,7 +170,7 @@ export async function POST(request: Request) {
       cook_time_min?: unknown;
       difficulty?: unknown;
     } | null = null;
-    if (body.includeSuggestion && orchestration.shouldIncludeSuggestion) {
+    if (body.includeSuggestion && preflightOrchestration.shouldIncludeSuggestion) {
       const recipeId = body.recipeId!.trim();
       const versionId = body.versionId!.trim();
 
@@ -186,7 +197,32 @@ export async function POST(request: Request) {
     }
 
     // Start both AI calls now — ownership is confirmed, no more early returns after this point.
-    const chefChatPromise = chefChat(userMessage, body.recipeContext ?? null, conversationHistory, userTasteSummary, taskSetting);
+    const [persistedTurns, sessionBrief] = await Promise.all([persistedTurnsPromise, sessionBriefPromise]);
+    const conversationHistory = mergeSessionConversationHistory({
+      persistedTurns,
+      clientHistory: clientConversationHistory,
+    });
+    const orchestration = analyzeRecipeTurn({
+      userMessage,
+      selectedDirectionLocked: conversationHistory.some((message) =>
+        message.role === "assistant" && /^Locked direction:/i.test(message.content)
+      ),
+      hasRecipeContext: Boolean(body.recipeContext || body.recipe || body.recipeId || body.versionId),
+    });
+    const sessionMemory = buildSessionMemoryBlock({
+      brief: sessionBrief,
+      recipeContext: body.recipeContext ?? null,
+      conversationHistory,
+    });
+
+    const chefChatPromise = chefChat(
+      userMessage,
+      body.recipeContext ?? null,
+      conversationHistory,
+      userTasteSummary,
+      taskSetting,
+      sessionMemory
+    );
 
     let improveRecipePromise: Promise<Record<string, unknown> | null> = Promise.resolve(null);
     if (body.includeSuggestion && orchestration.shouldIncludeSuggestion && ownedVersion) {
@@ -205,7 +241,7 @@ export async function POST(request: Request) {
       improveRecipePromise = improveRecipe({
         instruction: orchestration.normalizedRecipeInstruction ?? userMessage,
         userTasteSummary,
-        sessionBrief: await sessionBriefPromise,
+        sessionBrief,
         recipe: {
           title: recipe.title,
           servings:
@@ -285,7 +321,6 @@ export async function POST(request: Request) {
         recipeContext: body.recipeContext ?? null,
         conversationHistory,
       });
-      const sessionBrief = await sessionBriefPromise;
       const persistedBrief =
         recipeId && conversationKey.startsWith("recipe-session:")
           ? mergeCookingBriefs(
@@ -293,39 +328,46 @@ export async function POST(request: Request) {
               brief
             )
           : brief;
-      void upsertCookingBrief(access.supabase as SupabaseClient, {
-        ownerId: access.userId,
-        conversationKey,
-        scope: "recipe_detail",
-        recipeId,
-        versionId,
-        brief: persistedBrief,
-        confidence: persistedBrief.confidence ?? null,
-        isLocked: false,
-      }).catch((e) => console.error("upsertCookingBrief failed", e));
-      void storeConversationTurns(access.supabase as SupabaseClient, {
-        ownerId: access.userId,
-        conversationKey,
-        scope: "recipe_detail",
-        recipeId,
-        versionId,
-        turns: [
-          {
-            role: "user",
-            message: userMessage,
-          },
-          {
-            role: "assistant",
-            message: envelope.reply,
-            metadata_json:
-              suggestion
-                ? { suggestion_created: true, envelope, orchestration, actions, chefIntelligence }
-                : envelope.options.length > 0
-                ? { ...envelope, orchestration, actions, chefIntelligence }
-                : { orchestration, actions, chefIntelligence },
-          },
-        ],
-      }).catch((e) => console.error("storeConversationTurns failed", e));
+      const persistenceResults = await Promise.allSettled([
+        upsertCookingBrief(access.supabase as SupabaseClient, {
+          ownerId: access.userId,
+          conversationKey,
+          scope: "recipe_detail",
+          recipeId,
+          versionId,
+          brief: persistedBrief,
+          confidence: persistedBrief.confidence ?? null,
+          isLocked: false,
+        }),
+        storeConversationTurns(access.supabase as SupabaseClient, {
+          ownerId: access.userId,
+          conversationKey,
+          scope: "recipe_detail",
+          recipeId,
+          versionId,
+          turns: [
+            {
+              role: "user",
+              message: userMessage,
+            },
+            {
+              role: "assistant",
+              message: envelope.reply,
+              metadata_json:
+                suggestion
+                  ? { suggestion_created: true, envelope, orchestration, actions, chefIntelligence }
+                  : envelope.options.length > 0
+                  ? { ...envelope, orchestration, actions, chefIntelligence }
+                  : { orchestration, actions, chefIntelligence },
+            },
+          ],
+        }),
+      ]);
+      for (const result of persistenceResults) {
+        if (result.status === "rejected") {
+          console.error("recipe_detail persistence failed", result.reason);
+        }
+      }
     }
 
     return NextResponse.json({

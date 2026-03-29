@@ -22,6 +22,7 @@ import { looksLikePivotRequest } from "@/lib/ai/briefStateMachine";
 import { extractRefinementDeltaWithFallback } from "@/lib/ai/refinementExtraction.server";
 import { initAiUsageContext } from "@/lib/ai/usageLogger";
 import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSchema";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -148,19 +149,34 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: true, message: "Chef chat is currently disabled." }, { status: 503 });
       }
 
-      const result = await chefChat(
-        userMessage,
-        body.recipeContext ?? null,
-        conversationHistory,
-        userTasteSummary,
-        taskSetting
-      );
-
-      const envelope = result.envelope;
       const conversationKey = typeof body.conversationKey === "string" && body.conversationKey.trim().length > 0
         ? body.conversationKey.trim()
         : null;
       const isSessionReset = body.reset_session === true;
+      const [persistedSession, persistedBrief, persistedTurns] =
+        conversationKey && !isSessionReset
+          ? await Promise.all([
+              getLockedDirectionSession(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              }),
+              getCookingBrief(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              }),
+              getConversationTurns(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+              }),
+            ])
+          : [null, null, []];
+      const mergedConversationHistory = mergeSessionConversationHistory({
+        persistedTurns,
+        clientHistory: conversationHistory,
+      });
       if (isSessionReset && conversationKey) {
         void deleteLockedDirectionSession(access.supabase as SupabaseClient, {
           ownerId: access.userId,
@@ -168,17 +184,26 @@ export async function POST(request: Request) {
           scope: "home_hub",
         }).catch((e) => console.error("deleteLockedDirectionSession failed", e));
       }
-      const persistedSession = conversationKey && !isSessionReset
-        ? await getLockedDirectionSession(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-          })
-        : null;
       const rawCurrentSession = isSessionReset ? null : (body.lockedSession ?? persistedSession?.session_json ?? null);
       const currentSession: LockedDirectionSession | null = rawCurrentSession
         ? { ...rawCurrentSession, build_spec: normalizeBuildSpec(rawCurrentSession.build_spec) }
         : null;
+      const sessionMemory = buildSessionMemoryBlock({
+        brief: persistedBrief?.brief_json ?? null,
+        lockedSession: currentSession,
+        recipeContext: body.recipeContext ?? null,
+        conversationHistory: mergedConversationHistory,
+      });
+      const result = await chefChat(
+        userMessage,
+        body.recipeContext ?? null,
+        mergedConversationHistory,
+        userTasteSummary,
+        taskSetting,
+        sessionMemory
+      );
+
+      const envelope = result.envelope;
       const pivotedAwayFromLockedSession =
         Boolean(currentSession?.selected_direction) && looksLikePivotRequest(userMessage);
       const refinedDelta =
@@ -200,7 +225,7 @@ export async function POST(request: Request) {
           ? buildLockedBrief({
               session: refinedSession,
               conversationHistory: [
-                ...conversationHistory,
+                ...mergedConversationHistory,
                 { role: "user", content: userMessage },
                 { role: "assistant", content: envelope.reply },
               ],
@@ -208,49 +233,63 @@ export async function POST(request: Request) {
           : compileCookingBrief({
               userMessage,
               assistantReply: envelope.reply,
-              conversationHistory,
+              conversationHistory: mergedConversationHistory,
               recipeContext: body.recipeContext ?? null,
               lockedSessionState: currentSession?.state ?? null,
               latestAssistantMode: envelope.mode,
             });
 
       if (conversationKey) {
-        void storeConversationTurns(access.supabase as SupabaseClient, {
-          ownerId: access.userId,
-          conversationKey,
-          scope: "home_hub",
-          turns: [
-            {
-              role: "user",
-              message: userMessage,
-            },
-            {
-              role: "assistant",
-              message: envelope.reply,
-              metadata_json: envelope.options.length > 0 ? envelope : null,
-            },
-          ],
-        }).catch((e) => console.error("storeConversationTurns failed", e));
+        const persistenceTasks: Promise<unknown>[] = [
+          storeConversationTurns(access.supabase as SupabaseClient, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "home_hub",
+            turns: [
+              {
+                role: "user",
+                message: userMessage,
+              },
+              {
+                role: "assistant",
+                message: envelope.reply,
+                metadata_json: envelope.options.length > 0 ? envelope : null,
+              },
+            ],
+          }),
+          upsertCookingBrief(access.supabase as SupabaseClient, {
+            ownerId: access.userId,
+            conversationKey,
+            scope: "home_hub",
+            brief: compiledBrief,
+          }),
+        ];
+
         if (refinedSession) {
-          void upsertLockedDirectionSession(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-            session: refinedSession,
-          }).catch((e) => console.error("upsertLockedDirectionSession failed", e));
+          persistenceTasks.push(
+            upsertLockedDirectionSession(access.supabase as SupabaseClient, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+              session: refinedSession,
+            })
+          );
         } else if (pivotedAwayFromLockedSession) {
-          void deleteLockedDirectionSession(access.supabase as SupabaseClient, {
-            ownerId: access.userId,
-            conversationKey,
-            scope: "home_hub",
-          }).catch((e) => console.error("deleteLockedDirectionSession failed", e));
+          persistenceTasks.push(
+            deleteLockedDirectionSession(access.supabase as SupabaseClient, {
+              ownerId: access.userId,
+              conversationKey,
+              scope: "home_hub",
+            })
+          );
         }
-        void upsertCookingBrief(access.supabase as SupabaseClient, {
-          ownerId: access.userId,
-          conversationKey,
-          scope: "home_hub",
-          brief: compiledBrief,
-        }).catch((e) => console.error("upsertCookingBrief failed", e));
+
+        const persistenceResults = await Promise.allSettled(persistenceTasks);
+        for (const result of persistenceResults) {
+          if (result.status === "rejected") {
+            console.error("home_hub persistence failed", result.reason);
+          }
+        }
       }
 
       if (result.repaired) {
@@ -261,7 +300,7 @@ export async function POST(request: Request) {
           user_message_length: userMessage.length,
           initial_reply_length: result.initialReply.trim().length,
           final_reply_length: envelope.reply.trim().length,
-          conversation_turns: conversationHistory.length,
+          conversation_turns: mergedConversationHistory.length,
         });
       }
 
