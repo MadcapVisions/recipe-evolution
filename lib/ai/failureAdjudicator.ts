@@ -35,6 +35,7 @@ type FailureAdjudicationInput = {
   instruction?: string | null;
   rawRecipeText?: string | null;
   conversationHistory?: AIMessage[] | null;
+  sessionMemory?: string | null;
   selectedDirection?: LockedDirectionSelected | null;
   cookingBrief?: CookingBrief | null;
   recipeCandidate?: unknown;
@@ -246,6 +247,7 @@ function buildAdjudicatorPrompt(input: FailureAdjudicationInput) {
       instruction: input.instruction ?? null,
       rawRecipeText: input.rawRecipeText ?? null,
       conversationHistory: input.conversationHistory ?? [],
+      sessionMemory: input.sessionMemory ?? null,
       selectedDirection: input.selectedDirection ?? null,
       cookingBrief: input.cookingBrief ?? null,
       recipeCandidate: input.recipeCandidate ?? null,

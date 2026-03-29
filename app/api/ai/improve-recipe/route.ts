@@ -15,6 +15,8 @@ import { buildAttemptOrchestrationState, normalizeRecipeEditInstruction } from "
 import { compileCookingBrief } from "@/lib/ai/briefCompiler";
 import type { CookingBrief } from "@/lib/ai/contracts/cookingBrief";
 import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
+import { getConversationTurns } from "@/lib/ai/conversationStore";
+import { buildSessionMemoryBlock, mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
 
 const improveRecipeRequestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -70,6 +72,7 @@ export async function POST(request: Request) {
       userTasteSummary,
       resolvedSessionBrief,
       resolvedPreviousAttempt,
+      persistedTurns,
     ] = await Promise.all([
       access.supabase
         .from("recipes")
@@ -90,6 +93,11 @@ export async function POST(request: Request) {
         versionId,
       }),
       getLatestGenerationAttempt(access.supabase as SupabaseClient, {
+        ownerId: access.userId,
+        conversationKey,
+        scope: "recipe_detail",
+      }),
+      getConversationTurns(access.supabase as SupabaseClient, {
         ownerId: access.userId,
         conversationKey,
         scope: "recipe_detail",
@@ -117,6 +125,19 @@ export async function POST(request: Request) {
     const effectiveIngredients = requestIngredients.length > 0 ? requestIngredients : persistedIngredients;
     const effectiveSteps = requestSteps.length > 0 ? requestSteps : persistedSteps;
     const usedSessionRecovery = requestIngredients.length === 0 || requestSteps.length === 0;
+    const conversationHistory = mergeSessionConversationHistory({
+      persistedTurns,
+      clientHistory: [],
+    });
+    const sessionMemory = buildSessionMemoryBlock({
+      brief: resolvedSessionBrief,
+      recipeContext: {
+        title: recipe.title,
+        ingredients: effectiveIngredients.map((item) => item.name),
+        steps: effectiveSteps.map((item) => item.text),
+      },
+      conversationHistory,
+    });
 
     if (effectiveIngredients.length === 0 || effectiveSteps.length === 0) {
       return NextResponse.json(
@@ -132,6 +153,8 @@ export async function POST(request: Request) {
       instruction,
       userTasteSummary,
       sessionBrief: resolvedSessionBrief,
+      conversationHistory,
+      sessionMemory,
       recipe: {
         title: recipe.title,
         servings:

@@ -43,6 +43,7 @@ import {
 import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationState";
 import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSchema";
 import { mergeSessionConversationHistory } from "@/lib/ai/sessionContext";
+import { buildSessionMemoryBlock } from "@/lib/ai/sessionContext";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -428,6 +429,15 @@ export async function POST(request: Request) {
                 failureKind: failure.kind,
                 userMessage: prompt ?? body.ideaTitle,
                 conversationHistory: effectiveConversationHistory,
+                sessionMemory: buildSessionMemoryBlock({
+                  brief: effectiveBrief,
+                  lockedSession,
+                  recipeContext: {
+                    title: resolvedIdeaTitle,
+                    ingredients,
+                  },
+                  conversationHistory: effectiveConversationHistory,
+                }),
                 selectedDirection: lockedSession?.selected_direction ?? null,
                 cookingBrief: effectiveBrief,
                 constraintProvenance: buildCiaConstraintProvenance({
@@ -453,6 +463,15 @@ export async function POST(request: Request) {
                 failureKind: failure.kind,
                 userMessage: prompt ?? body.ideaTitle,
                 conversationHistory: effectiveConversationHistory,
+                sessionMemory: buildSessionMemoryBlock({
+                  brief: effectiveBrief,
+                  lockedSession,
+                  recipeContext: {
+                    title: resolvedIdeaTitle,
+                    ingredients,
+                  },
+                  conversationHistory: effectiveConversationHistory,
+                }),
                 selectedDirection: lockedSession?.selected_direction ?? null,
                 cookingBrief: effectiveBrief,
                 recipeCandidate: failure.normalizedRecipe,

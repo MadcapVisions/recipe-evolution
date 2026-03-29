@@ -12,6 +12,7 @@ import { resolveAiTaskSettings } from "./taskSettings";
 import { normalizeRecipeEditInstruction } from "./recipeOrchestrator";
 import type { CookingBrief } from "./contracts/cookingBrief";
 import { storeCiaAdjudication } from "./ciaStore";
+import type { AIMessage } from "./chatPromptBuilder";
 
 export class ImproveRecipeGenerationError extends Error {
   debugPayload: unknown;
@@ -27,6 +28,8 @@ type ImproveRecipeInput = {
   instruction: string;
   userTasteSummary?: string;
   sessionBrief?: CookingBrief | null;
+  conversationHistory?: AIMessage[] | null;
+  sessionMemory?: string | null;
   recipe: {
     title: string;
     servings: number | null;
@@ -353,6 +356,8 @@ export async function improveRecipe(
 
 User taste summary: ${input.userTasteSummary?.trim() || "No user taste summary available."}
 
+${input.sessionMemory?.trim() ? `${input.sessionMemory.trim()}\n\n` : ""}
+
 When asked to improve a recipe, you must return ONLY valid JSON with no markdown:
 {
   "title": string,
@@ -571,6 +576,8 @@ Rules:
     const ciaPacket = {
       flow: "recipe_improve",
       instruction: input.instruction,
+      conversationHistory: input.conversationHistory ?? null,
+      sessionMemory: input.sessionMemory ?? null,
       cookingBrief: input.sessionBrief ?? null,
       constraintProvenance: buildCiaConstraintProvenance({
         flow: "recipe_improve",
@@ -590,6 +597,8 @@ Rules:
       taskSetting: ciaTaskSetting,
       failureKind: "verification_failed",
       instruction: input.instruction,
+      conversationHistory: input.conversationHistory ?? null,
+      sessionMemory: input.sessionMemory ?? null,
       cookingBrief: input.sessionBrief ?? null,
       recipeCandidate: lastCandidate?.recipe ?? null,
       reasons: lastMissingRequiredIngredientIssues.map((issue) => issue.message),

@@ -474,7 +474,7 @@ test("improveRecipe includes persisted recipe-session constraints in the model p
   let capturedPrompt = "";
 
   const mockedCallAiForJson = (async (messages: Array<{ content: string }>) => {
-    capturedPrompt = messages[1]?.content ?? "";
+    capturedPrompt = messages.map((message) => message.content ?? "").join("\n\n");
     return {
       provider: "openrouter",
       model: "test-model",
@@ -538,6 +538,10 @@ test("improveRecipe includes persisted recipe-session constraints in the model p
 
     await improveRecipe({
       instruction: "more eggs and rum",
+      conversationHistory: [
+        { role: "user", content: "Keep the bread pudding format and slow cooker method." },
+      ],
+      sessionMemory: "Session memory:\n- Active dish: banana bread pudding\n- Required methods: slow_cook",
       sessionBrief: {
         request_mode: "revise",
         confidence: 0.9,
@@ -603,6 +607,8 @@ test("improveRecipe includes persisted recipe-session constraints in the model p
 
     assert.match(capturedPrompt, /Persistent equipment or tool constraints: slow cooker/i);
     assert.match(capturedPrompt, /Persistent required cooking methods: slow_cook/i);
+    assert.match(capturedPrompt, /Session memory:/i);
+    assert.match(capturedPrompt, /Active dish: banana bread pudding/i);
   } finally {
     require.cache[jsonResponsePath]!.exports = originalJsonResponseExports;
     require.cache[taskSettingsPath]!.exports = originalTaskSettingsExports;
