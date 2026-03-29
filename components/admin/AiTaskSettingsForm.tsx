@@ -84,6 +84,23 @@ const TASK_RECOMMENDATIONS: Record<AiTaskKey, TaskRecommendation[]> = {
       matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
     },
   ],
+  recipe_cia: [
+    {
+      prefix: "🟢",
+      note: "best value for adjudication and structured forensic checks",
+      matches: (id) => matchesAny(id, ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-chat"]),
+    },
+    {
+      prefix: "🟡",
+      note: "good fallback when you want stricter judgment",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-haiku", "deepseek/deepseek-r1-distill-qwen-32b"]),
+    },
+    {
+      prefix: "🔴",
+      note: "premium and expensive",
+      matches: (id) => matchesAny(id, ["anthropic/claude-3.5-sonnet"]),
+    },
+  ],
   recipe_improvement: [
     {
       // Benchmark: GPT-4o mini 10/10, DeepSeek V3 10/10. Gemini 2.5 Flash FAILED (JSON parse).
@@ -334,6 +351,188 @@ export function AiTaskSettingsForm({ initialSettings, modelOptions, initialGrace
     }
   };
 
+  const workflowSettings = settings.filter((item) => item.taskKey !== "recipe_cia");
+  const ciaSetting = settings.find((item) => item.taskKey === "recipe_cia") ?? null;
+
+  const renderTaskSetting = (setting: EditableTaskSetting) => (
+    <section key={setting.taskKey} className="settings-section space-y-4 p-4">
+      <div className="space-y-1">
+        <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">{setting.label}</p>
+        <p className="text-[15px] leading-6 text-[color:var(--muted)]">{setting.description}</p>
+        <p className="text-[13px] text-[color:var(--muted)]">🟢 cheapest recommended, 🟡 more expensive but worth it, 🔴 premium / expensive</p>
+      </div>
+
+      {(() => {
+        const primaryOptions = selectOptions(setting.taskKey, setting.primaryModel, modelOptions);
+        const fallbackOptions = selectOptions(setting.taskKey, setting.fallbackModel, modelOptions);
+
+        return (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-primary-select`}>
+                  Primary Model
+                </label>
+                <select
+                  id={`${setting.taskKey}-primary-select`}
+                  value={setting.primaryModel}
+                  onChange={(event) => updateSetting(setting.taskKey, "primaryModel", event.target.value)}
+                  className="settings-field min-h-12 w-full"
+                >
+                  {primaryOptions.currentOption && !primaryOptions.recommendedOptions.some((item) => item.id === primaryOptions.currentOption?.id) ? (
+                    <option value={primaryOptions.currentOption.id}>{primaryOptions.currentOption.displayLabel}</option>
+                  ) : null}
+                  <optgroup label="Recommended price/performance">
+                    {primaryOptions.recommendedOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.displayLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All OpenRouter models">
+                    {primaryOptions.allOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.displayLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[13px] font-medium text-[color:var(--muted)]" htmlFor={`${setting.taskKey}-primary`}>
+                  Primary Model ID
+                </label>
+                <input
+                  id={`${setting.taskKey}-primary`}
+                  value={setting.primaryModel}
+                  onChange={(event) => updateSetting(setting.taskKey, "primaryModel", event.target.value)}
+                  className="settings-field min-h-12 w-full"
+                  placeholder="openai/gpt-4o-mini"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => void handleModelTest(setting.taskKey, "primary", setting.primaryModel)}
+                  disabled={testingKey === `${setting.taskKey}:primary`}
+                >
+                  {testingKey === `${setting.taskKey}:primary` ? "Testing..." : "Test Primary"}
+                </Button>
+                {testResults[`${setting.taskKey}:primary`] ? (
+                  <p className={testResults[`${setting.taskKey}:primary`].tone === "error" ? "text-sm text-red-700" : "text-sm text-green-700"}>
+                    {testResults[`${setting.taskKey}:primary`].text}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-fallback-select`}>
+                  Fallback Model
+                </label>
+                <select
+                  id={`${setting.taskKey}-fallback-select`}
+                  value={setting.fallbackModel ?? ""}
+                  onChange={(event) => updateSetting(setting.taskKey, "fallbackModel", event.target.value || null)}
+                  className="settings-field min-h-12 w-full"
+                >
+                  <option value="">No fallback</option>
+                  {fallbackOptions.currentOption && !fallbackOptions.recommendedOptions.some((item) => item.id === fallbackOptions.currentOption?.id) ? (
+                    <option value={fallbackOptions.currentOption.id}>{fallbackOptions.currentOption.displayLabel}</option>
+                  ) : null}
+                  <optgroup label="Recommended price/performance">
+                    {fallbackOptions.recommendedOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.displayLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All OpenRouter models">
+                    {fallbackOptions.allOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.displayLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[13px] font-medium text-[color:var(--muted)]" htmlFor={`${setting.taskKey}-fallback`}>
+                  Fallback Model ID
+                </label>
+                <input
+                  id={`${setting.taskKey}-fallback`}
+                  value={setting.fallbackModel ?? ""}
+                  onChange={(event) => updateSetting(setting.taskKey, "fallbackModel", event.target.value || null)}
+                  className="settings-field min-h-12 w-full"
+                  placeholder="deepseek/deepseek-chat"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => void handleModelTest(setting.taskKey, "fallback", setting.fallbackModel)}
+                  disabled={testingKey === `${setting.taskKey}:fallback` || !setting.fallbackModel}
+                >
+                  {testingKey === `${setting.taskKey}:fallback` ? "Testing..." : "Test Fallback"}
+                </Button>
+                {testResults[`${setting.taskKey}:fallback`] ? (
+                  <p className={testResults[`${setting.taskKey}:fallback`].tone === "error" ? "text-sm text-red-700" : "text-sm text-green-700"}>
+                    {testResults[`${setting.taskKey}:fallback`].text}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,160px)_minmax(0,160px)_auto]">
+        <div className="space-y-1">
+          <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-temperature`}>
+            Temperature
+          </label>
+          <input
+            id={`${setting.taskKey}-temperature`}
+            type="number"
+            min="0"
+            max="2"
+            step="0.05"
+            value={String(setting.temperature)}
+            onChange={(event) => updateSetting(setting.taskKey, "temperature", Number(event.target.value))}
+            className="settings-field min-h-12 w-full"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-maxTokens`}>
+            Max Tokens
+          </label>
+          <input
+            id={`${setting.taskKey}-maxTokens`}
+            type="number"
+            min="1"
+            step="1"
+            value={String(setting.maxTokens)}
+            onChange={(event) => updateSetting(setting.taskKey, "maxTokens", Number(event.target.value))}
+            className="settings-field min-h-12 w-full"
+          />
+        </div>
+        <label className="mt-6 inline-flex min-h-12 items-center gap-3 text-[15px] font-medium text-[color:var(--text)]">
+          <input
+            type="checkbox"
+            checked={setting.enabled}
+            onChange={(event) => updateSetting(setting.taskKey, "enabled", event.target.checked)}
+          />
+          Enabled
+        </label>
+      </div>
+
+      <p className="text-[13px] text-[color:var(--muted)]">
+        Last updated {setting.updatedAt ? new Date(setting.updatedAt).toLocaleString() : "from defaults"}.
+      </p>
+    </section>
+  );
+
   return (
     <section className="saas-card space-y-6 p-5">
       <div className="settings-highlight p-4">
@@ -344,185 +543,38 @@ export function AiTaskSettingsForm({ initialSettings, modelOptions, initialGrace
         </p>
       </div>
 
-      <div className="space-y-4">
-        {settings.map((setting) => (
-          <section key={setting.taskKey} className="settings-section space-y-4 p-4">
-            <div className="space-y-1">
-              <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">{setting.label}</p>
-              <p className="text-[15px] leading-6 text-[color:var(--muted)]">{setting.description}</p>
-              <p className="text-[13px] text-[color:var(--muted)]">🟢 cheapest recommended, 🟡 more expensive but worth it, 🔴 premium / expensive</p>
-            </div>
+      <div className="flex flex-wrap gap-2">
+        {ciaSetting ? (
+          <a
+            href="#cia-settings"
+            className="rounded-full bg-[rgba(74,106,96,0.12)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]"
+          >
+            CIA
+          </a>
+        ) : null}
+        <a
+          href="#ux-features"
+          className="rounded-full bg-[rgba(141,169,187,0.12)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--text)]"
+        >
+          UX Features
+        </a>
+      </div>
 
-            {(() => {
-              const primaryOptions = selectOptions(setting.taskKey, setting.primaryModel, modelOptions);
-              const fallbackOptions = selectOptions(setting.taskKey, setting.fallbackModel, modelOptions);
-
-              return (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-primary-select`}>
-                        Primary Model
-                      </label>
-                      <select
-                        id={`${setting.taskKey}-primary-select`}
-                        value={setting.primaryModel}
-                        onChange={(event) => updateSetting(setting.taskKey, "primaryModel", event.target.value)}
-                        className="settings-field min-h-12 w-full"
-                      >
-                        {primaryOptions.currentOption && !primaryOptions.recommendedOptions.some((item) => item.id === primaryOptions.currentOption?.id) ? (
-                          <option value={primaryOptions.currentOption.id}>{primaryOptions.currentOption.displayLabel}</option>
-                        ) : null}
-                        <optgroup label="Recommended price/performance">
-                          {primaryOptions.recommendedOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.displayLabel}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="All OpenRouter models">
-                          {primaryOptions.allOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.displayLabel}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[13px] font-medium text-[color:var(--muted)]" htmlFor={`${setting.taskKey}-primary`}>
-                        Primary Model ID
-                      </label>
-                      <input
-                        id={`${setting.taskKey}-primary`}
-                        value={setting.primaryModel}
-                        onChange={(event) => updateSetting(setting.taskKey, "primaryModel", event.target.value)}
-                        className="settings-field min-h-12 w-full"
-                        placeholder="openai/gpt-4o-mini"
-                      />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        variant="secondary"
-                        onClick={() => void handleModelTest(setting.taskKey, "primary", setting.primaryModel)}
-                        disabled={testingKey === `${setting.taskKey}:primary`}
-                      >
-                        {testingKey === `${setting.taskKey}:primary` ? "Testing..." : "Test Primary"}
-                      </Button>
-                      {testResults[`${setting.taskKey}:primary`] ? (
-                        <p className={testResults[`${setting.taskKey}:primary`].tone === "error" ? "text-sm text-red-700" : "text-sm text-green-700"}>
-                          {testResults[`${setting.taskKey}:primary`].text}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-fallback-select`}>
-                        Fallback Model
-                      </label>
-                      <select
-                        id={`${setting.taskKey}-fallback-select`}
-                        value={setting.fallbackModel ?? ""}
-                        onChange={(event) => updateSetting(setting.taskKey, "fallbackModel", event.target.value || null)}
-                        className="settings-field min-h-12 w-full"
-                      >
-                        <option value="">No fallback</option>
-                        {fallbackOptions.currentOption && !fallbackOptions.recommendedOptions.some((item) => item.id === fallbackOptions.currentOption?.id) ? (
-                          <option value={fallbackOptions.currentOption.id}>{fallbackOptions.currentOption.displayLabel}</option>
-                        ) : null}
-                        <optgroup label="Recommended price/performance">
-                          {fallbackOptions.recommendedOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.displayLabel}
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="All OpenRouter models">
-                          {fallbackOptions.allOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.displayLabel}
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[13px] font-medium text-[color:var(--muted)]" htmlFor={`${setting.taskKey}-fallback`}>
-                        Fallback Model ID
-                      </label>
-                      <input
-                        id={`${setting.taskKey}-fallback`}
-                        value={setting.fallbackModel ?? ""}
-                        onChange={(event) => updateSetting(setting.taskKey, "fallbackModel", event.target.value || null)}
-                        className="settings-field min-h-12 w-full"
-                        placeholder="deepseek/deepseek-chat"
-                      />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        variant="secondary"
-                        onClick={() => void handleModelTest(setting.taskKey, "fallback", setting.fallbackModel)}
-                        disabled={testingKey === `${setting.taskKey}:fallback` || !setting.fallbackModel}
-                      >
-                        {testingKey === `${setting.taskKey}:fallback` ? "Testing..." : "Test Fallback"}
-                      </Button>
-                      {testResults[`${setting.taskKey}:fallback`] ? (
-                        <p className={testResults[`${setting.taskKey}:fallback`].tone === "error" ? "text-sm text-red-700" : "text-sm text-green-700"}>
-                          {testResults[`${setting.taskKey}:fallback`].text}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,160px)_minmax(0,160px)_auto]">
-              <div className="space-y-1">
-                <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-temperature`}>
-                  Temperature
-                </label>
-                <input
-                  id={`${setting.taskKey}-temperature`}
-                  type="number"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  value={String(setting.temperature)}
-                  onChange={(event) => updateSetting(setting.taskKey, "temperature", Number(event.target.value))}
-                  className="settings-field min-h-12 w-full"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[15px] font-medium text-[color:var(--text)]" htmlFor={`${setting.taskKey}-maxTokens`}>
-                  Max Tokens
-                </label>
-                <input
-                  id={`${setting.taskKey}-maxTokens`}
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={String(setting.maxTokens)}
-                  onChange={(event) => updateSetting(setting.taskKey, "maxTokens", Number(event.target.value))}
-                  className="settings-field min-h-12 w-full"
-                />
-              </div>
-              <label className="mt-6 inline-flex min-h-12 items-center gap-3 text-[15px] font-medium text-[color:var(--text)]">
-                <input
-                  type="checkbox"
-                  checked={setting.enabled}
-                  onChange={(event) => updateSetting(setting.taskKey, "enabled", event.target.checked)}
-                />
-                Enabled
-              </label>
-            </div>
-
-            <p className="text-[13px] text-[color:var(--muted)]">
-              Last updated {setting.updatedAt ? new Date(setting.updatedAt).toLocaleString() : "from defaults"}.
+      {ciaSetting ? (
+        <div id="cia-settings" className="space-y-4 scroll-mt-24">
+          <div className="settings-highlight border border-[rgba(74,106,96,0.14)] p-4">
+            <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">CIA</p>
+            <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Contextual Intelligence Adjudicator</p>
+            <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)]">
+              CIA reviews the full failure picture across create, recipe-specific chef edits, and import to decide whether a failure is real, recoverable, or caused by junk constraints.
             </p>
-          </section>
-        ))}
+          </div>
+          {renderTaskSetting(ciaSetting)}
+        </div>
+      ) : null}
+
+      <div className="space-y-4">
+        {workflowSettings.map((setting) => renderTaskSetting(setting))}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -534,7 +586,7 @@ export function AiTaskSettingsForm({ initialSettings, modelOptions, initialGrace
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
       </div>
 
-      <div className="settings-highlight p-4">
+      <div id="ux-features" className="settings-highlight scroll-mt-24 p-4">
         <p className="text-[14px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">UX Features</p>
         <p className="mt-2 text-[18px] font-semibold text-[color:var(--text)]">Graceful failure mode</p>
         <p className="mt-1 text-[15px] leading-6 text-[color:var(--muted)]">

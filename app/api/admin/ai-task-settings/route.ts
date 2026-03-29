@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 
 const taskSettingSchema = z.object({
-  taskKey: z.enum(["chef_chat", "home_ideas", "home_recipe", "recipe_improvement", "recipe_structure"]),
+  taskKey: z.enum(["chef_chat", "home_ideas", "home_recipe", "recipe_cia", "recipe_improvement", "recipe_structure"]),
   primaryModel: z.string().trim().min(1).max(200),
   fallbackModel: z.string().trim().max(200).nullable().optional(),
   temperature: z.number().min(0).max(2),

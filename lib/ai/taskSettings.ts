@@ -6,6 +6,7 @@ export type AiTaskKey =
   | "chef_chat"
   | "home_ideas"
   | "home_recipe"
+  | "recipe_cia"
   | "recipe_improvement"
   | "recipe_structure";
 
@@ -69,6 +70,15 @@ export const AI_TASK_DEFAULTS: Record<AiTaskKey, AiTaskDefaults> = {
     fallbackModel: "anthropic/claude-3.5-haiku",
     temperature: 0.55,
     maxTokens: 1600,
+    enabled: true,
+  },
+  recipe_cia: {
+    label: "CIA",
+    description: "Contextual Intelligence Adjudicator for recipe failures, false negatives, and salvage decisions.",
+    primaryModel: "openai/gpt-4o-mini",
+    fallbackModel: "anthropic/claude-3.5-haiku",
+    temperature: 0.1,
+    maxTokens: 900,
     enabled: true,
   },
   recipe_improvement: {
@@ -165,4 +175,3 @@ export async function resolveAiTaskSettings(taskKey: AiTaskKey): Promise<AiTaskS
 export function buildAiCallModelList(setting: AiTaskSettingRecord) {
   return uniqueModels([setting.primaryModel, setting.fallbackModel]);
 }
-

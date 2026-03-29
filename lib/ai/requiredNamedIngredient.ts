@@ -1,3 +1,22 @@
+export type IngredientConstraintProvenance = {
+  phrase: string;
+  sourceType:
+    | "user_message"
+    | "assistant_text"
+    | "conversation_history"
+    | "recipe_context"
+    | "build_spec"
+    | "locked_session"
+    | "session_seed"
+    | "unknown";
+  sourceRole?: "user" | "assistant" | "system" | null;
+  sourceText?: string | null;
+  sourceStart?: number | null;
+  sourceEnd?: number | null;
+  sourceSnippet?: string | null;
+  extractionMethod?: string | null;
+};
+
 /**
  * Represents an ingredient the user explicitly asked to include.
  * These are hard obligations that must survive planning, generation, and step writing.
@@ -9,6 +28,7 @@ export type RequiredNamedIngredient = {
   quantityHintText?: string | null;
   source: "explicit_use" | "use_up" | "must_include" | "explicit_add";
   requiredStrength: "hard" | "soft";
+  provenance?: IngredientConstraintProvenance | null;
 };
 
 export function normalizeIngredientToken(name: string): string {
@@ -73,7 +93,8 @@ export function ingredientMentionedInSteps(
  */
 export function buildRequiredNamedIngredient(
   rawText: string,
-  source: RequiredNamedIngredient["source"] = "must_include"
+  source: RequiredNamedIngredient["source"] = "must_include",
+  provenance: IngredientConstraintProvenance | null = null
 ): RequiredNamedIngredient {
   const normalizedName = normalizeIngredientToken(rawText);
   // Generate one short-form alias for two-word ingredients (e.g. "sourdough discard" → "discard")
@@ -90,5 +111,6 @@ export function buildRequiredNamedIngredient(
     aliases,
     source,
     requiredStrength: "hard",
+    provenance,
   };
 }

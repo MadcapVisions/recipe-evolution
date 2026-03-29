@@ -4,6 +4,8 @@ import { callAIForJson } from "./jsonResponse";
 import { createAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import { normalizeAiIngredients } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
+import { adjudicateRecipeFailure } from "./failureAdjudicator";
+import { storeCiaAdjudication } from "./ciaStore";
 
 type PreferredUnits = "metric" | "imperial";
 
@@ -147,6 +149,7 @@ export async function structureRecipeFromRawText(input: {
   userId: string;
   rawText: string;
   preferredUnits?: PreferredUnits;
+  conversationKey?: string | null;
 }): Promise<AiRecipeResult> {
   const rawText = input.rawText.trim();
   if (!rawText) {
@@ -274,7 +277,10 @@ Rules:
 Recipe text:
 ${rawText}`;
 
-  const taskSetting = await resolveAiTaskSettings("recipe_structure");
+  const [taskSetting, ciaTaskSetting] = await Promise.all([
+    resolveAiTaskSettings("recipe_structure"),
+    resolveAiTaskSettings("recipe_cia"),
+  ]);
   if (!taskSetting.enabled) {
     throw new Error("Recipe structuring AI task is disabled.");
   }
@@ -301,7 +307,74 @@ ${rawText}`;
 
   const structured = parseStructuredRecipe(aiResult.parsed);
   if (!structured) {
-    throw new Error("AI response must include a quantity for every ingredient.");
+    const ciaPacket = {
+      flow: "recipe_import",
+      rawRecipeText: rawText,
+      preferredUnits,
+      reasons: ["AI response must include a quantity for every ingredient."],
+      rawModelOutput: {
+        provider: aiResult.provider,
+        model: aiResult.model ?? null,
+        finishReason: aiResult.finishReason ?? null,
+        text: aiResult.text,
+        parsed: aiResult.parsed,
+      },
+    };
+    const adjudication = await adjudicateRecipeFailure({
+      flow: "recipe_import",
+      taskSetting: ciaTaskSetting,
+      failureKind: "invalid_payload",
+      rawRecipeText: rawText,
+      reasons: ["AI response must include a quantity for every ingredient."],
+      rawModelOutput: {
+        provider: aiResult.provider,
+        model: aiResult.model ?? null,
+        finishReason: aiResult.finishReason ?? null,
+        text: aiResult.text,
+        parsed: aiResult.parsed,
+      },
+    });
+    await storeCiaAdjudication(input.supabase, {
+      ownerId: input.userId,
+      conversationKey: input.conversationKey ?? null,
+      scope: null,
+      flow: "recipe_import",
+      taskKey: "recipe_cia",
+      parentTaskKey: "recipe_structure",
+      failureKind: "invalid_payload",
+      failureStage: "schema",
+      model: ciaTaskSetting.primaryModel,
+      provider: null,
+      packet: ciaPacket,
+      adjudication,
+    });
+    const corrected = adjudication.correctedStructuredRecipe
+      ? parseStructuredRecipe(adjudication.correctedStructuredRecipe)
+      : null;
+    if (!corrected) {
+      throw new Error("AI response must include a quantity for every ingredient.");
+    }
+
+    return createAiRecipeResult({
+      purpose: "structure",
+      source: "ai",
+      provider: aiResult.provider,
+      model: aiResult.model ?? aiResult.provider,
+      cached: false,
+      inputHash,
+      createdAt: new Date().toISOString(),
+      recipe: {
+        title: corrected.title,
+        description: corrected.description,
+        tags: corrected.tags,
+        servings: corrected.servings,
+        prep_time_min: corrected.prep_time_min,
+        cook_time_min: corrected.cook_time_min,
+        difficulty: corrected.difficulty,
+        ingredients: normalizeAiIngredients(corrected.ingredients_json),
+        steps: corrected.steps_json.map((item) => ({ text: item.text })),
+      },
+    });
   }
 
   if (cacheAvailable) {

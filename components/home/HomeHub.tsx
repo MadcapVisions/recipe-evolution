@@ -204,7 +204,7 @@ export function HomeHub({ recentRecipes: _recentRecipes, userTasteProfile, grace
     handleRetryBuild,
     handleRetryWithAction,
     handleClarificationQuickSelect,
-  } = useHomeHubAi(userTasteProfile);
+  } = useHomeHubAi(userTasteProfile, gracefulModeEnabled);
 
   useEffect(() => {
     if (!status) {

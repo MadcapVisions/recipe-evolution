@@ -24,6 +24,18 @@ function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
 }
 
+function uniqueBy<T>(values: T[], toKey: (value: T) => string) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = toKey(value);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 const MAX_LOCKED_REFINEMENTS = 12;
 const GENERIC_SELECTED_TITLE_PATTERNS = [
   /^chef /i,
@@ -183,6 +195,39 @@ export function buildLockedBrief(input: {
     brief.ingredients.required = requiredIngredients;
     brief.ingredients.forbidden = forbiddenIngredients;
     brief.ingredients.centerpiece = centerpiece;
+    brief.ingredients.provenance = {
+      required: uniqueBy(
+        [
+          ...refinements.flatMap((item) => item.extracted_changes.ingredient_provenance?.required ?? []),
+          ...requiredIngredients
+            .filter((phrase) => !refinements.some((item) => (item.extracted_changes.ingredient_provenance?.required ?? []).some((prov) => prov.phrase === phrase)))
+            .map((phrase) => ({
+              phrase,
+              sourceType: "build_spec" as const,
+              sourceRole: null,
+              sourceText: phrase,
+              extractionMethod: "build_spec_required",
+            })),
+        ],
+        (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}`
+      ),
+      preferred: [],
+      forbidden: uniqueBy(
+        [
+          ...refinements.flatMap((item) => item.extracted_changes.ingredient_provenance?.forbidden ?? []),
+          ...forbiddenIngredients
+            .filter((phrase) => !refinements.some((item) => (item.extracted_changes.ingredient_provenance?.forbidden ?? []).some((prov) => prov.phrase === phrase)))
+            .map((phrase) => ({
+              phrase,
+              sourceType: "build_spec" as const,
+              sourceRole: null,
+              sourceText: phrase,
+              extractionMethod: "build_spec_forbidden",
+            })),
+        ],
+        (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}`
+      ),
+    };
     brief.style.tags = styleTags;
     brief.directives.must_have = unique([
       ...(spec.dish_family ? [spec.dish_family] : []),
@@ -280,6 +325,29 @@ export function buildLockedBrief(input: {
   brief.ingredients.required = requiredIngredients;
   brief.ingredients.forbidden = forbiddenIngredients;
   brief.ingredients.centerpiece = preservedCenterpiece;
+  brief.ingredients.provenance = {
+    required: uniqueBy(
+      [
+        ...(brief.ingredients.provenance?.required ?? []),
+        ...refinements.flatMap((item) => item.extracted_changes.ingredient_provenance?.required ?? []),
+      ],
+      (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}`
+    ),
+    preferred: uniqueBy(
+      [
+        ...(brief.ingredients.provenance?.preferred ?? []),
+        ...refinements.flatMap((item) => item.extracted_changes.ingredient_provenance?.preferred ?? []),
+      ],
+      (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}`
+    ),
+    forbidden: uniqueBy(
+      [
+        ...(brief.ingredients.provenance?.forbidden ?? []),
+        ...refinements.flatMap((item) => item.extracted_changes.ingredient_provenance?.forbidden ?? []),
+      ],
+      (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}`
+    ),
+  };
   brief.style.tags = styleTags;
   brief.style.format_tags = unique(brief.style.format_tags);
   brief.directives.must_have = unique([

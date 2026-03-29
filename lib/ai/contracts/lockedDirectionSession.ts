@@ -1,6 +1,7 @@
 import type { CookingBrief, BriefFieldState } from "./cookingBrief";
 import type { BuildSpec } from "./buildSpec";
 import type { ResolvedIngredientIntent } from "../ingredientResolutionTypes";
+import type { IngredientConstraintProvenance } from "../requiredNamedIngredient";
 
 export type LockedDirectionSelected = {
   id: string;
@@ -37,6 +38,11 @@ export type LockedDirectionRefinement = {
     forbidden_ingredients: string[];
     style_tags: string[];
     notes: string[];
+    ingredient_provenance?: {
+      required: IngredientConstraintProvenance[];
+      preferred: IngredientConstraintProvenance[];
+      forbidden: IngredientConstraintProvenance[];
+    };
   };
   field_state: {
     ingredients: BriefFieldState;

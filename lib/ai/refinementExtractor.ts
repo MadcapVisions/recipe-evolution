@@ -1,6 +1,7 @@
 import type { BriefFieldState } from "./contracts/cookingBrief";
 import type { LockedDirectionRefinement } from "./contracts/lockedDirectionSession";
 import type { ResolvedIngredientIntent } from "./ingredientResolutionTypes";
+import type { IngredientConstraintProvenance } from "./requiredNamedIngredient";
 import { buildDistilledIngredientIntent } from "./ingredientCanonicalization";
 import { isQuestionLikeIngredientCandidate } from "./ingredientConstraintGuard";
 import { parseIngredientPhrase } from "./ingredientParsing";
@@ -13,6 +14,61 @@ function normalizeText(value: string) {
 
 function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
+}
+
+function uniqueProvenance(values: IngredientConstraintProvenance[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = [
+      value.phrase.toLowerCase(),
+      value.sourceType,
+      value.sourceRole ?? "",
+      value.sourceText ?? "",
+      value.sourceStart ?? "",
+      value.sourceEnd ?? "",
+      value.extractionMethod ?? "",
+    ].join("::");
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findPhraseSpan(text: string | null, phrase: string) {
+  if (!text || !phrase) {
+    return null;
+  }
+
+  const directMatch = new RegExp(escapeRegExp(phrase), "iu").exec(text);
+  if (directMatch && typeof directMatch.index === "number") {
+    const start = directMatch.index;
+    const end = start + directMatch[0].length;
+    return {
+      start,
+      end,
+      sourceText: text.slice(start, end),
+      sourceSnippet: text.slice(Math.max(0, start - 24), Math.min(text.length, end + 24)).trim(),
+    };
+  }
+
+  const normalizedIndex = normalizeText(text).indexOf(normalizeText(phrase));
+  if (normalizedIndex < 0) {
+    return null;
+  }
+
+  const end = Math.min(text.length, normalizedIndex + phrase.length);
+  return {
+    start: normalizedIndex,
+    end,
+    sourceText: text.slice(normalizedIndex, end) || phrase,
+    sourceSnippet: text.slice(Math.max(0, normalizedIndex - 24), Math.min(text.length, end + 24)).trim(),
+  };
 }
 
 const STOP_INGREDIENT_TOKENS = new Set([
@@ -76,6 +132,27 @@ function normalizeIngredientList(values: string[]) {
   );
 }
 
+function extractDirectIngredientFragment(text: string) {
+  const normalized = normalizeText(text);
+  const acknowledgementPrefix = /^(?:(?:ok|okay|sure|yeah|yep|yes|sounds good|that works)[,\s]+)+/u;
+  const withoutAcknowledgement = normalized.replace(acknowledgementPrefix, "").trim();
+
+  if (!/^(?:(?:ok|okay|sure|yeah|yep|yes|sounds good|that works)[,\s]+)?[\p{L}][\p{L}\s,-]{1,40}$/u.test(normalized)) {
+    return [];
+  }
+
+  if (
+    /^(?:i\b|we\b|make\b|can\b|could\b|would\b|use\b|using\b|want\b|need\b|include\b|add\b|how\b|what\b|let\b|please\b)/u.test(
+      withoutAcknowledgement
+    )
+  ) {
+    return [];
+  }
+
+  const candidate = cleanIngredientCandidate(text);
+  return candidate ? [candidate] : [];
+}
+
 function extractSwapIngredients(text: string) {
   const normalized = normalizeText(text);
   const required: string[] = [];
@@ -130,6 +207,7 @@ function extractRequiredIngredients(text: string) {
     ...useMatches.map((match) => match[1] ?? ""),
     ...usingMatches.map((match) => match[1] ?? ""),
     ...wantToUseMatches.map((match) => match[1] ?? ""),
+    ...extractDirectIngredientFragment(text),
   ]);
 }
 
@@ -261,6 +339,58 @@ function buildAmbiguousNoteFromLowConfidence(phrases: string[]): string[] {
     .filter((note): note is string => note !== null);
 }
 
+function buildIngredientProvenance(params: {
+  phrases: string[];
+  userText: string;
+  assistantText: string | null;
+  extractionMethod: string;
+  allowAssistant?: boolean;
+}): IngredientConstraintProvenance[] {
+  return uniqueProvenance(
+    params.phrases.map((phrase) => {
+      const userSpan = findPhraseSpan(params.userText, phrase);
+      const assistantSpan = findPhraseSpan(params.assistantText, phrase);
+
+      if (userSpan) {
+        return {
+          phrase,
+          sourceType: "user_message",
+          sourceRole: "user",
+          sourceText: userSpan.sourceText,
+          sourceStart: userSpan.start,
+          sourceEnd: userSpan.end,
+          sourceSnippet: userSpan.sourceSnippet,
+          extractionMethod: params.extractionMethod,
+        } satisfies IngredientConstraintProvenance;
+      }
+
+      if (params.allowAssistant && params.assistantText && assistantSpan) {
+        return {
+          phrase,
+          sourceType: "assistant_text",
+          sourceRole: "assistant",
+          sourceText: assistantSpan.sourceText,
+          sourceStart: assistantSpan.start,
+          sourceEnd: assistantSpan.end,
+          sourceSnippet: assistantSpan.sourceSnippet,
+          extractionMethod: params.extractionMethod,
+        } satisfies IngredientConstraintProvenance;
+      }
+
+      return {
+        phrase,
+        sourceType: "unknown",
+        sourceRole: null,
+        sourceText: phrase,
+        sourceStart: null,
+        sourceEnd: null,
+        sourceSnippet: phrase,
+        extractionMethod: params.extractionMethod,
+      } satisfies IngredientConstraintProvenance;
+    })
+  );
+}
+
 function sanitizeLowConfidenceRefinement(refinement: LockedDirectionRefinement): LockedDirectionRefinement {
   if (refinement.confidence >= 0.7) {
     return refinement;
@@ -279,6 +409,11 @@ function sanitizeLowConfidenceRefinement(refinement: LockedDirectionRefinement):
       preferred_ingredients: [],
       forbidden_ingredients: [],
       style_tags: [],
+      ingredient_provenance: {
+        required: [],
+        preferred: [],
+        forbidden: [],
+      },
     },
     resolved_ingredient_intents: {
       required: [],
@@ -364,6 +499,27 @@ export function extractRefinementDelta(input: {
       forbidden_ingredients: forbiddenIngredients,
       style_tags: styleTags,
       notes: unique([input.userText.trim()]),
+      ingredient_provenance: {
+        required: buildIngredientProvenance({
+          phrases: requiredIngredients,
+          userText: input.userText,
+          assistantText: input.assistantText,
+          extractionMethod: "refinement_required",
+        }),
+        preferred: buildIngredientProvenance({
+          phrases: preferredIngredients,
+          userText: input.userText,
+          assistantText: input.assistantText,
+          extractionMethod: "refinement_preferred",
+          allowAssistant: true,
+        }),
+        forbidden: buildIngredientProvenance({
+          phrases: forbiddenIngredients,
+          userText: input.userText,
+          assistantText: input.assistantText,
+          extractionMethod: "refinement_forbidden",
+        }),
+      },
     },
     field_state: {
       ingredients: deriveIngredientsFieldState({

@@ -25,6 +25,18 @@ function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)));
 }
 
+function uniqueByKey<T>(values: T[], toKey: (value: T) => string) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = toKey(value);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 export function mergeCookingBriefs(base: CookingBrief, update: CookingBrief): CookingBrief {
   return {
     ...base,
@@ -52,6 +64,20 @@ export function mergeCookingBriefs(base: CookingBrief, update: CookingBrief): Co
       preferred: unique([...base.ingredients.preferred, ...update.ingredients.preferred]),
       forbidden: unique([...base.ingredients.forbidden, ...update.ingredients.forbidden]),
       centerpiece: update.ingredients.centerpiece ?? base.ingredients.centerpiece,
+      provenance: {
+        required: uniqueByKey(
+          [...(base.ingredients.provenance?.required ?? []), ...(update.ingredients.provenance?.required ?? [])],
+          (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}::${item.extractionMethod ?? ""}`
+        ),
+        preferred: uniqueByKey(
+          [...(base.ingredients.provenance?.preferred ?? []), ...(update.ingredients.provenance?.preferred ?? [])],
+          (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}::${item.extractionMethod ?? ""}`
+        ),
+        forbidden: uniqueByKey(
+          [...(base.ingredients.provenance?.forbidden ?? []), ...(update.ingredients.provenance?.forbidden ?? [])],
+          (item) => `${item.phrase}::${item.sourceType}::${item.sourceText ?? ""}::${item.extractionMethod ?? ""}`
+        ),
+      },
       requiredNamedIngredients: [
         ...(base.ingredients.requiredNamedIngredients ?? []),
         ...(update.ingredients.requiredNamedIngredients ?? []),

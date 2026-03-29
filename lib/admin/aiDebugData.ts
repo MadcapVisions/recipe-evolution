@@ -27,6 +27,11 @@ type GenerationAttemptRow = {
       required?: string[] | null;
       preferred?: string[] | null;
       forbidden?: string[] | null;
+      provenance?: {
+        required?: Array<Record<string, unknown>> | null;
+        preferred?: Array<Record<string, unknown>> | null;
+        forbidden?: Array<Record<string, unknown>> | null;
+      } | null;
     } | null;
   } | null;
   verification_json: {
@@ -48,6 +53,28 @@ type GenerationAttemptRow = {
     output_tokens?: number | null;
     estimated_cost_usd?: number | null;
   }> | null;
+};
+
+type CiaAdjudicationRow = {
+  id: string;
+  created_at: string;
+  owner_id: string;
+  flow: "home_create" | "recipe_improve" | "recipe_import";
+  decision: "keep_failure" | "sanitize_constraints" | "return_structured_recipe" | "clarify_intent";
+  adjudicator_source: "heuristic" | "ai" | "default";
+  failure_kind: string;
+  failure_stage: string | null;
+  model: string | null;
+  provider: string | null;
+  packet_json: Record<string, unknown> | null;
+  result_json: Record<string, unknown> | null;
+};
+
+export type CiaAdminFilters = {
+  flow?: string | null;
+  decision?: string | null;
+  failureKind?: string | null;
+  model?: string | null;
 };
 
 export type IngredientResolutionChainEntry = {
@@ -107,9 +134,9 @@ function buildIngredientResolutionChain(
   return chain;
 }
 
-export async function getAdminAiDebugEvents() {
+export async function getAdminAiDebugEvents(filters?: CiaAdminFilters) {
   const admin = createSupabaseAdminClient();
-  const [eventsResult, attemptsResult] = await Promise.all([
+  const [eventsResult, attemptsResult, ciaResult] = await Promise.all([
     admin
       .from("product_events")
       .select("id, owner_id, event_name, metadata_json, created_at")
@@ -121,6 +148,11 @@ export async function getAdminAiDebugEvents() {
       .select("id, created_at, owner_id, scope, outcome, provider, model, attempt_number, conversation_key, generator_payload_json, cooking_brief_json, verification_json, raw_model_output_json, normalized_recipe_json, stage_metrics_json")
       .order("created_at", { ascending: false })
       .limit(25),
+    admin
+      .from("ai_cia_adjudications")
+      .select("id, created_at, owner_id, flow, decision, adjudicator_source, failure_kind, failure_stage, model, provider, packet_json, result_json")
+      .order("created_at", { ascending: false })
+      .limit(25),
   ]);
 
   if (eventsResult.error) {
@@ -129,12 +161,25 @@ export async function getAdminAiDebugEvents() {
   if (attemptsResult.error) {
     throw new Error(`Could not load AI generation attempts: ${attemptsResult.error.message}`);
   }
+  if (ciaResult.error) {
+    throw new Error(`Could not load CIA adjudications: ${ciaResult.error.message}`);
+  }
 
   const events = (eventsResult.data ?? []) as ProductEventRow[];
   const generationAttempts = (attemptsResult.data ?? []) as GenerationAttemptRow[];
+  const ciaAdjudications = (ciaResult.data ?? []) as CiaAdjudicationRow[];
+  const filteredCiaAdjudications = ciaAdjudications.filter((item) => {
+    if (filters?.flow && item.flow !== filters.flow) return false;
+    if (filters?.decision && item.decision !== filters.decision) return false;
+    if (filters?.failureKind && item.failure_kind !== filters.failureKind) return false;
+    if (filters?.model && (item.model ?? "") !== filters.model) return false;
+    return true;
+  });
   const repairedEvents = events.filter((event) => event.event_name === "chef_chat_repaired");
   const failedEvents = events.filter((event) => event.event_name === "ai_route_failed");
   const blockedEvents = events.filter((event) => event.event_name === "ai_topic_guard_blocked");
+  const ciaSanitized = filteredCiaAdjudications.filter((item) => item.decision === "sanitize_constraints");
+  const ciaRecovered = filteredCiaAdjudications.filter((item) => item.decision === "return_structured_recipe");
   const totalGenerationCost = generationAttempts.reduce((sum, attempt) => {
     const stageCost = (attempt.stage_metrics_json ?? []).reduce(
       (stageSum, stage) => stageSum + (typeof stage.estimated_cost_usd === "number" ? stage.estimated_cost_usd : 0),
@@ -149,6 +194,33 @@ export async function getAdminAiDebugEvents() {
   );
   const generationFailures = generationAttempts.filter((attempt) => attempt.outcome !== "passed");
 
+  const topDroppedConstraints = Array.from(
+    filteredCiaAdjudications.reduce((map, item) => {
+      const result = item.result_json ?? {};
+      const dropped = [
+        ...(Array.isArray(result.dropRequiredIngredients) ? result.dropRequiredIngredients : []),
+        ...(Array.isArray(result.dropRequiredNamedIngredients) ? result.dropRequiredNamedIngredients : []),
+      ]
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .map((value) => value.trim().toLowerCase());
+      for (const value of dropped) {
+        map.set(value, (map.get(value) ?? 0) + 1);
+      }
+      return map;
+    }, new Map<string, number>())
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([label, count]) => ({ label, count }));
+
+  const averageCiaConfidence =
+    filteredCiaAdjudications.length > 0
+      ? filteredCiaAdjudications.reduce((sum, item) => {
+          const confidence = item.result_json && typeof item.result_json.confidence === "number" ? item.result_json.confidence : 0;
+          return sum + confidence;
+        }, 0) / filteredCiaAdjudications.length
+      : 0;
+
   // Build ingredient resolution chains for each attempt (derived at display time from stored brief)
   const attemptsWithResolution = generationAttempts.map((attempt) => {
     const brief = attempt.cooking_brief_json;
@@ -159,9 +231,25 @@ export async function getAdminAiDebugEvents() {
   return {
     events,
     generationAttempts: attemptsWithResolution,
+    ciaAdjudications: filteredCiaAdjudications,
     repairedEvents,
     failedEvents,
     blockedEvents,
+    ciaFilters: {
+      applied: {
+        flow: filters?.flow ?? null,
+        decision: filters?.decision ?? null,
+        failureKind: filters?.failureKind ?? null,
+        model: filters?.model ?? null,
+      },
+      options: {
+        flows: Array.from(new Set(ciaAdjudications.map((item) => item.flow))).sort(),
+        decisions: Array.from(new Set(ciaAdjudications.map((item) => item.decision))).sort(),
+        failureKinds: Array.from(new Set(ciaAdjudications.map((item) => item.failure_kind))).sort(),
+        models: Array.from(new Set(ciaAdjudications.map((item) => item.model).filter((value): value is string => Boolean(value)))).sort(),
+      },
+      topDroppedConstraints,
+    },
     stats: {
       repairsLogged: repairedEvents.length,
       failuresLogged: failedEvents.length,
@@ -173,6 +261,10 @@ export async function getAdminAiDebugEvents() {
           : 0,
       recentGenerationAttempts: generationAttempts.length,
       recentGenerationFailures: generationFailures.length,
+      ciaRunsLogged: filteredCiaAdjudications.length,
+      ciaSanitizedLogged: ciaSanitized.length,
+      ciaRecoveredLogged: ciaRecovered.length,
+      averageCiaConfidence: Number(averageCiaConfidence.toFixed(2)),
       averageGenerationStageMs:
         generationDurations.length > 0
           ? Math.round(generationDurations.reduce((sum, value) => sum + value, 0) / generationDurations.length)

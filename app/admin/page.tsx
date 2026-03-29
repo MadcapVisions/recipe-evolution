@@ -6,11 +6,12 @@ export default async function AdminOverviewPage() {
 
   return (
     <>
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Accounts" value={data.overview.totalUsers} detail={`${data.overview.adminUsers} admins`} tone="bg-[rgba(188,92,47,0.1)]" />
         <StatCard label="Recipes" value={data.overview.totalRecipes} detail={`${data.overview.totalVersions} versions`} tone="bg-[rgba(111,135,103,0.12)]" />
         <StatCard label="AI prompts" value={data.overview.totalAiPrompts} detail={`${data.overview.totalAiResponses} responses`} tone="bg-[rgba(141,169,187,0.12)]" />
         <StatCard label="AI tasks" value={data.overview.activeAiTasks} detail="currently enabled" tone="bg-[rgba(221,182,90,0.14)]" />
+        <StatCard label="CIA runs" value={data.overview.totalCiaRuns} detail={`${data.overview.ciaSanitized} sanitized failures`} tone="bg-[rgba(74,106,96,0.12)]" />
       </section>
 
       <section className="saas-card space-y-5 p-5">

@@ -194,6 +194,15 @@ type RecipeBuildStreamError = Error & {
   launchDecision?: LaunchDecision;
 };
 
+type RecipeBuildStreamOutcome = {
+  result: Record<string, unknown> | null;
+  launchDecision: LaunchDecision | null;
+  gracefulFailure: boolean;
+  failureKind?: RecipeBuildFailureKind;
+  retryStrategy?: VerificationRetryStrategy;
+  reasons?: string[];
+};
+
 export type BuildFailureState = {
   /** How to categorize this failure for UX purposes. */
   kind: "infeasible" | "hard_failure" | "clarification_needed";
@@ -208,6 +217,16 @@ export type BuildDebugEntry =
   | { type: "result"; title: string; ts: number }
   | { type: "debug"; label: string; data: Record<string, unknown>; ts: number }
   | { type: "error"; message: string; failure_kind?: string; retry_strategy?: string; model?: string; reasons?: string[]; ts: number };
+
+function toBuildFailureStateKind(
+  failureKind: RecipeBuildFailureKind | undefined,
+  retryStrategy: VerificationRetryStrategy | undefined
+): BuildFailureState["kind"] {
+  if (failureKind === "verification_failed") {
+    return retryStrategy === "ask_user" ? "clarification_needed" : "infeasible";
+  }
+  return "hard_failure";
+}
 
 const getRecipeBuildErrorMessage = (error: unknown, fallbackMessage: string) => {
   const typedError = error as RecipeBuildStreamError;
@@ -347,7 +366,7 @@ function isGenericSelectedDirectionTitle(title: string) {
   );
 }
 
-export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
+export function useHomeHubAi(userTasteProfile: UserTasteProfile | null, gracefulModeEnabled = false) {
   const router = useRouter();
   const conversationKeyRef = useRef(createConversationKey());
   const threadIdentityRef = useRef(0);
@@ -514,7 +533,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       onDebugEvent?: (entry: BuildDebugEntry) => void;
     },
     signal?: AbortSignal
-  ) => {
+  ): Promise<RecipeBuildStreamOutcome> => {
     const response = await fetch("/api/ai/home/build", {
       method: "POST",
       headers: {
@@ -555,6 +574,17 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           | { type: "result"; result: Record<string, unknown>; launchDecision?: LaunchDecision }
           | { type: "debug"; label: string; data: Record<string, unknown> }
           | {
+              type: "graceful_failure";
+              message: string;
+              retry_strategy?: VerificationRetryStrategy;
+              reasons?: string[];
+              failure_kind?: RecipeBuildFailureKind;
+              failure_stage?: string | null;
+              failure_context?: Record<string, unknown> | null;
+              model?: string;
+              launchDecision: LaunchDecision;
+            }
+          | {
               type: "error";
               message: string;
               retry_strategy?: VerificationRetryStrategy;
@@ -576,6 +606,17 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
           finalLaunchDecision = event.launchDecision ?? null;
           const resultRecipe = event.result?.recipe as { title?: string } | undefined;
           handlers.onDebugEvent?.({ type: "result", title: resultRecipe?.title ?? "(no title)", ts: Date.now() });
+        } else if (event.type === "graceful_failure") {
+          finalLaunchDecision = event.launchDecision ?? null;
+          handlers.onDebugEvent?.({ type: "status", message: "Showing recovery options...", ts: Date.now() });
+          return {
+            result: null,
+            launchDecision: finalLaunchDecision,
+            gracefulFailure: true,
+            failureKind: event.failure_kind,
+            retryStrategy: event.retry_strategy,
+            reasons: Array.isArray(event.reasons) ? event.reasons : [],
+          };
         } else if (event.type === "error") {
           handlers.onDebugEvent?.({
             type: "error",
@@ -600,7 +641,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       throw new Error("Recipe build finished without a result.");
     }
 
-    return { result: finalResult, launchDecision: finalLaunchDecision };
+    return { result: finalResult, launchDecision: finalLaunchDecision, gracefulFailure: false };
   };
 
   const describeAiOutage = (rawError: unknown, fallbackLabel: string) => {
@@ -690,7 +731,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     buildAbortRef.current = controller;
 
     try {
-      const { result: data, launchDecision: streamDecision } = await invokeRecipeBuildStream({
+      const { result: data, launchDecision: streamDecision, gracefulFailure, failureKind, retryStrategy, reasons } = await invokeRecipeBuildStream({
         ideaTitle,
         prompt: latestUserPrompt,
         ingredients,
@@ -711,6 +752,17 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }
 
       if (streamDecision) setLaunchDecision(streamDecision);
+      if (gracefulFailure) {
+        setBuildFailureState({
+          kind: toBuildFailureStateKind(failureKind, retryStrategy),
+          reasons: reasons ?? [],
+        });
+        setStatus(null);
+        return;
+      }
+      if (!data) {
+        throw new Error("Recipe build finished without a recipe result.");
+      }
 
       const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
         ? (data.result as { recipe: RecipeDraft }).recipe
@@ -750,16 +802,14 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }
       const fkind = typedSaveError.failureKind;
       const fstrat = typedSaveError.retryStrategy;
-      let failureStateKind: BuildFailureState["kind"] = "hard_failure";
-      if (fkind === "verification_failed") {
-        failureStateKind = fstrat === "ask_user" ? "clarification_needed" : "infeasible";
-      }
       setBuildFailureState({
-        kind: failureStateKind,
+        kind: toBuildFailureStateKind(fkind, fstrat),
         reasons: typedSaveError.reasons ?? [],
       });
       setError(
-        getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe from this conversation. Please refine the direction and try again.")
+        gracefulModeEnabled && typedSaveError.launchDecision
+          ? null
+          : getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe from this conversation. Please refine the direction and try again.")
       );
       setStatus(null);
     } finally {
@@ -1072,7 +1122,7 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
     buildAbortRef.current = controller;
 
     try {
-      const { result: data, launchDecision: streamDecision } = await invokeRecipeBuildStream(
+      const { result: data, launchDecision: streamDecision, gracefulFailure, failureKind, retryStrategy, reasons } = await invokeRecipeBuildStream(
         {
           ideaTitle,
           prompt: latestUserPrompt,
@@ -1102,6 +1152,17 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       }
 
       if (streamDecision) setLaunchDecision(streamDecision);
+      if (gracefulFailure) {
+        setBuildFailureState({
+          kind: toBuildFailureStateKind(failureKind, retryStrategy),
+          reasons: reasons ?? [],
+        });
+        setStatus(null);
+        return;
+      }
+      if (!data) {
+        throw new Error("Recipe build finished without a recipe result.");
+      }
 
       const recipe = data.result && typeof data.result === "object" && "recipe" in data.result
         ? (data.result as { recipe: RecipeDraft }).recipe
@@ -1124,12 +1185,12 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null) {
       if (typedSaveError.launchDecision) setLaunchDecision(typedSaveError.launchDecision);
       const fkind = typedSaveError.failureKind;
       const fstrat = typedSaveError.retryStrategy;
-      let failureStateKind: BuildFailureState["kind"] = "hard_failure";
-      if (fkind === "verification_failed") {
-        failureStateKind = fstrat === "ask_user" ? "clarification_needed" : "infeasible";
-      }
-      setBuildFailureState({ kind: failureStateKind, reasons: typedSaveError.reasons ?? [] });
-      setError(getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe. Please try again."));
+      setBuildFailureState({ kind: toBuildFailureStateKind(fkind, fstrat), reasons: typedSaveError.reasons ?? [] });
+      setError(
+        gracefulModeEnabled && typedSaveError.launchDecision
+          ? null
+          : getRecipeBuildErrorMessage(saveError, "Chef could not build a reliable recipe. Please try again.")
+      );
       setStatus(null);
     } finally {
       if (buildAbortRef.current === controller) buildAbortRef.current = null;

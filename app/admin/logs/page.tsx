@@ -1,8 +1,29 @@
 import { getAdminDashboardData } from "@/lib/admin/adminData";
 import { getAdminAiDebugEvents, type IngredientResolutionChainEntry } from "@/lib/admin/aiDebugData";
 
-export default async function AdminLogsPage() {
-  const [data, aiDebug] = await Promise.all([getAdminDashboardData(), getAdminAiDebugEvents()]);
+type AdminLogsPageProps = {
+  searchParams?: Promise<{
+    ciaFlow?: string | string[];
+    ciaDecision?: string | string[];
+    ciaFailureKind?: string | string[];
+    ciaModel?: string | string[];
+  }>;
+};
+
+function firstSearchParam(value: string | string[] | undefined) {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const ciaFilters = {
+    flow: firstSearchParam(resolvedSearchParams?.ciaFlow),
+    decision: firstSearchParam(resolvedSearchParams?.ciaDecision),
+    failureKind: firstSearchParam(resolvedSearchParams?.ciaFailureKind),
+    model: firstSearchParam(resolvedSearchParams?.ciaModel),
+  };
+  const [data, aiDebug] = await Promise.all([getAdminDashboardData(), getAdminAiDebugEvents(ciaFilters)]);
   const recentSuccessfulAttempts = aiDebug.generationAttempts.filter((attempt) => attempt.outcome === "passed").slice(0, 5);
 
   return (
@@ -49,7 +70,101 @@ export default async function AdminLogsPage() {
           <AiStatCard label="Topic blocks" value={String(aiDebug.stats.blockedLogged)} severity="medium" />
           <AiStatCard label="Chat repairs" value={String(aiDebug.stats.repairsLogged)} severity="low" />
           <AiStatCard label="Generation failures" value={String(aiDebug.stats.recentGenerationFailures)} severity="medium" />
+          <AiStatCard label="CIA runs" value={String(aiDebug.stats.ciaRunsLogged)} severity="low" />
+          <AiStatCard label="CIA sanitized" value={String(aiDebug.stats.ciaSanitizedLogged)} severity="low" />
+          <AiStatCard label="CIA recovered" value={String(aiDebug.stats.ciaRecoveredLogged)} severity="low" />
+          <AiStatCard label="CIA avg confidence" value={aiDebug.stats.averageCiaConfidence.toFixed(2)} severity="low" />
         </div>
+
+        <ErrorGroup
+          title="CIA adjudications"
+          description="Failure packets reviewed by CIA. This is the fastest way to verify whether a bad constraint came from real user intent, lock-time state, or junk extraction."
+          severity="low"
+          count={aiDebug.stats.ciaRunsLogged}
+          extra={`${aiDebug.stats.ciaSanitizedLogged} sanitized · ${aiDebug.stats.ciaRecoveredLogged} recovered structured imports`}
+          empty="No CIA adjudications logged."
+        >
+          <div className="grid gap-3 rounded-[18px] bg-[rgba(57,52,43,0.04)] p-3 md:grid-cols-2 xl:grid-cols-4">
+            <FilterBlock
+              label="Flow"
+              param="ciaFlow"
+              active={aiDebug.ciaFilters.applied.flow}
+              options={aiDebug.ciaFilters.options.flows}
+              search={ciaFilters}
+            />
+            <FilterBlock
+              label="Decision"
+              param="ciaDecision"
+              active={aiDebug.ciaFilters.applied.decision}
+              options={aiDebug.ciaFilters.options.decisions}
+              search={ciaFilters}
+            />
+            <FilterBlock
+              label="Failure kind"
+              param="ciaFailureKind"
+              active={aiDebug.ciaFilters.applied.failureKind}
+              options={aiDebug.ciaFilters.options.failureKinds}
+              search={ciaFilters}
+            />
+            <FilterBlock
+              label="Model"
+              param="ciaModel"
+              active={aiDebug.ciaFilters.applied.model}
+              options={aiDebug.ciaFilters.options.models}
+              search={ciaFilters}
+            />
+          </div>
+          {aiDebug.ciaFilters.topDroppedConstraints.length > 0 ? (
+            <p className="text-xs leading-5 text-[color:var(--muted)]">
+              Top dropped constraints:{" "}
+              {aiDebug.ciaFilters.topDroppedConstraints.map((item) => `${item.label} (${item.count})`).join(" · ")}
+            </p>
+          ) : null}
+          {aiDebug.ciaAdjudications.map((entry) => {
+            const packet = entry.packet_json ?? null;
+            const result = entry.result_json ?? null;
+            const reasons = Array.isArray(packet?.reasons) ? packet.reasons.filter((value): value is string => typeof value === "string") : [];
+            const provenanceSummary = summarizeConstraintProvenance(packet);
+            return (
+              <ErrorRow key={entry.id} timestamp={entry.created_at} severity="low">
+                <p className="text-sm font-medium text-[color:var(--text)]">
+                  {entry.flow} · {entry.decision.replaceAll("_", " ")}
+                </p>
+                <p className="text-sm text-[color:var(--muted)]">
+                  {entry.adjudicator_source}
+                  {entry.model ? ` · ${entry.model}` : ""}
+                  {entry.failure_stage ? ` · stage: ${entry.failure_stage}` : ""}
+                  {entry.failure_kind ? ` · kind: ${entry.failure_kind}` : ""}
+                </p>
+                {reasons.length > 0 ? (
+                  <p className="mt-1 text-sm text-[color:var(--muted)]">{reasons[0]}</p>
+                ) : null}
+                {provenanceSummary ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Constraint provenance: {provenanceSummary}</p>
+                ) : null}
+                {result && typeof result === "object" && !Array.isArray(result) && (result.escalated === true || result.modelUsed) ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">
+                    CIA run: {result.modelUsed ? String(result.modelUsed) : "unknown model"}
+                    {result.escalated === true ? ` · escalated (${String(result.escalationReason ?? "fallback_second_opinion")})` : ""}
+                  </p>
+                ) : null}
+                <details className="mt-2 rounded-[16px] bg-[rgba(57,52,43,0.04)] px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-semibold text-[color:var(--text)]">
+                    Full CIA packet
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    <pre className="overflow-x-auto rounded-[12px] bg-white/70 p-3 text-xs leading-5 text-[color:var(--muted)]">
+                      {JSON.stringify(packet, null, 2)}
+                    </pre>
+                    <pre className="overflow-x-auto rounded-[12px] bg-white/70 p-3 text-xs leading-5 text-[color:var(--muted)]">
+                      {JSON.stringify(result, null, 2)}
+                    </pre>
+                  </div>
+                </details>
+              </ErrorRow>
+            );
+          })}
+        </ErrorGroup>
 
         <ErrorGroup
           title="Recent successful runs"
@@ -72,6 +187,7 @@ export default async function AdminLogsPage() {
             const promptRefinement = extractPromptRefinement(attempt.generator_payload_json);
             const refinementSummary = extractRefinementSummary(attempt.generator_payload_json);
             const distilledIngredients = summarizeDistilledIngredients(attempt.cooking_brief_json);
+            const briefProvenance = summarizeBriefProvenance(attempt.cooking_brief_json);
             const distilledIntents = summarizeDistilledIntents(attempt.generator_payload_json);
             const resolutionChain = attempt.ingredient_resolution_chain ?? [];
             return (
@@ -106,6 +222,9 @@ export default async function AdminLogsPage() {
                 ) : null}
                 {distilledIngredients ? (
                   <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Brief ingredients: {distilledIngredients}</p>
+                ) : null}
+                {briefProvenance ? (
+                  <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Extraction provenance: {briefProvenance}</p>
                 ) : null}
                 {resolutionChain.length > 0 ? (
                   <IngredientResolutionChain entries={resolutionChain} />
@@ -191,6 +310,7 @@ export default async function AdminLogsPage() {
               const promptRefinement = extractPromptRefinement(attempt.generator_payload_json);
               const refinementSummary = extractRefinementSummary(attempt.generator_payload_json);
               const distilledIngredients = summarizeDistilledIngredients(attempt.cooking_brief_json);
+              const briefProvenance = summarizeBriefProvenance(attempt.cooking_brief_json);
               const distilledIntents = summarizeDistilledIntents(attempt.generator_payload_json);
               const resolutionChain = attempt.ingredient_resolution_chain ?? [];
               const totalCost = (attempt.stage_metrics_json ?? []).reduce(
@@ -240,6 +360,9 @@ export default async function AdminLogsPage() {
                   ) : null}
                   {distilledIngredients ? (
                     <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Brief ingredients: {distilledIngredients}</p>
+                  ) : null}
+                  {briefProvenance ? (
+                    <p className="mt-1 text-xs leading-5 text-[color:var(--muted)]">Extraction provenance: {briefProvenance}</p>
                   ) : null}
                   {resolutionChain.length > 0 ? (
                     <IngredientResolutionChain entries={resolutionChain} />
@@ -405,6 +528,73 @@ function ErrorRow({
   );
 }
 
+function FilterBlock({
+  label,
+  param,
+  active,
+  options,
+  search,
+}: {
+  label: string;
+  param: "ciaFlow" | "ciaDecision" | "ciaFailureKind" | "ciaModel";
+  active: string | null;
+  options: string[];
+  search: {
+    flow: string | null;
+    decision: string | null;
+    failureKind: string | null;
+    model: string | null;
+  };
+}) {
+  const allHref = buildFilterHref(search, param, null);
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        <a href={allHref} className={buildFilterClass(active === null)}>
+          all
+        </a>
+        {options.slice(0, 8).map((option) => (
+          <a key={option} href={buildFilterHref(search, param, option)} className={buildFilterClass(active === option)}>
+            {option}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildFilterHref(
+  search: { flow: string | null; decision: string | null; failureKind: string | null; model: string | null },
+  param: "ciaFlow" | "ciaDecision" | "ciaFailureKind" | "ciaModel",
+  value: string | null
+) {
+  const next = new URLSearchParams();
+  const entries: Array<[string, string | null]> = [
+    ["ciaFlow", search.flow],
+    ["ciaDecision", search.decision],
+    ["ciaFailureKind", search.failureKind],
+    ["ciaModel", search.model],
+  ];
+  for (const [key, currentValue] of entries) {
+    const finalValue = key === param ? value : currentValue;
+    if (finalValue) {
+      next.set(key, finalValue);
+    }
+  }
+  const query = next.toString();
+  return query.length > 0 ? `/admin/logs?${query}` : "/admin/logs";
+}
+
+function buildFilterClass(active: boolean) {
+  return [
+    "rounded-full px-2.5 py-1 text-xs font-medium transition",
+    active
+      ? "bg-[rgba(74,106,96,0.14)] text-[color:var(--text)]"
+      : "bg-white/70 text-[color:var(--muted)] hover:bg-white",
+  ].join(" ");
+}
+
 function summarizeRawModelOutput(value: unknown) {
   const rawText = extractRawModelText(value);
   if (!rawText) {
@@ -494,6 +684,11 @@ function summarizeDistilledIngredients(
           required?: string[] | null;
           preferred?: string[] | null;
           forbidden?: string[] | null;
+          provenance?: {
+            required?: Array<Record<string, unknown>> | null;
+            preferred?: Array<Record<string, unknown>> | null;
+            forbidden?: Array<Record<string, unknown>> | null;
+          } | null;
         } | null;
       }
     | null
@@ -509,6 +704,37 @@ function summarizeDistilledIngredients(
   ].filter((value): value is string => Boolean(value));
 
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function summarizeBriefProvenance(
+  cookingBrief:
+    | {
+        ingredients?: {
+          provenance?: {
+            required?: Array<Record<string, unknown>> | null;
+            preferred?: Array<Record<string, unknown>> | null;
+            forbidden?: Array<Record<string, unknown>> | null;
+          } | null;
+        } | null;
+      }
+    | null
+) {
+  const provenance = cookingBrief?.ingredients?.provenance;
+  const required = Array.isArray(provenance?.required) ? provenance.required.length : 0;
+  const preferred = Array.isArray(provenance?.preferred) ? provenance.preferred.length : 0;
+  const forbidden = Array.isArray(provenance?.forbidden) ? provenance.forbidden.length : 0;
+
+  if (required === 0 && preferred === 0 && forbidden === 0) {
+    return null;
+  }
+
+  const parts = [
+    required > 0 ? `${required} required` : null,
+    preferred > 0 ? `${preferred} preferred` : null,
+    forbidden > 0 ? `${forbidden} forbidden` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join(" · ");
 }
 
 function summarizeDistilledIntents(generatorPayload: Record<string, unknown> | null | undefined) {
@@ -528,6 +754,48 @@ function summarizeDistilledIntents(generatorPayload: Record<string, unknown> | n
   ].filter((value): value is string => Boolean(value));
 
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function summarizeConstraintProvenance(packet: Record<string, unknown> | null | undefined) {
+  const constraintProvenance =
+    packet && typeof packet === "object" && !Array.isArray(packet)
+      ? (packet.constraintProvenance as Record<string, unknown> | undefined)
+      : undefined;
+  const ingredientProvenance =
+    constraintProvenance && typeof constraintProvenance === "object"
+      ? (constraintProvenance.ingredientProvenance as Record<string, unknown> | undefined)
+      : undefined;
+  const requiredEntries = Array.isArray(ingredientProvenance?.required) ? ingredientProvenance.required : [];
+  const preferredEntries = Array.isArray(ingredientProvenance?.preferred) ? ingredientProvenance.preferred : [];
+  const forbiddenEntries = Array.isArray(ingredientProvenance?.forbidden) ? ingredientProvenance.forbidden : [];
+  const required = requiredEntries.length;
+  const preferred = preferredEntries.length;
+  const forbidden = forbiddenEntries.length;
+
+  if (required === 0 && preferred === 0 && forbidden === 0) {
+    return null;
+  }
+
+  const parts = [
+    required > 0 ? `${required} required` : null,
+    preferred > 0 ? `${preferred} preferred` : null,
+    forbidden > 0 ? `${forbidden} forbidden` : null,
+    summarizeSpanCoverage(requiredEntries) ? `spans ${summarizeSpanCoverage(requiredEntries)}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join(" · ");
+}
+
+function summarizeSpanCoverage(entries: unknown[]) {
+  const coverage = entries.filter((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return false;
+    }
+    const provenance = entry as Record<string, unknown>;
+    return typeof provenance.sourceStart === "number" && typeof provenance.sourceEnd === "number";
+  }).length;
+
+  return coverage > 0 ? `${coverage}/${entries.length}` : null;
 }
 
 function extractRefinementSummary(generatorPayload: Record<string, unknown> | null | undefined) {

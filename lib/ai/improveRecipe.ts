@@ -5,11 +5,13 @@ import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "./recipeResult";
 import { compileCookingBrief } from "./briefCompiler";
 import { validateRequiredNamedIngredientsInRecipe } from "./requiredNamedIngredientValidation";
+import { adjudicateRecipeFailure, buildCiaConstraintProvenance } from "./failureAdjudicator";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAiIngredients } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 import { normalizeRecipeEditInstruction } from "./recipeOrchestrator";
 import type { CookingBrief } from "./contracts/cookingBrief";
+import { storeCiaAdjudication } from "./ciaStore";
 
 export class ImproveRecipeGenerationError extends Error {
   debugPayload: unknown;
@@ -39,6 +41,9 @@ type ImproveRecipeInput = {
 type ImproveRecipeCacheContext = {
   supabase: SupabaseClient;
   userId: string;
+  conversationKey?: string | null;
+  recipeId?: string | null;
+  versionId?: string | null;
 };
 
 function normalizeIngredientKey(value: string) {
@@ -322,7 +327,7 @@ export async function improveRecipe(
   input: ImproveRecipeInput,
   cacheContext?: ImproveRecipeCacheContext
 ): Promise<AiRecipeResult> {
-  const hardRequiredIngredients = extractHardRequiredIngredients(input);
+  let hardRequiredIngredients = extractHardRequiredIngredients(input);
   const inputHash = cacheContext
     ? hashAiCacheInput({
         instruction: input.instruction,
@@ -380,7 +385,10 @@ Rules:
     },
   ];
 
-  const taskSetting = await resolveAiTaskSettings("recipe_improvement");
+  const [taskSetting, ciaTaskSetting] = await Promise.all([
+    resolveAiTaskSettings("recipe_improvement"),
+    resolveAiTaskSettings("recipe_cia"),
+  ]);
   if (!taskSetting.enabled) {
     throw new Error("Recipe improvement AI task is disabled.");
   }
@@ -397,6 +405,7 @@ Rules:
   let lastError = "";
   let lastCandidate: AiRecipeResult | null = null;
   let lastDebugPayload: unknown = null;
+  let lastMissingRequiredIngredientIssues: Array<{ message: string }> = [];
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const attemptMessages = [
@@ -442,6 +451,7 @@ Rules:
     });
 
     if (missingRequiredIngredientIssues.length > 0) {
+      lastMissingRequiredIngredientIssues = missingRequiredIngredientIssues;
       lastError = missingRequiredIngredientIssues.map((issue) => issue.message).join(" ");
       continue;
     }
@@ -534,15 +544,92 @@ Rules:
         inputHash,
       });
       if (repairedCandidate) {
+        lastCandidate = repairedCandidate;
         const repairIssues = validateRequiredNamedIngredientsInRecipe({
           ingredients: repairedCandidate.recipe.ingredients.map((item) => ({ ingredientName: item.name })),
           steps: repairedCandidate.recipe.steps,
           requiredNamedIngredients: hardRequiredIngredients,
         });
-        if (repairIssues.length === 0 && verifyInstructionApplied(input.instruction, repairedCandidate)) {
+        if (repairIssues.length > 0) {
+          lastMissingRequiredIngredientIssues = repairIssues;
+        }
+        const finalRepairIssues = validateRequiredNamedIngredientsInRecipe({
+          ingredients: repairedCandidate.recipe.ingredients.map((item) => ({ ingredientName: item.name })),
+          steps: repairedCandidate.recipe.steps,
+          requiredNamedIngredients: hardRequiredIngredients,
+        });
+        if (finalRepairIssues.length === 0 && verifyInstructionApplied(input.instruction, repairedCandidate)) {
           improved = repairedCandidate;
-        } else if (repairIssues.length > 0) {
-          lastError = repairIssues.map((issue) => issue.message).join(" ");
+        } else if (finalRepairIssues.length > 0) {
+          lastError = finalRepairIssues.map((issue) => issue.message).join(" ");
+        }
+      }
+    }
+  }
+
+  if (!improved && lastMissingRequiredIngredientIssues.length > 0) {
+    const ciaPacket = {
+      flow: "recipe_improve",
+      instruction: input.instruction,
+      cookingBrief: input.sessionBrief ?? null,
+      constraintProvenance: buildCiaConstraintProvenance({
+        flow: "recipe_improve",
+        failureKind: "verification_failed",
+        instruction: input.instruction,
+        cookingBrief: input.sessionBrief ?? null,
+        recipeCandidate: lastCandidate?.recipe ?? null,
+        reasons: lastMissingRequiredIngredientIssues.map((issue) => issue.message),
+        rawModelOutput: lastDebugPayload,
+      }),
+      recipeCandidate: lastCandidate?.recipe ?? null,
+      reasons: lastMissingRequiredIngredientIssues.map((issue) => issue.message),
+      rawModelOutput: lastDebugPayload,
+    };
+    const adjudication = await adjudicateRecipeFailure({
+      flow: "recipe_improve",
+      taskSetting: ciaTaskSetting,
+      failureKind: "verification_failed",
+      instruction: input.instruction,
+      cookingBrief: input.sessionBrief ?? null,
+      recipeCandidate: lastCandidate?.recipe ?? null,
+      reasons: lastMissingRequiredIngredientIssues.map((issue) => issue.message),
+      rawModelOutput: lastDebugPayload,
+    });
+    if (cacheContext) {
+      await storeCiaAdjudication(cacheContext.supabase, {
+        ownerId: cacheContext.userId,
+        conversationKey: cacheContext.conversationKey ?? null,
+        scope: "recipe_detail",
+        recipeId: cacheContext.recipeId ?? null,
+        versionId: cacheContext.versionId ?? null,
+        flow: "recipe_improve",
+        taskKey: "recipe_cia",
+        parentTaskKey: "recipe_improvement",
+        failureKind: "verification_failed",
+        failureStage: "verification",
+        model: ciaTaskSetting.primaryModel,
+        provider: null,
+        packet: ciaPacket,
+        adjudication,
+      });
+    }
+
+    if (adjudication.decision === "sanitize_constraints" && adjudication.dropRequiredNamedIngredients.length > 0) {
+      hardRequiredIngredients = hardRequiredIngredients.filter(
+        (ingredient) => !adjudication.dropRequiredNamedIngredients.includes(ingredient.normalizedName.toLowerCase())
+      );
+
+      const salvageCandidate = lastCandidate;
+      if (salvageCandidate) {
+        const salvageIssues = validateRequiredNamedIngredientsInRecipe({
+          ingredients: salvageCandidate.recipe.ingredients.map((item) => ({ ingredientName: item.name })),
+          steps: salvageCandidate.recipe.steps,
+          requiredNamedIngredients: hardRequiredIngredients,
+        });
+        if (salvageIssues.length === 0) {
+          improved = salvageCandidate;
+        } else if (salvageIssues.length > 0) {
+          lastError = salvageIssues.map((issue) => issue.message).join(" ");
         }
       }
     }

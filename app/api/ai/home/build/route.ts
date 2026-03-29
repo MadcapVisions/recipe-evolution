@@ -22,6 +22,9 @@ import { getLockedDirectionSession, upsertLockedDirectionSession } from "@/lib/a
 import type { LockedDirectionSession } from "@/lib/ai/contracts/lockedDirectionSession";
 import { normalizeBuildSpec } from "@/lib/ai/contracts/buildSpec";
 import { resolveAiTaskSettings } from "@/lib/ai/taskSettings";
+import { getFeatureFlag } from "@/lib/ai/featureFlags";
+import { adjudicateRecipeFailure, applyFailureAdjudicationToBrief, buildCiaConstraintProvenance } from "@/lib/ai/failureAdjudicator";
+import { storeCiaAdjudication } from "@/lib/ai/ciaStore";
 import { orchestrateRecipeGeneration } from "@/lib/ai/recipeGenerationOrchestrator";
 import { buildGenerationDeps } from "@/lib/ai/repairAdapters";
 import { analyzeHomeBuildRequest, buildAttemptOrchestrationState } from "@/lib/ai/recipeOrchestrator";
@@ -61,6 +64,17 @@ type StreamEvent =
   | { type: "status"; message: string; stage?: string }
   | { type: "result"; result: unknown; launchDecision?: LaunchDecision }
   | { type: "debug"; label: string; data: Record<string, unknown> }
+  | {
+      type: "graceful_failure";
+      message: string;
+      failure_kind?: RecipeBuildFailureKind;
+      failure_stage?: string | null;
+      retry_strategy?: VerificationRetryStrategy;
+      model?: string;
+      reasons?: string[];
+      failure_context?: Record<string, unknown> | null;
+      launchDecision: LaunchDecision;
+    }
   | {
       type: "error";
       message: string;
@@ -166,6 +180,8 @@ export async function POST(request: Request) {
       let lastAttemptModel: string | undefined;
       let currentAttemptModel: string | undefined;
       let resolvedTaskPrimaryModel: string | undefined;
+      let gracefulModeEnabled = false;
+      let adjudicatorRetryUsed = false;
       let terminalFailureStored = false;
       let lockedSession: LockedDirectionSession | null = null;
       let previousAttempt: PreviousAttemptSnapshot = null;
@@ -176,6 +192,8 @@ export async function POST(request: Request) {
         // Kick off task settings lookup in parallel with brief/session reads —
         // it doesn't depend on either and is needed just before generation.
         const taskSettingPromise = resolveAiTaskSettings("home_recipe");
+        const ciaTaskSettingPromise = resolveAiTaskSettings("recipe_cia");
+        const gracefulModePromise = getFeatureFlag("graceful_mode", false);
         const [persistedBrief, persistedSession] = await Promise.all([
           conversationKey
             ? getCookingBrief(access.supabase as SupabaseClient, {
@@ -286,7 +304,13 @@ export async function POST(request: Request) {
         let activeRecipePlan = recipePlan;
         let result = null;
         let verification = null;
-        const taskSetting = await taskSettingPromise;
+        let taskSetting;
+        let ciaTaskSetting;
+        [taskSetting, ciaTaskSetting, gracefulModeEnabled] = await Promise.all([
+          taskSettingPromise,
+          ciaTaskSettingPromise,
+          gracefulModePromise,
+        ]);
         resolvedTaskPrimaryModel = taskSetting.primaryModel;
         let modelOverride: string | undefined;
 
@@ -379,6 +403,101 @@ export async function POST(request: Request) {
             recipePlan = activeRecipePlan;
           } catch (error) {
             const failure = getRecipeBuildFailureDetails(error, "Recipe generation failed.");
+            if (
+              !adjudicatorRetryUsed &&
+              effectiveBrief &&
+              (failure.kind === "verification_failed" || failure.kind === "invalid_payload")
+            ) {
+              const ciaPacket = {
+                flow: "home_create",
+                failureKind: failure.kind,
+                userMessage: prompt ?? body.ideaTitle,
+                conversationHistory,
+                selectedDirection: lockedSession?.selected_direction ?? null,
+                cookingBrief: effectiveBrief,
+                constraintProvenance: buildCiaConstraintProvenance({
+                  flow: "home_create",
+                  failureKind: failure.kind,
+                  userMessage: prompt ?? body.ideaTitle,
+                  conversationHistory,
+                  selectedDirection: lockedSession?.selected_direction ?? null,
+                  cookingBrief: effectiveBrief,
+                  recipeCandidate: failure.normalizedRecipe,
+                  verification: failure.verification,
+                  reasons: failure.reasons,
+                  rawModelOutput: failure.rawModelOutput,
+                }),
+                recipeCandidate: failure.normalizedRecipe,
+                verification: failure.verification,
+                reasons: failure.reasons,
+                rawModelOutput: failure.rawModelOutput,
+              };
+              const adjudication = await adjudicateRecipeFailure({
+                flow: "home_create",
+                taskSetting: ciaTaskSetting,
+                failureKind: failure.kind,
+                userMessage: prompt ?? body.ideaTitle,
+                conversationHistory,
+                selectedDirection: lockedSession?.selected_direction ?? null,
+                cookingBrief: effectiveBrief,
+                recipeCandidate: failure.normalizedRecipe,
+                verification: failure.verification,
+                reasons: failure.reasons,
+                rawModelOutput: failure.rawModelOutput,
+              });
+              await storeCiaAdjudication(access.supabase as SupabaseClient, {
+                ownerId: access.userId,
+                conversationKey,
+                scope: "home_hub",
+                flow: "home_create",
+                taskKey: "recipe_cia",
+                parentTaskKey: "home_recipe",
+                failureKind: failure.kind,
+                failureStage: failure.failureStage,
+                model: ciaTaskSetting.primaryModel,
+                provider: null,
+                packet: ciaPacket,
+                adjudication,
+              });
+
+              if (
+                adjudication.decision === "sanitize_constraints" &&
+                (adjudication.dropRequiredIngredients.length > 0 || adjudication.dropRequiredNamedIngredients.length > 0)
+              ) {
+                adjudicatorRetryUsed = true;
+                effectiveBrief = applyFailureAdjudicationToBrief(effectiveBrief, adjudication);
+                activeRecipePlan = buildRecipePlanFromBrief(effectiveBrief);
+                recipePlan = activeRecipePlan;
+                attemptNumber += 1;
+                retryStrategy =
+                  adjudication.retryStrategy === "regenerate_same_model" ||
+                  adjudication.retryStrategy === "try_fallback_model"
+                    ? adjudication.retryStrategy
+                    : "regenerate_stricter";
+                retryReasons = [adjudication.summary, ...failure.reasons];
+                send({
+                  type: "debug",
+                  label: "failure_adjudicated",
+                  data: {
+                    decision: adjudication.decision,
+                    summary: adjudication.summary,
+                    confidence: adjudication.confidence,
+                    dropped_required: adjudication.dropRequiredIngredients,
+                    dropped_required_named: adjudication.dropRequiredNamedIngredients,
+                  },
+                });
+                send({ type: "status", message: "Adjudicating the failure and retrying...", stage: "recipe_plan" });
+                const retryPlanStartedAt = new Date().toISOString();
+                const retryGenerateStartedAt = new Date().toISOString();
+                stageMetrics.push(
+                  createAiStageMetric("recipe_plan", {
+                    started_at: retryPlanStartedAt,
+                    completed_at: retryGenerateStartedAt,
+                  })
+                );
+                continue;
+              }
+            }
             const effectiveStrategy =
               !shouldAutoRetryRecipeBuild(failure.retryStrategy, attemptNumber) &&
               (failure.retryStrategy === "regenerate_same_model" || failure.retryStrategy === "regenerate_stricter") &&
@@ -726,7 +845,7 @@ export async function POST(request: Request) {
         }
         send({
           type: "debug",
-          label: "terminal_failure",
+          label: gracefulModeEnabled ? "graceful_failure" : "terminal_failure",
           data: {
             attempt: attemptNumber,
             kind: failure.kind,
@@ -755,17 +874,31 @@ export async function POST(request: Request) {
           reasons: issueCollector.reasons.length > 0 ? issueCollector.reasons : failure.reasons,
           requiredNamedIngredientNames: issueCollector.requiredNamedIngredientNames,
         });
-        send({
-          type: "error",
-          message: failure.message,
-          failure_kind: failure.kind,
-          failure_stage: failure.failureStage,
-          retry_strategy: failure.retryStrategy,
-          model: currentAttemptModel ?? lastAttemptModel ?? resolvedTaskPrimaryModel,
-          reasons: failure.reasons,
-          failure_context: failure.failureContext,
-          launchDecision: terminalDecision,
-        });
+        if (gracefulModeEnabled) {
+          send({
+            type: "graceful_failure",
+            message: failure.message,
+            failure_kind: failure.kind,
+            failure_stage: failure.failureStage,
+            retry_strategy: failure.retryStrategy,
+            model: currentAttemptModel ?? lastAttemptModel ?? resolvedTaskPrimaryModel,
+            reasons: failure.reasons,
+            failure_context: failure.failureContext,
+            launchDecision: terminalDecision,
+          });
+        } else {
+          send({
+            type: "error",
+            message: failure.message,
+            failure_kind: failure.kind,
+            failure_stage: failure.failureStage,
+            retry_strategy: failure.retryStrategy,
+            model: currentAttemptModel ?? lastAttemptModel ?? resolvedTaskPrimaryModel,
+            reasons: failure.reasons,
+            failure_context: failure.failureContext,
+            launchDecision: terminalDecision,
+          });
+        }
       } finally {
         controller.close();
       }

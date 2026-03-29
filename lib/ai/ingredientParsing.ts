@@ -12,6 +12,10 @@ function normalizeWhitespace(value: string): string {
 const LEADING_INTENT_PATTERN =
   /^(?:can we add|can we use|let(?:'?s)? add|let(?:'?s)? use|how about|what about|maybe add|maybe use|maybe some|maybe|perhaps|possibly|would love some|i(?:'d| would) love(?: some)?|i(?:'m| am) craving|craving|i need|can you add|please add|add in|add|include|put in|i want|we want|try adding)\s+/i;
 
+// Leading acknowledgements that often precede the actual ingredient request
+const LEADING_ACKNOWLEDGEMENT_PATTERN =
+  /^(?:(?:ok|okay|sure|yeah|yep|yes|sounds good|that works|let's do that|lets do that)[,\s]+)+/i;
+
 // Leading quantity expressions (number + optional unit)
 const LEADING_QUANTITY_PATTERN =
   /^(?:\d+(?:[.,]\d+)?(?:\s*(?:\/)\s*\d+)?|a\s+(?:few|couple\s+of|bit\s+of|handful\s+of|little|touch\s+of|dash\s+of)|half\s+a?|some|one|two|three|four|five|six|seven|eight|nine|ten)\s+/i;
@@ -62,6 +66,14 @@ const INVALID_FULL_PHRASES = new Set([
   "make it nice",
   "make it spicy",
   "keep it spicy",
+  "ok",
+  "okay",
+  "sure",
+  "yeah",
+  "yep",
+  "yes",
+  "sounds good",
+  "that works",
   "spicy",
   "bright",
   "crispy",
@@ -101,6 +113,12 @@ const BARE_TOKEN_BLOCKLIST = new Set([
   "some",
   "thing",
   "stuff",
+  "ok",
+  "okay",
+  "sure",
+  "yeah",
+  "yep",
+  "yes",
 ]);
 
 function stripLeading(text: string): string {
@@ -112,6 +130,7 @@ function stripLeading(text: string): string {
     changed = false;
 
     const after = current
+      .replace(LEADING_ACKNOWLEDGEMENT_PATTERN, "")
       .replace(LEADING_INTENT_PATTERN, "")
       .replace(LEADING_QUANTITY_PATTERN, "")
       .replace(LEADING_UNIT_PATTERN, "")

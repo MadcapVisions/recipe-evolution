@@ -170,3 +170,18 @@ test("compileCookingBrief does not convert explanatory questions into hard ingre
     )
   );
 });
+
+test("compileCookingBrief drops acknowledgement filler from required ingredients", () => {
+  const brief = compileCookingBrief({
+    userMessage: "ok, peanut butter",
+    conversationHistory: [
+      { role: "user", content: "I want a candy bar inspired dessert." },
+    ],
+  });
+
+  assert.deepEqual(brief.ingredients.required, ["peanut butter"]);
+  assert.ok(!(brief.ingredients.requiredNamedIngredients ?? []).some((ingredient) => ingredient.normalizedName === "ok"));
+  assert.equal(brief.ingredients.provenance?.required[0]?.sourceText, "peanut butter");
+  assert.equal(brief.ingredients.provenance?.required[0]?.sourceStart, 4);
+  assert.equal(brief.ingredients.provenance?.required[0]?.sourceEnd, 17);
+});

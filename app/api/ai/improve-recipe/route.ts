@@ -164,6 +164,9 @@ export async function POST(request: Request) {
     }, {
       supabase: access.supabase as SupabaseClient,
       userId: access.userId,
+      conversationKey,
+      recipeId,
+      versionId,
     });
     debugPayload = result;
 

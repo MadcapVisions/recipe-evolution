@@ -357,6 +357,23 @@ export function compileCookingBrief(input: {
       recipeTitle: recipeContext?.title,
       userMessage: input.userMessage,
     }),
+    provenance: {
+      required: latestUserDelta?.extracted_changes.ingredient_provenance?.required ?? [],
+      preferred: [
+        ...(latestUserDelta?.extracted_changes.ingredient_provenance?.preferred ?? []),
+        ...unique(recipeContext?.ingredients ?? []).map((phrase) => ({
+          phrase,
+          sourceType: "recipe_context" as const,
+          sourceRole: null,
+          sourceText: phrase,
+          sourceStart: null,
+          sourceEnd: null,
+          sourceSnippet: phrase,
+          extractionMethod: "recipe_context_seed",
+        })),
+      ],
+      forbidden: latestUserDelta?.extracted_changes.ingredient_provenance?.forbidden ?? [],
+    },
   };
   brief.constraints = {
     servings: null,

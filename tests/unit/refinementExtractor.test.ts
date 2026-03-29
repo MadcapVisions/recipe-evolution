@@ -79,6 +79,21 @@ test("extractRefinementDelta ignores explanatory question fragments when extract
   assert.ok(!result.extracted_changes.required_ingredients.includes("what is gremolata"));
 });
 
+test("extractRefinementDelta ignores acknowledgement filler before a real ingredient", () => {
+  const result = extractRefinementDelta({
+    userText: "ok, peanut butter",
+    assistantText: "Locked in.",
+  });
+
+  assert.deepEqual(result.extracted_changes.required_ingredients, ["peanut butter"]);
+  assert.ok(!result.extracted_changes.required_ingredients.includes("ok"));
+  assert.equal(result.extracted_changes.ingredient_provenance?.required[0]?.sourceType, "user_message");
+  assert.equal(result.extracted_changes.ingredient_provenance?.required[0]?.sourceText, "peanut butter");
+  assert.equal(result.extracted_changes.ingredient_provenance?.required[0]?.sourceStart, 4);
+  assert.equal(result.extracted_changes.ingredient_provenance?.required[0]?.sourceEnd, 17);
+  assert.match(String(result.extracted_changes.ingredient_provenance?.required[0]?.sourceSnippet), /peanut butter/i);
+});
+
 test("extractRefinementDelta maps semantic style changes into structured tags", () => {
   const result = extractRefinementDelta({
     userText: "make it feel authentic and a bit heartier",

@@ -59,6 +59,14 @@ type AiTaskSettingRow = {
   updated_by: string | null;
 };
 
+type CiaAdjudicationRow = {
+  id: string;
+  decision: string;
+  adjudicator_source: string;
+  created_at: string;
+  updated_by?: string | null;
+};
+
 function formatDisplayName(user: AuthUserRecord) {
   const metadata = user.user_metadata ?? {};
   const displayName = typeof metadata.display_name === "string" ? metadata.display_name.trim() : "";
@@ -96,7 +104,7 @@ async function listUsers() {
 export async function getAdminDashboardData() {
   const admin = createSupabaseAdminClient();
 
-  const [users, recipesResult, versionsResult, conversationsResult, aiSettingsResult, usageLogResult, generationAttemptsResult] = await Promise.all([
+  const [users, recipesResult, versionsResult, conversationsResult, aiSettingsResult, usageLogResult, generationAttemptsResult, ciaResult] = await Promise.all([
     listUsers(),
     admin.from("recipes").select("id, owner_id, title, created_at, updated_at").order("created_at", { ascending: false }),
     admin.from("recipe_versions").select("id, recipe_id, version_number, created_at").order("created_at", { ascending: false }),
@@ -104,6 +112,7 @@ export async function getAdminDashboardData() {
     admin.from("ai_task_settings").select("task_key, primary_model, fallback_model, enabled, updated_at, updated_by").order("updated_at", { ascending: false }),
     admin.from("ai_usage_log").select("user_id, model, input_tokens, output_tokens, cost_usd"),
     admin.from("ai_generation_attempts").select("owner_id, stage_metrics_json"),
+    admin.from("ai_cia_adjudications").select("id, decision, adjudicator_source, created_at").order("created_at", { ascending: false }),
   ]);
 
   if (recipesResult.error) throw new Error(`Failed to load recipes: ${recipesResult.error.message}`);
@@ -111,6 +120,7 @@ export async function getAdminDashboardData() {
   if (conversationsResult.error) throw new Error(`Failed to load AI conversations: ${conversationsResult.error.message}`);
   if (aiSettingsResult.error) throw new Error(`Failed to load AI settings: ${aiSettingsResult.error.message}`);
   if (generationAttemptsResult.error) throw new Error(`Failed to load AI generation attempts: ${generationAttemptsResult.error.message}`);
+  if (ciaResult.error) throw new Error(`Failed to load CIA adjudications: ${ciaResult.error.message}`);
 
   const recipes = (recipesResult.data ?? []) as RecipeRow[];
   const versions = (versionsResult.data ?? []) as VersionRow[];
@@ -118,6 +128,7 @@ export async function getAdminDashboardData() {
   const aiSettings = (aiSettingsResult.data ?? []) as AiTaskSettingRow[];
   const usageLog = (usageLogResult.data ?? []) as UsageLogRow[];
   const generationAttempts = (generationAttemptsResult.data ?? []) as GenerationAttemptCostRow[];
+  const ciaAdjudications = (ciaResult.data ?? []) as CiaAdjudicationRow[];
 
   const aiCostByUser = new Map<string, number>();
   for (const row of usageLog) {
@@ -218,6 +229,14 @@ export async function getAdminDashboardData() {
       detail: `AI routing updated to ${setting.primary_model}`,
       actor: setting.updated_by ? formatDisplayName(userById.get(setting.updated_by) ?? { id: setting.updated_by, email: null, created_at: null, last_sign_in_at: null }) : "System",
     })),
+    ...ciaAdjudications.slice(0, 12).map((entry) => ({
+      id: `cia-${entry.id}`,
+      kind: "cia_adjudication",
+      createdAt: entry.created_at,
+      title: "CIA adjudication",
+      detail: `${entry.decision} via ${entry.adjudicator_source}`,
+      actor: "CIA",
+    })),
   ]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 24);
@@ -232,6 +251,8 @@ export async function getAdminDashboardData() {
     totalAiPrompts: conversations.filter((conversation) => conversation.role === "user").length,
     totalAiResponses: conversations.filter((conversation) => conversation.role === "assistant").length,
     activeAiTasks: aiSettings.filter((setting) => setting.enabled).length,
+    totalCiaRuns: ciaAdjudications.length,
+    ciaSanitized: ciaAdjudications.filter((item) => item.decision === "sanitize_constraints").length,
     totalAiCostUsd,
   };
 

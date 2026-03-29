@@ -5,7 +5,7 @@ import { callAIWithMeta } from "@/lib/ai/aiClient";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 
 const aiModelTestSchema = z.object({
-  taskKey: z.enum(["chef_chat", "home_ideas", "home_recipe", "recipe_improvement", "recipe_structure"]),
+  taskKey: z.enum(["chef_chat", "home_ideas", "home_recipe", "recipe_cia", "recipe_improvement", "recipe_structure"]),
   model: z.string().trim().min(1).max(200),
 });
 
@@ -30,6 +30,17 @@ function buildTestPrompt(taskKey: string) {
       return [
         { role: "system" as const, content: "Return only valid JSON." },
         { role: "user" as const, content: '{"title":"Improved Chili","explanation":"Brighter flavor","servings":4,"prep_time_min":15,"cook_time_min":35,"difficulty":"Easy","ingredients":[{"name":"1 onion","quantity":1,"unit":null,"prep":"diced"}],"steps":[{"text":"Cook the onion."}]}' },
+      ];
+    case "recipe_cia":
+      return [
+        {
+          role: "system" as const,
+          content: 'Return only valid JSON with keys decision, confidence, summary, retryStrategy, dropRequiredNamedIngredients, dropRequiredIngredients, correctedStructuredRecipe.',
+        },
+        {
+          role: "user" as const,
+          content: '{"flow":"home_create","failureKind":"verification_failed","reasons":["Required ingredient \\"ok\\" appears in ingredients but is not used in any step."],"cookingBrief":{"ingredients":{"required":["ok","peanut butter"],"requiredNamedIngredients":[{"normalizedName":"ok"},{"normalizedName":"peanut butter"}]}}}',
+        },
       ];
     default:
       return [
@@ -87,4 +98,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
