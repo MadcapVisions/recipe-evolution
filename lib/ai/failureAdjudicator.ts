@@ -1,3 +1,12 @@
+/**
+ * @deprecated For migrated flows, use `classifyGenerationFailure()` from
+ * `lib/ai/recovery/classifyGenerationFailure.ts` for typed failure taxonomy,
+ * and `executeRecoveryStrategy()` for recovery execution.
+ *
+ * This file handles post-generation validation recovery (verifier adjudication)
+ * and remains active for that purpose until Ticket 4.6 determines its final state.
+ */
+
 import { callAIForJson } from "./jsonResponse";
 import type { AIMessage } from "./chatPromptBuilder";
 import type { CookingBrief } from "./contracts/cookingBrief";

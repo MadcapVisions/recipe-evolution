@@ -1,4 +1,12 @@
 /**
+ * @deprecated In migrated flows, use `resolveCookingIntent()` from
+ * `lib/ai/intent/resolveCookingIntent.ts` instead.
+ *
+ * This file remains as legacy support for non-migrated flows.
+ * After all routes use the canonical resolver, this file will be removed (Ticket 4.5).
+ */
+
+/**
  * Intent resolver — pre-routing layer for the recipe generation pipeline.
  *
  * Sits before dish family detection. When a user prompt does not contain an

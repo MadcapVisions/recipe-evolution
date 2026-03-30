@@ -1,3 +1,11 @@
+/**
+ * Detects contradictions between locked session state and a new user message.
+ *
+ * In migrated flows, this is used as a building block by
+ * `lib/ai/intent/constraintScoping.ts` — do not duplicate contradiction logic
+ * outside of that module (Ticket 4.7).
+ */
+
 import type { CanonicalRecipeSessionState } from "./contracts/sessionState";
 
 export type SessionContradiction = {
