@@ -6,6 +6,16 @@ const CACHE_TTL_MS = 60_000;
 
 const flagCache = new Map<string, { value: boolean; cachedAt: number }>();
 
+// Typed flag key registry — use these constants instead of raw strings.
+export const FEATURE_FLAG_KEYS = {
+  GRACEFUL_MODE: "graceful_mode",
+  INTENT_RESOLVER_V2: "intent_resolver_v2",
+  DRAFT_RECIPE_LIFECYCLE_V1: "draft_recipe_lifecycle_v1",
+  CREATE_GUIDED_ENTRY_V1: "create_guided_entry_v1",
+} as const;
+
+export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
+
 export async function getFeatureFlag(key: string, defaultValue = false): Promise<boolean> {
   const cached = flagCache.get(key);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
