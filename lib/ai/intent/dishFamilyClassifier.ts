@@ -32,7 +32,7 @@ export type DishFamilyClassificationResult = {
   reasoning: string;
 };
 
-function normalizeText(value: string): string {
+export function normalizeText(value: string): string {
   return value
     .toLowerCase()
     .normalize("NFD")

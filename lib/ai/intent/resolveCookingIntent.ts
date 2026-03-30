@@ -8,6 +8,7 @@ import type {
 } from "./intentTypes";
 import {
   classifyDishFamily,
+  normalizeText,
   type DishFamilyClassificationInput,
   type DishFamilyClassificationResult,
 } from "./dishFamilyClassifier";
@@ -36,16 +37,6 @@ export type ResolveCookingIntentInput = {
   taskSettingModel?: string | null;
 };
 
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 const CUISINE_HINTS: Array<{ patterns: string[]; cuisine: string }> = [
   { patterns: ["italian", "pasta", "risotto", "carbonara"], cuisine: "italian" },
   { patterns: ["thai", "pad thai", "green curry", "tom yum"], cuisine: "thai" },
@@ -72,6 +63,33 @@ const DIETARY_SIGNALS = [
   "dairy-free", "dairy free", "nut-free", "nut free",
   "keto", "paleo", "halal", "kosher",
 ];
+
+/**
+ * Extracts a short dish name from the user message.
+ * Strips leading request phrases to get the core dish name.
+ * Returns null if the message is too vague to extract a name from.
+ */
+function extractDishName(userMessage: string): string | null {
+  const norm = normalizeText(userMessage);
+
+  // Strip common leading request phrases
+  const stripped = norm
+    .replace(/^(?:i(?:'d| would)? (?:like|want|love)(?: to make| to have| to cook| to bake)?|make(?: me)?|cook(?: me)?|bake(?: me)?|can you make(?: me)?|let's (?:make|cook|have)|give me(?: a)?|i(?:'m| am) making|i(?:'m| am) cooking|how (?:do i|to) make)\s+/i, "")
+    .replace(/^(?:a|an|some|the)\s+/i, "")
+    .trim();
+
+  if (!stripped || stripped.length < 3 || stripped.split(" ").length > 8) {
+    // Too short or too long to be a dish name
+    return stripped.length >= 3 && stripped.length <= 60 ? stripped : null;
+  }
+
+  // Truncate after common connecting words that signal ingredient lists
+  const truncated = stripped
+    .replace(/\s+(?:with|using|and|from|without|but without|topped with|served with)\s+.*$/, "")
+    .trim();
+
+  return truncated.length >= 3 ? truncated : null;
+}
 
 function extractCuisineHint(text: string): string | null {
   const norm = normalizeText(text);
@@ -162,7 +180,7 @@ export async function resolveCookingIntent(
 
   const classificationResult = await classifyFn(
     {
-      dishName: null,
+      dishName: extractDishName(input.userMessage),
       userMessage: input.userMessage,
       conversationContext:
         input.conversationHistory
@@ -231,7 +249,7 @@ export async function resolveCookingIntent(
 
   return {
     dishName: classificationResult.family
-      ? (input.userMessage.trim() || null)
+      ? (extractDishName(input.userMessage) ?? (input.userMessage.trim() || null))
       : null,
     rawUserPhrase: input.userMessage.trim() || null,
     dishFamily: classificationResult.family,

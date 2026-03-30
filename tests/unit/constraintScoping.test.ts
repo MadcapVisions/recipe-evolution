@@ -130,10 +130,11 @@ test("detectPivotAndInvalidate: style pivot keeps all dish_specific constraints"
   ];
   const result = detectPivotAndInvalidate({
     constraints,
-    previousFamily: "soup",
-    newFamily: "soup",
-    userMessage: "make it a bit more spicy",
+    previousFamily: "bread",
+    newFamily: "bread_pudding",  // triggers style_pivot (same root "bread")
+    userMessage: "let's try a bread pudding style",
   });
-  assert.equal(result.pivotType, "no_pivot");
+  assert.equal(result.pivotType, "style_pivot");
   assert.equal(result.keptConstraints.length, 1);
+  assert.equal(result.keptConstraints[0]!.value, "slow_cook");
 });
