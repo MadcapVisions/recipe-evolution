@@ -3,6 +3,8 @@ import {
   DISH_FAMILIES,
   type DishFamily,
 } from "../homeRecipeAlignment";
+import { callAIForJson } from "../jsonResponse";
+import type { AIMessage } from "../chatPromptBuilder";
 
 // These families must never be returned as uncertainty fallbacks.
 // If heuristics suggest one of these for an unknown dish, return null instead.
@@ -177,4 +179,80 @@ export function classifyDishFamilyHeuristic(
       ? `Advisory heuristic suggested "${advisoryFamily}" which is a forbidden uncertainty bucket. Returning null.`
       : "No heuristic match found with sufficient confidence.",
   };
+}
+
+/**
+ * Full classifier — calls AI when heuristic confidence is too low.
+ * Pass `{ disableAI: true }` in tests or when no model is available.
+ */
+export async function classifyDishFamily(
+  input: DishFamilyClassificationInput,
+  options?: { disableAI?: boolean }
+): Promise<DishFamilyClassificationResult> {
+  const heuristic = classifyDishFamilyHeuristic(input);
+
+  // High-confidence heuristic — no AI needed
+  if (heuristic.confidence >= 0.7) {
+    return heuristic;
+  }
+
+  // No model or AI disabled
+  if (options?.disableAI || !input.taskSettingModel) {
+    return heuristic;
+  }
+
+  // Escalate to AI
+  try {
+    const messages: AIMessage[] = [
+      {
+        role: "system",
+        content: `You are a dish family classifier for a recipe application.
+Given a dish name and context, identify the most specific dish family from the canonical list below.
+Return only valid JSON: {"family": string | null, "confidence": number, "reasoning": string}
+Rules:
+- family must be exactly one of these values, or null: ${DISH_FAMILIES.join(", ")}
+- Never return beverage, preserve, sauce_condiment, or pickled_fermented for an uncertain dish — return null instead.
+- confidence is a number from 0 to 1.`,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          dishName: input.dishName,
+          userMessage: input.userMessage,
+          context: input.conversationContext ?? null,
+        }),
+      },
+    ];
+
+    const result = await callAIForJson(messages, {
+      model: input.taskSettingModel,
+      fallback_models: [],
+      strict_model: false,
+      temperature: 0.1,
+      max_tokens: 200,
+    });
+
+    if (result.parsed && typeof result.parsed === "object") {
+      const raw = result.parsed as Record<string, unknown>;
+      const rawFamily = raw.family;
+      const family: DishFamily | null =
+        typeof rawFamily === "string" &&
+        isValidFamily(rawFamily) &&
+        !FORBIDDEN_UNCERTAINTY_FAMILIES.has(rawFamily)
+          ? rawFamily
+          : null;
+      const confidence =
+        typeof raw.confidence === "number"
+          ? Math.max(0, Math.min(1, raw.confidence))
+          : 0.5;
+      const reasoning =
+        typeof raw.reasoning === "string" ? raw.reasoning : "AI classification.";
+
+      return { family, confidence, source: "ai", reasoning };
+    }
+  } catch {
+    // AI call failed — fall through to heuristic result
+  }
+
+  return heuristic;
 }
