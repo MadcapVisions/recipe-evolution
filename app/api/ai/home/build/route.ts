@@ -45,6 +45,10 @@ import { lockedSessionSchema } from "@/lib/ai/contracts/lockedDirectionSessionSc
 import { buildSessionMemoryBlock, mergeSessionConversationHistory, updateCanonicalSessionState } from "@/lib/ai/sessionContext";
 import { getCanonicalSessionState, upsertCanonicalSessionState } from "@/lib/ai/sessionStateStore";
 import { detectSessionContradictions } from "@/lib/ai/sessionContradictions";
+import { resolveCookingIntent } from "@/lib/ai/intent/resolveCookingIntent";
+import { enrichBriefWithIntent } from "@/lib/ai/intent/enrichBriefWithIntent";
+import type { ResolvedCookingIntent } from "@/lib/ai/intent/intentTypes";
+import { FEATURE_FLAG_KEYS } from "@/lib/ai/featureFlags";
 
 const aiMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
@@ -199,6 +203,7 @@ export async function POST(request: Request) {
         const taskSettingPromise = resolveAiTaskSettings("home_recipe");
         const ciaTaskSettingPromise = resolveAiTaskSettings("recipe_cia");
         const gracefulModePromise = getFeatureFlag("graceful_mode", false);
+        const intentResolverV2Promise = getFeatureFlag(FEATURE_FLAG_KEYS.INTENT_RESOLVER_V2, false);
         const [persistedBrief, persistedSession, persistedTurns, persistedSessionState] = await Promise.all([
           conversationKey
             ? getCookingBrief(access.supabase as SupabaseClient, {
@@ -236,6 +241,7 @@ export async function POST(request: Request) {
               scope: "home_hub",
             })
           : null;
+        const intentResolverV2Enabled = await intentResolverV2Promise;
         effectiveConversationHistory = mergeSessionConversationHistory({
           persistedTurns,
           clientHistory: conversationHistory,
@@ -277,6 +283,43 @@ export async function POST(request: Request) {
           controller.close();
           return;
         }
+        // ── Intent Resolver v2 ──────────────────────────────────────────────
+        // Resolves dish family and validates the premise before spending tokens
+        // on planning and generation. Off by default — enabled via feature flag.
+        let resolvedIntent: ResolvedCookingIntent | null = null;
+        if (intentResolverV2Enabled) {
+          resolvedIntent = await resolveCookingIntent({
+            userMessage: prompt || body.ideaTitle,
+            requestId: `build-${conversationKey ?? "anon"}-${Date.now()}`,
+            sessionState: persistedSessionState?.state_json ?? null,
+            cookingBrief: persistedBrief?.brief_json ?? null,
+          });
+          // Clarification gate: if premise is too vague and there is no locked
+          // direction to anchor on, ask the user before generating anything.
+          if (resolvedIntent.requiresClarification && !lockedSession?.selected_direction) {
+            send({
+              type: "graceful_failure",
+              message: resolvedIntent.clarificationReason ?? "Please name a specific dish or ingredient.",
+              failure_kind: "input_conflict",
+              failure_stage: "brief_compile",
+              retry_strategy: "clarify",
+              reasons: [resolvedIntent.clarificationReason ?? "Request is too vague to build a recipe."],
+              failure_context: {
+                premise_trust: resolvedIntent.premiseTrust,
+              },
+              launchDecision: mapToLaunchDecision({
+                reasons: [resolvedIntent.clarificationReason ?? "Request is too vague to build a recipe."],
+                issueCodes: ["NEEDS_CLARIFICATION"],
+                plannerRetries: 0,
+                repairAttempts: 0,
+                usedFallback: false,
+                requiredNamedIngredientNames: [],
+              }),
+            });
+            controller.close();
+            return;
+          }
+        }
         // Use the persisted (locked) brief when available — it was compiled from
         // the full conversation at lock time and should not be recompiled from
         // the current prompt, which may have slightly different phrasing.
@@ -297,6 +340,11 @@ export async function POST(request: Request) {
               conversationHistory: effectiveConversationHistory,
             })
           : compiledBrief;
+        // Enrich non-locked briefs with intent resolver output.
+        // Locked briefs use BuildSpec as authority — must not be overridden here.
+        if (resolvedIntent && !lockedSession?.selected_direction) {
+          effectiveBrief = enrichBriefWithIntent(effectiveBrief, resolvedIntent);
+        }
         briefCompiledAt = new Date().toISOString();
 
         // Apply retry modifiers from graceful failure card actions
