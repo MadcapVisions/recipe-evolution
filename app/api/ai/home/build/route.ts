@@ -202,7 +202,7 @@ export async function POST(request: Request) {
         // it doesn't depend on either and is needed just before generation.
         const taskSettingPromise = resolveAiTaskSettings("home_recipe");
         const ciaTaskSettingPromise = resolveAiTaskSettings("recipe_cia");
-        const gracefulModePromise = getFeatureFlag("graceful_mode", false);
+        const gracefulModePromise = getFeatureFlag(FEATURE_FLAG_KEYS.GRACEFUL_MODE, false);
         const intentResolverV2Promise = getFeatureFlag(FEATURE_FLAG_KEYS.INTENT_RESOLVER_V2, false);
         const [persistedBrief, persistedSession, persistedTurns, persistedSessionState] = await Promise.all([
           conversationKey
