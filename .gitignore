@@ -48,3 +48,6 @@ supabase/.temp/
 # benchmark and simulation run artifacts
 /benchmark-artifacts/
 /simulation-artifacts/
+
+# git worktrees
+.worktrees/
