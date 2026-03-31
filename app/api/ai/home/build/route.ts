@@ -309,7 +309,7 @@ export async function POST(request: Request) {
               },
               launchDecision: mapToLaunchDecision({
                 reasons: [resolvedIntent.clarificationReason ?? "Request is too vague to build a recipe."],
-                issueCodes: ["NEEDS_CLARIFICATION"],
+                issueCodes: ["INPUT_CONFLICT"],
                 plannerRetries: 0,
                 repairAttempts: 0,
                 usedFallback: false,

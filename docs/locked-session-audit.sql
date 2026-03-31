@@ -58,16 +58,18 @@ WHERE
   session_json->'build_spec' IS NOT NULL
   AND session_json->'build_spec' != 'null'::jsonb
   AND session_json->'build_spec'->>'derived_at' = 'lock_time'
+  -- KEEP IN SYNC WITH: lib/ai/homeRecipeAlignment.ts DISH_FAMILIES
   AND session_json->'build_spec'->>'dish_family' NOT IN (
-    'stir_fry','pasta','pizza','soup','salad','sandwich','burger','tacos',
-    'curry','bread','cake','cookies','brownies_bars','muffins_scones',
-    'pie','tart','casserole','stew','roast','grilled_meat','grilled_fish',
-    'fried_chicken','fried_fish','seafood','sushi','ramen','noodle_soup',
-    'congee','rice','bowl','flatbread','dumplings','wraps','quesadilla',
-    'frittata','omelet','pancakes','waffles','granola','smoothie','beverage',
-    'ice_cream','pudding','mousse','cheesecake','trifle','crepes',
-    'bread_pudding','jam_preserve','pickle','fermented','sauce_condiment',
-    'soup_cream','chowder','bisque','rillettes','terrine','pate',
-    'ceviche','tartare','carpaccio','bruschetta','crostini'
+    'brownies_bars','muffins_scones','cookies','cake','pastry','fried_pastry',
+    'dessert_bread','bread','pie','tart','frozen_dessert','bread_pudding','custard_pudding',
+    'candy_confection','dessert','pizza','flatbread','noodle_soup','pasta','stir_fry',
+    'tamales','tacos','burger','sandwich','wraps','spring_rolls','dumplings','savory_pastry',
+    'chili','soup','curry','rice','grains','salad','dips_spreads','sauce_condiment',
+    'egg_dish','pancakes_crepes','savory_pancake','porridge_cereal','breakfast',
+    'pot_pie','casserole','braised','stuffed','grilled_bbq','fried','roasted',
+    'steamed','fritters_patties','meatballs_ground_meat','sushi_raw','raw_cured',
+    'seafood_fish','chicken_poultry','sausage','tofu_tempeh','beans_legumes',
+    'potato','vegetable_side','skillet','bowl','beverage','preserve','pickled_fermented',
+    'appetizer_snack','board_platter','souffle','fondue'
   )
   AND session_json->'build_spec'->>'dish_family' IS NOT NULL;
