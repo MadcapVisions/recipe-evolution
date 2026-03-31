@@ -175,9 +175,8 @@ test("buildLockedBrief: refinement ingredient_provenance absent does not throw",
       },
     ],
   });
-  assert.doesNotThrow(() => buildLockedBrief({ session }));
   const brief = buildLockedBrief({ session });
-  assert.ok(brief.style.tags.includes("spicy") || brief.directives.must_have.includes("spicy"));
+  assert.ok(brief.style.tags.includes("spicy"));
 });
 
 test("buildLockedBrief: session with state 'built' still produces a valid brief", () => {
