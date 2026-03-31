@@ -12,6 +12,10 @@ export const FEATURE_FLAG_KEYS = {
   INTENT_RESOLVER_V2: "intent_resolver_v2",
   DRAFT_RECIPE_LIFECYCLE_V1: "draft_recipe_lifecycle_v1",
   CREATE_GUIDED_ENTRY_V1: "create_guided_entry_v1",
+  // Milestone 2
+  BLUEPRINT_GENERATION_V1: "blueprint_generation_v1",
+  VALIDATION_SPLIT_V1: "validation_split_v1",
+  RECIPE_DETAIL_HIERARCHY_V1: "recipe_detail_hierarchy_v1",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
