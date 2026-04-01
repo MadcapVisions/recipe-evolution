@@ -13,6 +13,7 @@ import { useTargetServings } from "@/lib/recipes/targetServings";
 import { ServingsControl } from "@/components/ServingsControl";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useAppShell } from "@/components/shell/AppShellContext";
+import { PostCookFeedbackSheet } from "@/components/postcook/PostCookFeedbackSheet";
 
 type Step = {
   text: string;
@@ -211,6 +212,7 @@ type CookingModeClientProps = {
   cookTimeMin: number | null;
   ingredientNames: string[];
   initialSteps: Step[];
+  postcookFeedbackEnabled: boolean;
 };
 
 export function CookingModeClient({
@@ -223,6 +225,7 @@ export function CookingModeClient({
   cookTimeMin,
   ingredientNames,
   initialSteps,
+  postcookFeedbackEnabled,
 }: CookingModeClientProps) {
   const router = useRouter();
   const { setOpenPanel } = useAppShell();
@@ -230,6 +233,7 @@ export function CookingModeClient({
   const [startingLive, setStartingLive] = useState(false);
   const [submittingCompletion, setSubmittingCompletion] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showPostCookSheet, setShowPostCookSheet] = useState(false);
   const [liveUnavailable, setLiveUnavailable] = useState(false);
   const [rating, setRating] = useState(5);
   const [improvements, setImprovements] = useState("");
@@ -477,6 +481,14 @@ export function CookingModeClient({
     router.push(`/cook/live/${payload.shareSlug}`);
     router.refresh();
     setStartingLive(false);
+  };
+
+  const handleCookComplete = () => {
+    if (postcookFeedbackEnabled) {
+      setShowPostCookSheet(true);
+    } else {
+      setShowCompletionModal(true);
+    }
   };
 
   const completeCooking = async () => {
@@ -858,7 +870,7 @@ export function CookingModeClient({
                 <Button onClick={() => setPhase("cook")} variant="secondary" className="min-h-12 text-base">
                   Back to Cooking
                 </Button>
-                <Button onClick={() => setShowCompletionModal(true)} className="min-h-12 bg-green-700 text-base hover:bg-green-800">
+                <Button onClick={handleCookComplete} className="min-h-12 bg-green-700 text-base hover:bg-green-800">
                   Complete Cooking
                 </Button>
               </div>
@@ -1136,7 +1148,7 @@ export function CookingModeClient({
                     <Button onClick={() => { setPhase("cook"); setRightSidebarMode("focus"); }} variant="secondary" className="min-h-14 text-base">
                       Back to Cooking
                     </Button>
-                    <Button onClick={() => setShowCompletionModal(true)} className="min-h-14 bg-green-700 text-base hover:bg-green-800">
+                    <Button onClick={handleCookComplete} className="min-h-14 bg-green-700 text-base hover:bg-green-800">
                       Complete Cooking
                     </Button>
                     </div>
@@ -1177,6 +1189,19 @@ export function CookingModeClient({
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
         </div>
       </div>
+
+      {showPostCookSheet ? (
+        <PostCookFeedbackSheet
+          recipeId={recipeId}
+          versionId={versionId}
+          recipeTitle={recipeTitle}
+          onClose={() => {
+            setShowPostCookSheet(false);
+            router.push(`/recipes/${recipeId}`);
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       {showCompletionModal ? (
         <div className="fixed inset-0 z-50 flex items-end bg-black/50 sm:items-center sm:justify-center">

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { CookingModeClient } from "@/components/cook/CookingModeClient";
 import { readCanonicalIngredients, readCanonicalSteps } from "@/lib/recipes/canonicalRecipe";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { getFeatureFlag, FEATURE_FLAG_KEYS } from "@/lib/ai/featureFlags";
 
 type CookPageProps = {
   params: Promise<{ id: string; versionId: string }>;
@@ -19,7 +20,7 @@ export default async function CookPage({ params }: CookPageProps) {
     redirect("/sign-in");
   }
 
-  const [{ data: recipe, error: recipeError }, { data: version, error: versionError }] =
+  const [{ data: recipe, error: recipeError }, { data: version, error: versionError }, postcookFeedbackEnabled] =
     await Promise.all([
       supabase
         .from("recipes")
@@ -33,6 +34,7 @@ export default async function CookPage({ params }: CookPageProps) {
         .eq("id", versionId)
         .eq("recipe_id", id)
         .maybeSingle(),
+      getFeatureFlag(FEATURE_FLAG_KEYS.POSTCOOK_FEEDBACK_V1, false),
     ]);
 
   if (recipeError || versionError || !recipe || !version) {
@@ -50,6 +52,7 @@ export default async function CookPage({ params }: CookPageProps) {
       cookTimeMin={version.cook_time_min}
       ingredientNames={readCanonicalIngredients(version.ingredients_json).map((item) => item.name)}
       initialSteps={readCanonicalSteps(version.steps_json)}
+      postcookFeedbackEnabled={postcookFeedbackEnabled}
     />
   );
 }
