@@ -17,6 +17,9 @@ export type TasteModel = {
   dislikedIngredients: Record<string, TasteScore>;
   spiceTolerance: TasteScore | null;
   richnessPreference: TasteScore | null;
+  // Added in M4 — derived from post-cook issue tags only
+  complexityTolerance?: TasteScore | null;
+  flavorIntensityPreference?: TasteScore | null;
 };
 
 export type FeedbackSignal = "thumbs_up" | "thumbs_down";
@@ -154,6 +157,12 @@ export function applyDecay(model: TasteModel, daysSinceUpdate: number): TasteMod
     richnessPreference: model.richnessPreference
       ? decayOne(model.richnessPreference, scoreR, confR)
       : null,
+    complexityTolerance: model.complexityTolerance
+      ? decayOne(model.complexityTolerance, scoreR, confR)
+      : (model.complexityTolerance ?? null),
+    flavorIntensityPreference: model.flavorIntensityPreference
+      ? decayOne(model.flavorIntensityPreference, scoreR, confR)
+      : (model.flavorIntensityPreference ?? null),
   };
 }
 
