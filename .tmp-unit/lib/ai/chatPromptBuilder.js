@@ -7,7 +7,7 @@ const flavorAnalyzer_1 = require("./chefEngine/flavorAnalyzer");
 const flavorGraphEngine_1 = require("./flavorGraph/flavorGraphEngine");
 const substitutionEngine_1 = require("./substitutionEngine/substitutionEngine");
 const buildCookingContext_1 = require("./preprocessing/buildCookingContext");
-function buildChefChatPrompt(userMessage, recipeContext, conversationHistory = [], userTasteSummary) {
+function buildChefChatPrompt(userMessage, recipeContext, conversationHistory = [], userTasteSummary, sessionMemory) {
     let contextText = "";
     if (recipeContext) {
         contextText = `
@@ -31,6 +31,14 @@ ${recipeContext.steps?.join("\n") ?? "None provided"}
             role: "system",
             content: chefSystemPrompt_1.CHEF_SYSTEM_PROMPT,
         },
+        ...(sessionMemory?.trim()
+            ? [
+                {
+                    role: "system",
+                    content: sessionMemory.trim(),
+                },
+            ]
+            : []),
         {
             role: "system",
             content: `

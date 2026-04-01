@@ -1,0 +1,11 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/ai/chef-chat/route.js")
+R.c("server/chunks/[root-of-the-server]__b6918edc._.js")
+R.c("server/chunks/[root-of-the-server]__d6aa5ef8._.js")
+R.c("server/chunks/lib_e9d6f75c._.js")
+R.c("server/chunks/_0be31634._.js")
+R.c("server/chunks/node_modules_zod_v4_58d952c2._.js")
+R.c("server/chunks/[root-of-the-server]__f408c708._.js")
+R.c("server/chunks/lib_ai_chefChat_ts_9a1ae682._.js")
+R.c("server/chunks/_next-internal_server_app_api_ai_chef-chat_route_actions_ee870e48.js")
+R.m(918)
+module.exports=R.m(918).exports

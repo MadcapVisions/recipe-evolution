@@ -31,7 +31,7 @@ export function buildCookingCoach(
   intent: ResolvedCookingIntent,
   blueprint: CulinaryBlueprint,
   recipe: RecipeDraft,
-  methodPlan: MethodPlan
+  _methodPlan: MethodPlan
 ): CookingCoach {
   const ctx = buildRuleContext(blueprint);
   const rules = getFamilyCoachRules(blueprint.dishFamily);

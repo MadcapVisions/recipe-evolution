@@ -225,8 +225,6 @@ function buildReviewPacket(results: SimResult[]): string {
   const trueRoutingFailureCount   = unresolved.filter((r) => !r.acceptableUnresolved).length;
   // Downstream = resolved family but failed to produce recipe (planner/feasibility)
   const downstreamFailureCount    = results.filter((r) => r.familyResolved && !r.producedRecipe).length;
-  const resolverSuccessRate       = resolved / total;
-  const recipeProductionRate      = produced / total;
 
   const avgMs = results.reduce((s, r) => s + r.durationMs, 0) / total;
   const sortedMs = [...results].map((r) => r.durationMs).sort((a, b) => a - b);

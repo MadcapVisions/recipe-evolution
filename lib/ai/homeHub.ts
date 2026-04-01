@@ -5,7 +5,6 @@ import { createAiRecipeResult, parseAiRecipeResult, type AiRecipeResult } from "
 import type { AIMessage } from "./chatPromptBuilder";
 import { hashAiCacheInput, readAiCache, writeAiCache } from "./cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { repairRecipeDraftIngredientLines } from "../recipes/recipeDraft";
 import { resolveAiTaskSettings } from "./taskSettings";
 import type { CookingBrief } from "./contracts/cookingBrief";
 import type { RecipeOutline } from "./contracts/recipeOutline";
@@ -331,10 +330,6 @@ function normalizeIdeas(value: unknown, input: IdeaInput): HomeIdea[] {
   }
 
   return ideas;
-}
-
-function normalizeRecipe(value: unknown, fallbackTitle: string): HomeGeneratedRecipe | null {
-  return normalizeGeneratedRecipePayload(value, fallbackTitle).recipe;
 }
 
 async function buildRecipeOutlineForGeneration(input: {

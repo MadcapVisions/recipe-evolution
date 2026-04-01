@@ -36,6 +36,17 @@ const recipeDraft_1 = require("../../lib/recipes/recipeDraft");
         { name: "1/2 tsp black pepper" },
     ]);
 });
+(0, node_test_1.default)("normalizeAiIngredients removes duplicated leading measurements from structured AI ingredients", () => {
+    strict_1.default.deepEqual((0, recipeDraft_1.normalizeAiIngredients)([
+        { name: "6 cup crispy rice cereal", quantity: 6, unit: "cup", prep: null },
+        { name: "1.5 cup dark chocolate chunks", quantity: 2, unit: "cup", prep: null },
+        { name: "8 tortillas", quantity: 8, unit: null, prep: null },
+    ]), [
+        { name: "6 cup crispy rice cereal" },
+        { name: "2 cup dark chocolate chunks" },
+        { name: "8 tortillas" },
+    ]);
+});
 (0, node_test_1.default)("parseStepLines trims lines and drops blanks", () => {
     const parsed = (0, recipeDraft_1.parseStepLines)(" Preheat oven \n\n Roast for 20 minutes \n");
     strict_1.default.deepEqual(parsed, [{ text: "Preheat oven" }, { text: "Roast for 20 minutes" }]);

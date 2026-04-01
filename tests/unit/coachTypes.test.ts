@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CookingCoach, ChefSecret, WatchFor, MistakePrevention, RecoveryMove } from "../../lib/ai/coaching/coachTypes";
+import type { CookingCoach, ChefSecret, WatchFor, RecoveryMove } from "../../lib/ai/coaching/coachTypes";
 import { RESCUE_SCENARIOS, RESCUE_SCENARIO_LABELS, RESCUE_SCENARIO_DESCRIPTIONS } from "../../lib/ai/coaching/rescueScenarios";
 import type { RescueScenario } from "../../lib/ai/coaching/rescueScenarios";
 

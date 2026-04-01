@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/ai/improve-recipe/route.js")
+R.c("server/chunks/[root-of-the-server]__95a515cd._.js")
+R.c("server/chunks/[root-of-the-server]__d6aa5ef8._.js")
+R.c("server/chunks/lib_e9d6f75c._.js")
+R.c("server/chunks/node_modules_zod_v4_58d952c2._.js")
+R.c("server/chunks/[root-of-the-server]__f408c708._.js")
+R.c("server/chunks/_0be31634._.js")
+R.c("server/chunks/_next-internal_server_app_api_ai_improve-recipe_route_actions_8de81e4b.js")
+R.m(67740)
+module.exports=R.m(67740).exports

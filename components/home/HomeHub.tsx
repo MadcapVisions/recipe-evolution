@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { HomeHeroPanel } from "@/components/home/HomeHeroPanel";
 import { TasteSummaryPanel } from "@/components/home/TasteSummaryPanel";
-import { useHomeHubAi, type BuildDebugEntry, type BuildFailureState } from "@/components/home/useHomeHubAi";
+import { useHomeHubAi, type BuildDebugEntry } from "@/components/home/useHomeHubAi";
 
 import type { HomeHubProps } from "@/components/home/types";
 import { publishAiStatus } from "@/lib/ui/aiStatusBus";

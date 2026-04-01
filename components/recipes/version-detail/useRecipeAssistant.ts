@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ConversationMessage, SelectedAssistantDirection, SuggestedChange } from "@/components/recipes/version-detail/types";
 import { getRecipeSessionConversationKey } from "@/lib/ai/recipeSessionStore";
 
-export function useRecipeAssistant(recipeId: string, versionId: string) {
+export function useRecipeAssistant(recipeId: string, _versionId: string) {
   const [isAskingAi, setIsAskingAi] = useState(false);
   const [isGeneratingVersion, setIsGeneratingVersion] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);

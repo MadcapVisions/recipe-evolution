@@ -416,16 +416,22 @@ export function useHomeHubAi(userTasteProfile: UserTasteProfile | null, graceful
   }, []);
 
   useEffect(() => {
+    const statusTimeout = statusTimeoutRef.current;
+    const buildLongTimeout = buildLongTimeoutRef.current;
+    const hydrationAbortCurrent = hydrationAbortRef.current;
+    const chatAbortCurrent = chatAbortRef.current;
+    const buildAbortCurrent = buildAbortRef.current;
+
     return () => {
-      if (statusTimeoutRef.current) {
-        clearTimeout(statusTimeoutRef.current);
+      if (statusTimeout) {
+        clearTimeout(statusTimeout);
       }
-      if (buildLongTimeoutRef.current) {
-        clearTimeout(buildLongTimeoutRef.current);
+      if (buildLongTimeout) {
+        clearTimeout(buildLongTimeout);
       }
-      hydrationAbortRef.current?.abort();
-      chatAbortRef.current?.abort();
-      buildAbortRef.current?.abort();
+      hydrationAbortCurrent?.abort();
+      chatAbortCurrent?.abort();
+      buildAbortCurrent?.abort();
       // Clear persisted session state when user leaves the create page.
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(HOME_HUB_MESSAGES_STORAGE);

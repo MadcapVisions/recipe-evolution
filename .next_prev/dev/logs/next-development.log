@@ -1,0 +1,453 @@
+[00:00:12.027] Server  LOG     ✓ Ready in 11.8s
+[00:00:15.033] Server  LOG     ○ Compiling proxy ...
+[00:00:20.306] Server  LOG     ○ Compiling / ...
+[00:01:17.905] Server  LOG     ○ Compiling /api/taste/scores ...
+[00:01:26.886] Server  LOG     ○ Compiling /api/taste/why-fits ...
+[01:22:41.349] Server  ERROR   AuthApiError: Invalid Refresh Token: Refresh Token Not Found
+[01:22:41.353] Server  ERROR   AuthApiError: Invalid Refresh Token: Refresh Token Not Found
+[01:22:41.912] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="stop-guessing"
+-                                 data-tagline-id="dinner-decided"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   Stop Guessing What To Cook.
+-                                   Dinner, Decided.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[01:22:42.188] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[01:22:42.188] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[01:22:42.188] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[01:22:42.188] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","r":"","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774524042514} /_vercel/insights/view
+[01:22:42.188] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774524042515} /_vercel/insights/view
+[06:12:18.905] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="stop-guessing"
+-                                 data-tagline-id="dinner-decided"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   Stop Guessing What To Cook.
+-                                   Dinner, Decided.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[06:12:18.906] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[06:12:18.906] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[06:12:18.906] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[06:12:18.906] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","r":"","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774541419302} /_vercel/insights/view
+[06:12:18.906] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774541419302} /_vercel/insights/view
+[06:12:27.161] Server  LOG     ○ Compiling /sign-in ...
+[06:12:36.212] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/sign-in. Falling back to browser navigation. {}
+[06:13:41.937] Server  WARN    ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[06:13:43.244] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="stop-guessing"
+-                                 data-tagline-id="dinner-decided"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   Stop Guessing What To Cook.
+-                                   Dinner, Decided.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[06:13:43.432] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[06:13:43.432] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[06:13:43.432] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[06:13:43.432] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774541503830} /_vercel/insights/view
+[06:13:43.432] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774541503830} /_vercel/insights/view
+[23:46:43.754] Server  LOG       Reload env: .env.local
+[24:00:58.696] Server  LOG     ○ Compiling /_not-found ...
+[28:03:05.293] Server  ERROR   ⨯ SyntaxError: Unexpected end of JSON input
+[28:03:08.299] Server  LOG     ○ Compiling /_error ...
+[28:03:29.613] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="stop-guessing"
+-                                 data-tagline-id="dinner-decided"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   Stop Guessing What To Cook.
+-                                   Dinner, Decided.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[28:03:29.843] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[28:03:29.843] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[28:03:29.843] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[28:03:29.843] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774620090364} /_vercel/insights/view
+[28:03:29.843] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774620090364} /_vercel/insights/view
+[34:36:49.242] Server  WARN    ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[34:36:55.756] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="dinner-decided"
+-                                 data-tagline-id="turn-what-you-have"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   Dinner, Decided.
+-                                   Turn What You Have Into Something Great.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[34:36:56.757] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[34:36:56.757] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[34:36:56.757] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[34:36:56.757] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774643697383} /_vercel/insights/view
+[34:36:56.757] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774643697384} /_vercel/insights/view
+[34:36:58.487] Server  LOG     ○ Compiling /_not-found ...
+[48:09:47.876] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[48:09:47.876] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:09:47.876] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774692468602} /_vercel/insights/view
+[48:12:47.311] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[48:12:47.311] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:12:47.311] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774692647985} /_vercel/insights/view
+[48:32:16.986] Server  ERROR   ⨯ ReferenceError: heroQuickProof is not defined
+[48:32:17.038] Browser ERROR   uncaughtError: ReferenceError: heroQuickProof is not defined
+[48:32:17.040] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[48:32:17.056] Server  ERROR   ⨯ ReferenceError: heroQuickProof is not defined
+[48:32:18.062] Browser ERROR   uncaughtError: ReferenceError: heroQuickProof is not defined
+[48:32:18.062] Browser ERROR   uncaughtError: TypeError: Type error
+[48:32:25.593] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[48:32:25.654] Server  ERROR   ⨯ ReferenceError: heroQuickProof is not defined
+[48:32:26.242] Browser ERROR   uncaughtError: ReferenceError: heroQuickProof is not defined
+[48:32:26.242] Browser ERROR   uncaughtError: TypeError: Type error
+[48:32:37.327] Server  WARN    ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[48:32:38.126] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="create-smarter"
+-                                 data-tagline-id="talk-your-way"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   Create smarter meals with Max.
+-                                   Talk your way to a better meal.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[48:32:38.126] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[48:32:38.126] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:32:38.126] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:32:38.126] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774693838864} /_vercel/insights/view
+[48:32:38.126] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774693838864} /_vercel/insights/view
+[48:33:36.471] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered text didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+        <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+          <RedirectBoundary>
+            <RedirectErrorBoundary router={{...}}>
+              <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} segmentPath={[...]} ...>
+                <SegmentViewNode type="page" pagePath="page.tsx">
+                  <SegmentTrieNode>
+                  <HomePage>
+                    <div className="landing-pa...">
+                      <section className="landing-he...">
+                        <div>
+                        <div className="relative g...">
+                          <div className="flex h-ful...">
+                            <div>
+                            <div className="mt-8">
+                              <RandomHeroTagline>
+                                <div
+                                  className="space-y-4"
++                                 data-tagline-id="craving-to-recipe"
+-                                 data-tagline-id="talk-your-way"
+                                >
+                                  <h1
+                                    className="max-w-[11ch] font-display text-[34px] font-semibold leading-[0.9] track..."
+                                  >
++                                   From craving to recipe, with Max.
+-                                   Talk your way to a better meal.
+                                  ...
+                            ...
+                          ...
+                      ...
+                ...
+              ...
+
+[48:33:36.472] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[48:33:36.472] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:33:36.472] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:33:36.472] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774693897208} /_vercel/insights/view
+[48:33:36.472] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774693897208} /_vercel/insights/view
+[48:41:18.547] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[48:41:18.547] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[48:41:18.547] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774694359286} /_vercel/insights/view
+[51:53:01.015] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[51:53:01.015] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[51:53:01.015] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774705861812} /_vercel/insights/view
+[53:32:34.536] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[53:32:34.536] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[53:32:34.536] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774711835353} /_vercel/insights/view
+[53:33:49.590] Browser ERROR   ./components/home/RandomHeroTagline.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from /Users/macbook12/Desktop/AIcook/recipe-evolution/components/home/RandomHeroTagline.tsx
+    1: No such file or directory (os error 2)
+
+Import trace for requested module:
+./components/home/RandomHeroTagline.tsx
+./app/page.tsx
+[53:33:49.635] Server  ERROR   ⨯ ./components/home/RandomHeroTagline.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from /Users/macbook12/Desktop/AIcook/recipe-evolution/components/home/RandomHeroTagline.tsx
+    1: No such file or directory (os error 2)
+
+Import trace for requested module:
+./components/home/RandomHeroTagline.tsx
+./app/page.tsx
+[53:34:09.205] Server  LOG     ○ Compiling /_error ...
+[53:34:17.079] Browser ERROR   ./components/home/RandomHeroTagline.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from /Users/macbook12/Desktop/AIcook/recipe-evolution/components/home/RandomHeroTagline.tsx
+    1: No such file or directory (os error 2)
+
+Import trace for requested module:
+./components/home/RandomHeroTagline.tsx
+./app/page.tsx
+[53:34:17.399] Browser ERROR   Failed to fetch RSC payload for http://localhost:3000/. Falling back to browser navigation. {}
+[53:34:18.123] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[53:34:18.123] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[53:34:18.123] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774711938940} /_vercel/insights/view
+[53:34:31.290] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[53:34:31.290] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[53:34:31.290] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774711952105} /_vercel/insights/view
+[53:34:36.794] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[53:34:36.795] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[53:34:36.795] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774711957589} /_vercel/insights/view
+[53:38:24.023] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[53:38:24.023] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[53:38:24.023] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774712184841} /_vercel/insights/view
+[53:38:48.443] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[53:38:48.443] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/","route":"/"}
+[53:38:48.443] Browser LOG     %c[Vercel Web Analytics]%c [view] http://localhost:3000/ color: rgb(120, 120, 120) color: inherit {"dp":"/","o":"http://localhost:3000/","sdkn":"@vercel/analytics/next","sdkv":"2.0.1","sv":"0.1.3","ts":1774712209253} /_vercel/insights/view

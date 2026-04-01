@@ -1,0 +1,13 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/ai/home/route.js")
+R.c("server/chunks/[root-of-the-server]__577fa8a5._.js")
+R.c("server/chunks/lib_ai_chefChat_ts_9a1ae682._.js")
+R.c("server/chunks/[root-of-the-server]__f408c708._.js")
+R.c("server/chunks/[root-of-the-server]__d6aa5ef8._.js")
+R.c("server/chunks/lib_ai_homeRecipeAlignment_ts_b0e24e9a._.js")
+R.c("server/chunks/_0be31634._.js")
+R.c("server/chunks/node_modules_zod_v4_58d952c2._.js")
+R.c("server/chunks/lib_ai_8b36f3bd._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_c4866889.js")
+R.c("server/chunks/_next-internal_server_app_api_ai_home_route_actions_b9588e81.js")
+R.m(76475)
+module.exports=R.m(76475).exports

@@ -6,7 +6,6 @@ import {
   DEFAULT_CHEF_SCORE_PROFILES,
   type ChefExpectedRuleRecord,
   type ChefRuleRecord,
-  type ChefScoreProfileRecord,
 } from "./chefCatalog";
 import { analyzeRecipeForChefScore, applyChefFixActions, calculateChefScore, compareChefScores, generateChefFixes, type ChefScoreResult } from "./chefScoring";
 
