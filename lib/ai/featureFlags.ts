@@ -21,6 +21,12 @@ export const FEATURE_FLAG_KEYS = {
   RECIPE_DETAIL_PRECOOK_BLOCK_V1: "recipe_detail_precook_block_v1",
   COOK_MODE_CUES_V1: "cook_mode_cues_v1",
   COOK_MODE_RESCUE_V1: "cook_mode_rescue_v1",
+  // Milestone 4
+  POSTCOOK_FEEDBACK_V1: "postcook_feedback_v1",
+  IMPROVE_WITH_FEEDBACK_V1: "improve_with_feedback_v1",
+  LIBRARY_RESURFACING_V1: "library_resurfacing_v1",
+  CREATE_PERSONALIZATION_V1: "create_personalization_v1",
+  LEARNED_PREFERENCES_SETTINGS_V1: "learned_preferences_settings_v1",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
