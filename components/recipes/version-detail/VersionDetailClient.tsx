@@ -44,6 +44,7 @@ import type { NutritionFacts } from "@/lib/ai/nutritionFacts";
 import { analyzeRecipeTurn, wantsRecipeDirectionOptions } from "@/lib/ai/recipeOrchestrator";
 import { applyChefActions, buildChefIntelligence, type ChefEditAction } from "@/lib/ai/chefIntelligence";
 import { extractRefinementDelta } from "@/lib/ai/refinementExtractor";
+import { PostCookReminderBanner } from "@/components/postcook/PostCookReminderBanner";
 
 const CHEF_FIX_FEEDBACK_KEY = "chef-fix-feedback";
 
@@ -135,10 +136,14 @@ export function VersionDetailClient({
   recipeId,
   versionId,
   initialData,
+  postcookFeedbackEnabled,
+  hasPostCookFeedback,
 }: {
   recipeId: string;
   versionId: string;
   initialData: VersionDetailData;
+  postcookFeedbackEnabled: boolean;
+  hasPostCookFeedback: boolean;
 }) {
   const router = useRouter();
   const { setOpenPanel } = useAppShell();
@@ -1529,6 +1534,13 @@ export function VersionDetailClient({
             </button>
           </div>
         </div>
+      ) : null}
+      {postcookFeedbackEnabled && !hasPostCookFeedback ? (
+        <PostCookReminderBanner
+          recipeId={recipeId}
+          versionId={versionId}
+          recipeTitle={recipe?.title ?? ""}
+        />
       ) : null}
       {isMounted
         ? createPortal(
