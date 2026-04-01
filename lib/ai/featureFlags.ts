@@ -16,6 +16,11 @@ export const FEATURE_FLAG_KEYS = {
   BLUEPRINT_GENERATION_V1: "blueprint_generation_v1",
   VALIDATION_SPLIT_V1: "validation_split_v1",
   RECIPE_DETAIL_HIERARCHY_V1: "recipe_detail_hierarchy_v1",
+  // Milestone 3
+  COACH_LAYER_V1: "coach_layer_v1",
+  RECIPE_DETAIL_PRECOOK_BLOCK_V1: "recipe_detail_precook_block_v1",
+  COOK_MODE_CUES_V1: "cook_mode_cues_v1",
+  COOK_MODE_RESCUE_V1: "cook_mode_rescue_v1",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];

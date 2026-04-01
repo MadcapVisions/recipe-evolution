@@ -5,6 +5,8 @@ import type { RecipeListItem, TimelineVersion } from "@/components/recipes/versi
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { readCanonicalIngredients } from "@/lib/recipes/canonicalRecipe";
 import { getStockRecipeCover } from "@/lib/stockRecipeCovers";
+import { loadCoachArtifact } from "@/lib/ai/coaching/coachStore";
+import type { CookingCoach } from "@/lib/ai/coaching/coachTypes";
 
 const INITIAL_TIMELINE_LIMIT = 8;
 
@@ -149,6 +151,8 @@ export type VersionDetailData = {
   stockCoverUrl: string | null;
   sidebarRecentRecipes: RecipeListItem[];
   sidebarFavoriteRecipes: RecipeListItem[];
+  /** Coaching sidecar — null when no coach artifact exists for this version */
+  coachArtifact: CookingCoach | null;
 };
 
 export async function loadVersionPhotosWithUrls(
@@ -184,6 +188,7 @@ export async function loadVersionDetailData(
     { data: version, error: versionError },
     initialPhotos,
     sidebarData,
+    coachArtifact,
   ] = await Promise.all([
     supabase
       .from("recipes")
@@ -210,6 +215,7 @@ export async function loadVersionDetailData(
       .maybeSingle(),
     loadVersionPhotosWithUrls(supabase, versionId, { limit: 1 }),
     loadRecipeSidebarData(supabase, userId),
+    loadCoachArtifact(supabase, { recipeVersionId: versionId, userId }),
   ]);
 
   type RecipeData = { id: string; title: string; description?: string | null; tags?: string[] | null; best_version_id?: string | null; forked_from_version_id?: string | null; dish_family?: string | null; forked_version?: unknown };
@@ -321,6 +327,7 @@ export async function loadVersionDetailData(
     stockCoverUrl,
     sidebarRecentRecipes: sidebarData?.recentRecipes ?? [],
     sidebarFavoriteRecipes: sidebarData?.favoriteRecipes ?? [],
+    coachArtifact: coachArtifact ?? null,
   };
 }
 
