@@ -278,3 +278,49 @@ export async function getAdminDashboardData() {
     })),
   };
 }
+
+export type PostCookCoverageStats = {
+  totalEvents: number;
+  uniqueUsersWithEvents: number;
+  recentEventsLast7Days: number;
+  topIssueTags: Array<{ tag: string; count: number }>;
+};
+
+export async function getPostCookCoverageStats(): Promise<PostCookCoverageStats | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createSupabaseAdminClient() as any;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [{ data: allEvents }, { data: recentEvents }] = await Promise.all([
+    supabase.from("recipe_postcook_feedback").select("user_id, issues") as Promise<{
+      data: Array<{ user_id: string; issues: string[] }> | null;
+    }>,
+    supabase
+      .from("recipe_postcook_feedback")
+      .select("id")
+      .gte("created_at", sevenDaysAgo) as Promise<{ data: unknown[] | null }>,
+  ]);
+
+  if (!allEvents) return null;
+
+  const uniqueUsers = new Set(allEvents.map((r) => r.user_id)).size;
+
+  const tagCounts = new Map<string, number>();
+  for (const row of allEvents) {
+    for (const tag of row.issues ?? []) {
+      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+    }
+  }
+
+  const topIssueTags = Array.from(tagCounts.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10)
+    .map(([tag, count]) => ({ tag, count }));
+
+  return {
+    totalEvents: allEvents.length,
+    uniqueUsersWithEvents: uniqueUsers,
+    recentEventsLast7Days: recentEvents?.length ?? 0,
+    topIssueTags,
+  };
+}
