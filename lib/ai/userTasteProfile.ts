@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getOverallConfidenceLevel, applyDecay, type TasteModel } from "@/lib/ai/tasteModel";
 
 type SupabaseLike = SupabaseClient;
 
@@ -189,6 +190,58 @@ function repeatValues(values: string[], count: number) {
   return values.flatMap((value) => Array.from({ length: count }, () => value));
 }
 
+/**
+ * Derive a human-readable summary from structured learned taste scores.
+ * Returns empty string when evidence is too sparse (confidence === "low").
+ * Uses hedged language at "medium" confidence, direct language at "high".
+ */
+export function summarizeLearnedScores(
+  model: TasteModel | null,
+  confidence: "low" | "medium" | "high"
+): string {
+  if (!model || confidence === "low") return "";
+
+  const hedged = confidence === "medium";
+  const MIN_SCORE = 0.35;
+  const MIN_CONF = 0.25;
+  const parts: string[] = [];
+
+  if (model.spiceTolerance && model.spiceTolerance.confidence >= MIN_CONF) {
+    if (model.spiceTolerance.score <= -MIN_SCORE) {
+      parts.push(hedged ? "Tends to prefer lower spice levels." : "Consistently prefers low spice.");
+    } else if (model.spiceTolerance.score >= MIN_SCORE) {
+      parts.push(hedged ? "Seems to enjoy spicier dishes." : "Consistently enjoys spicy dishes.");
+    }
+  }
+
+  if (model.richnessPreference && model.richnessPreference.confidence >= MIN_CONF) {
+    if (model.richnessPreference.score <= -MIN_SCORE) {
+      parts.push(hedged ? "Often finds heavy dishes too much." : "Consistently prefers lighter meals.");
+    } else if (model.richnessPreference.score >= MIN_SCORE) {
+      parts.push(hedged ? "Seems to enjoy richer, creamier dishes." : "Consistently enjoys rich flavors.");
+    }
+  }
+
+  if (
+    model.complexityTolerance &&
+    model.complexityTolerance.confidence >= MIN_CONF &&
+    model.complexityTolerance.score <= -MIN_SCORE
+  ) {
+    parts.push(hedged ? "Tends to prefer simpler recipes." : "Consistently prefers lower-step recipes.");
+  }
+
+  if (model.flavorIntensityPreference && model.flavorIntensityPreference.confidence >= MIN_CONF) {
+    if (model.flavorIntensityPreference.score >= MIN_SCORE) {
+      parts.push(hedged ? "Often wants bolder seasoning." : "Consistently prefers boldly seasoned dishes.");
+    } else if (model.flavorIntensityPreference.score <= -MIN_SCORE) {
+      parts.push(hedged ? "Often prefers restrained seasoning." : "Consistently prefers lightly seasoned dishes.");
+    }
+  }
+
+  if (parts.length === 0) return "";
+  return "Based on cooking outcomes: " + parts.join(" ");
+}
+
 const TASTE_PROFILE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Fast path: return the persisted combined_summary if it was built recently.
@@ -239,12 +292,20 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
     .order("created_at", { ascending: false })
     .limit(80);
 
-  const [preferencesResult, recipesResult, eventsResult, conversationResult] = await Promise.all([
-    preferencesQuery ?? Promise.resolve({ data: null, error: null }),
-    recipesQuery ?? Promise.resolve({ data: [], error: null }),
-    eventsQuery ?? Promise.resolve({ data: [], error: null }),
-    conversationQuery ?? Promise.resolve({ data: [], error: null }),
-  ]);
+  const tasteScoresQuery = supabase
+    .from("user_taste_scores")
+    .select("scores_json, updated_at")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  const [preferencesResult, recipesResult, eventsResult, conversationResult, tasteScoresResult] =
+    await Promise.all([
+      preferencesQuery ?? Promise.resolve({ data: null, error: null }),
+      recipesQuery ?? Promise.resolve({ data: [], error: null }),
+      eventsQuery ?? Promise.resolve({ data: [], error: null }),
+      conversationQuery ?? Promise.resolve({ data: [], error: null }),
+      tasteScoresQuery,
+    ]);
 
   const preferences = (preferencesResult as { data?: ExplicitPreferencesRow | null })?.data ?? null;
   const recipesData = (recipesResult as { data?: unknown[] | null })?.data;
@@ -306,7 +367,16 @@ export async function buildUserTasteSummary(supabase: SupabaseLike, ownerId: str
     ingredientNames: [...ingredientPool, ...behaviorTextPool, ...conversationTextPool],
   });
 
-  const combinedSummary = [explicitSummary, inferred.summary].filter(Boolean).join(" ");
+  const tasteScoresRow = (tasteScoresResult as { data?: { scores_json?: unknown; updated_at?: string } | null })?.data;
+  const rawModel = tasteScoresRow?.scores_json as TasteModel | null ?? null;
+  const daysSinceScoreUpdate = tasteScoresRow?.updated_at
+    ? (Date.now() - new Date(tasteScoresRow.updated_at).getTime()) / (1000 * 60 * 60 * 24)
+    : 0;
+  const tasteModel = rawModel ? applyDecay(rawModel, daysSinceScoreUpdate) : null;
+  const tasteConfidence = getOverallConfidenceLevel(tasteModel);
+  const learnedSummary = summarizeLearnedScores(tasteModel, tasteConfidence);
+
+  const combinedSummary = [explicitSummary, inferred.summary, learnedSummary].filter(Boolean).join(" ");
 
   if (combinedSummary) {
     void (async () => {
