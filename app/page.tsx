@@ -515,7 +515,7 @@ export default function HomePage() {
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               {testimonials.map((item, index) => (
                 <article key={item.name} className={`landing-testimonial${index > 0 ? " hidden sm:block" : ""}`}>
-                  <p className="text-[16px] leading-7 text-[color:var(--landing-ink)] sm:text-[18px] sm:leading-8">"{item.quote}"</p>
+                  <p className="text-[16px] leading-7 text-[color:var(--landing-ink)] sm:text-[18px] sm:leading-8">&ldquo;{item.quote}&rdquo;</p>
                   <p className="mt-5 text-[13px] font-semibold uppercase tracking-[0.18em] text-[color:var(--landing-muted)]">
                     {item.name}
                   </p>

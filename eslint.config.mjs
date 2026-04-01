@@ -14,8 +14,11 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated/build artifacts — never lint these:
     ".next_backup*/**",
+    ".next_prev/**",
     ".tmp-unit/**",
     ".tmp-eval/**",
+    // Worktrees are separate branch checkouts; lint the main tree only
+    ".worktrees/**",
   ]),
   {
     rules: {
