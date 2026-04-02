@@ -4,6 +4,7 @@ import { postCookFeedbackSchema } from "@/lib/ai/feedback/postCookFeedbackTypes"
 import { applyPostCookFeedback } from "@/lib/ai/feedback/applyPostCookFeedback";
 import { extractRecipeFeatures, type TasteModel } from "@/lib/ai/tasteModel";
 import { invalidateLearnedSignalsCache } from "@/lib/ai/learnedSignals";
+import { trackServerEvent } from "@/lib/trackServerEvent";
 
 const DUPLICATE_WINDOW_MS = 30_000;
 
@@ -135,6 +136,13 @@ export async function POST(
 
       // Invalidate in-process learned-signal cache
       invalidateLearnedSignalsCache(user.id);
+
+      // Emit telemetry: a learned signal was generated from this cook event
+      await trackServerEvent(supabase, user.id, "learned_signal_generated", {
+        outcome: overall_outcome,
+        issue_tag_count: issue_tags.length,
+        would_make_again: would_make_again ?? null,
+      });
     } catch (err) {
       console.error("Failed to update taste scores from post-cook feedback", err);
     }
