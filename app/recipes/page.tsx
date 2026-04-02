@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
 import { RecipesBrowser } from "@/components/recipes/RecipesBrowser";
 import { loadCachedRecipeBrowsePage } from "@/lib/recipeBrowseData";
+import { getResurfacingData } from "@/lib/recipes/resurfacingData";
+import { getFeatureFlag, FEATURE_FLAG_KEYS } from "@/lib/ai/featureFlags";
+import type { ResurfacingData } from "@/lib/recipes/resurfacingData";
 
 export default async function RecipesPage() {
   const supabase = await createSupabaseServerClient();
@@ -16,16 +19,24 @@ export default async function RecipesPage() {
   let loadError: string | null = null;
   let initialRecipes: Awaited<ReturnType<typeof loadCachedRecipeBrowsePage>>["recipes"] = [];
   let initialHasMore = false;
+  let resurfacingShelf: ResurfacingData | undefined;
 
   try {
-    const loaded = await loadCachedRecipeBrowsePage(user.id, {
-      tab: "active",
-      sort: "recent",
-      limit: 24,
-      offset: 0,
-    });
+    const [loaded, resurfacingEnabled] = await Promise.all([
+      loadCachedRecipeBrowsePage(user.id, {
+        tab: "active",
+        sort: "recent",
+        limit: 24,
+        offset: 0,
+      }),
+      getFeatureFlag(FEATURE_FLAG_KEYS.LIBRARY_RESURFACING_V1, false),
+    ]);
     initialRecipes = loaded.recipes;
     initialHasMore = loaded.hasMore;
+
+    if (resurfacingEnabled) {
+      resurfacingShelf = await getResurfacingData(supabase, user.id);
+    }
   } catch (error) {
     loadError = error instanceof Error ? error.message : "Could not load recipes.";
   }
@@ -42,6 +53,7 @@ export default async function RecipesPage() {
     <RecipesBrowser
       initialRecipes={initialRecipes}
       initialHasMore={initialHasMore}
+      resurfacingShelf={resurfacingShelf}
     />
   );
 }

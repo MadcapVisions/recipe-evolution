@@ -6,10 +6,13 @@ import { createPortal } from "react-dom";
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RecipeBrowseItem, RecipeBrowseSort, RecipeBrowseTab } from "@/lib/recipeBrowseData";
+import { LibraryResurfacingShelf } from "@/components/recipes/LibraryResurfacingShelf";
+import type { ResurfacingData } from "@/lib/recipes/resurfacingData";
 
 type RecipesBrowserProps = {
   initialRecipes: RecipeBrowseItem[];
   initialHasMore: boolean;
+  resurfacingShelf?: ResurfacingData;
 };
 
 const PAGE_SIZE = 24;
@@ -83,7 +86,7 @@ function recipeChefScoreBadge(score: number | null | undefined) {
   );
 }
 
-export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowserProps) {
+export function RecipesBrowser({ initialRecipes, initialHasMore, resurfacingShelf }: RecipesBrowserProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -404,6 +407,13 @@ export function RecipesBrowser({ initialRecipes, initialHasMore }: RecipesBrowse
           </div>
         </div>
       </section>
+
+      {resurfacingShelf &&
+        (resurfacingShelf.worthRepeating.length > 0 || resurfacingShelf.needsImprovement.length > 0) && (
+          <section className="app-panel polish-card p-4 sm:p-6">
+            <LibraryResurfacingShelf data={resurfacingShelf} />
+          </section>
+        )}
 
       <section className="app-panel p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
