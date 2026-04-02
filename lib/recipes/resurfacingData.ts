@@ -61,11 +61,11 @@ export async function getResurfacingData(
   ]);
 
   const worthRepeating = (worthResult.data ?? [])
-    .map((r) => toSuggestion(r as FeedbackRow))
+    .map((r) => toSuggestion(r as unknown as FeedbackRow))
     .filter((s): s is ResurfacingSuggestion => s !== null);
 
   const needsImprovement = (needsResult.data ?? [])
-    .map((r) => toSuggestion(r as FeedbackRow))
+    .map((r) => toSuggestion(r as unknown as FeedbackRow))
     .filter((s): s is ResurfacingSuggestion => s !== null);
 
   return { worthRepeating, needsImprovement };
