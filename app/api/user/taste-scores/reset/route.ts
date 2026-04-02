@@ -27,10 +27,15 @@ export async function POST(): Promise<Response> {
   }
 
   // Invalidate cached taste profile so next AI call rebuilds cleanly
-  await supabase
+  const { error: profileError } = await supabase
     .from("user_taste_profiles")
     .update({ updated_at: new Date(0).toISOString() })
     .eq("owner_id", user.id);
+
+  if (profileError) {
+    // Non-fatal: scores are already cleared. Log and continue.
+    console.error("Failed to zero taste profile updated_at", profileError.message);
+  }
 
   // Invalidate in-process learned-signal cache
   invalidateLearnedSignalsCache(user.id);
