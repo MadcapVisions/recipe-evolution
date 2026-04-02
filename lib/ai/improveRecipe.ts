@@ -27,6 +27,7 @@ export class ImproveRecipeGenerationError extends Error {
 type ImproveRecipeInput = {
   instruction: string;
   userTasteSummary?: string;
+  postCookContext?: string | null;
   sessionBrief?: CookingBrief | null;
   conversationHistory?: AIMessage[] | null;
   sessionMemory?: string | null;
@@ -356,7 +357,7 @@ export async function improveRecipe(
 
 User taste summary: ${input.userTasteSummary?.trim() || "No user taste summary available."}
 
-${input.sessionMemory?.trim() ? `${input.sessionMemory.trim()}\n\n` : ""}
+${input.postCookContext?.trim() ? `${input.postCookContext.trim()}\n\n` : ""}${input.sessionMemory?.trim() ? `${input.sessionMemory.trim()}\n\n` : ""}
 
 When asked to improve a recipe, you must return ONLY valid JSON with no markdown:
 {

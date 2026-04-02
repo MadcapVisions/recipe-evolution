@@ -18,6 +18,8 @@ import type { PreviousAttemptSnapshot } from "@/lib/ai/contracts/orchestrationSt
 import { getConversationTurns } from "@/lib/ai/conversationStore";
 import { buildSessionMemoryBlock, mergeSessionConversationHistory, updateCanonicalSessionState } from "@/lib/ai/sessionContext";
 import { getCanonicalSessionState, upsertCanonicalSessionState } from "@/lib/ai/sessionStateStore";
+import { buildPostCookImproveContext } from "@/lib/ai/feedback/buildPostCookImproveContext";
+import { getFeatureFlag, FEATURE_FLAG_KEYS } from "@/lib/ai/featureFlags";
 
 const improveRecipeRequestSchema = z.object({
   recipeId: z.string().trim().min(1),
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
       resolvedPreviousAttempt,
       persistedTurns,
       persistedSessionState,
+      improveWithFeedbackEnabled,
     ] = await Promise.all([
       access.supabase
         .from("recipes")
@@ -109,6 +112,7 @@ export async function POST(request: Request) {
         conversationKey,
         scope: "recipe_detail",
       }),
+      getFeatureFlag(FEATURE_FLAG_KEYS.IMPROVE_WITH_FEEDBACK_V1, false),
     ]);
     sessionBrief = resolvedSessionBrief;
     previousAttempt = resolvedPreviousAttempt;
@@ -116,6 +120,15 @@ export async function POST(request: Request) {
     if (recipeError || versionError || !ownedRecipe || !ownedVersion) {
       return NextResponse.json({ error: true, message: "Recipe not found or access denied." }, { status: 403 });
     }
+
+    const postCookContext = improveWithFeedbackEnabled
+      ? await buildPostCookImproveContext(
+          access.supabase as SupabaseClient,
+          recipeId,
+          versionId,
+          access.userId
+        )
+      : null;
 
     const requestIngredients = recipe.ingredients
       .map((item) => ({ name: typeof item.name === "string" ? item.name.trim() : "" }))
@@ -160,6 +173,7 @@ export async function POST(request: Request) {
     const result = await improveRecipe({
       instruction,
       userTasteSummary,
+      postCookContext,
       sessionBrief: resolvedSessionBrief,
       conversationHistory,
       sessionMemory,
