@@ -3,6 +3,9 @@ import { AccountSettingsForm } from "@/components/settings/AccountSettingsForm";
 import { PreferencesForm } from "@/components/preferences/PreferencesForm";
 import { SignOutButton } from "@/components/SignOutButton";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { LearnedPreferencesSection } from "@/components/settings/LearnedPreferencesSection";
+import { getFeatureFlag, FEATURE_FLAG_KEYS } from "@/lib/ai/featureFlags";
+import { getLearnedSignals } from "@/lib/ai/learnedSignals";
 
 export default async function SettingsPage() {
   const supabase = await createSupabaseServerClient();
@@ -14,13 +17,20 @@ export default async function SettingsPage() {
     redirect("/sign-in");
   }
 
-  const { data: preferences } = await supabase
-    .from("user_preferences")
-    .select(
-      "preferred_units, cooking_skill_level, common_diet_tags, disliked_ingredients, favorite_cuisines, favorite_proteins, preferred_flavors, pantry_staples, pantry_confident_staples, spice_tolerance, health_goals, taste_notes"
-    )
-    .eq("owner_id", user.id)
-    .maybeSingle();
+  const [{ data: preferences }, learnedPreferencesEnabled] = await Promise.all([
+    supabase
+      .from("user_preferences")
+      .select(
+        "preferred_units, cooking_skill_level, common_diet_tags, disliked_ingredients, favorite_cuisines, favorite_proteins, preferred_flavors, pantry_staples, pantry_confident_staples, spice_tolerance, health_goals, taste_notes"
+      )
+      .eq("owner_id", user.id)
+      .maybeSingle(),
+    getFeatureFlag(FEATURE_FLAG_KEYS.LEARNED_PREFERENCES_SETTINGS_V1, false),
+  ]);
+
+  const learnedSignals = learnedPreferencesEnabled
+    ? await getLearnedSignals(supabase, user.id)
+    : null;
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" && user.user_metadata.display_name.trim().length > 0
@@ -90,6 +100,14 @@ export default async function SettingsPage() {
             >
               Kitchen profile
             </a>
+            {learnedPreferencesEnabled && (
+              <a
+                href="#learned"
+                className="block rounded-[18px] border border-[rgba(79,54,33,0.08)] bg-[rgba(255,252,246,0.78)] px-4 py-3 text-[15px] font-medium text-[color:var(--text)] transition hover:border-[rgba(74,106,96,0.22)]"
+              >
+                Learned preferences
+              </a>
+            )}
           </nav>
         </aside>
 
@@ -132,6 +150,21 @@ export default async function SettingsPage() {
               initialTasteNotes={preferences?.taste_notes ?? ""}
             />
           </section>
+
+          {learnedPreferencesEnabled && learnedSignals && (
+            <section id="learned" className="scroll-mt-32 space-y-3">
+              <div className="space-y-2">
+                <p className="app-kicker">Learned preferences</p>
+                <h2 className="text-[28px] font-semibold tracking-tight text-[color:var(--text)]">
+                  Patterns from your cooking
+                </h2>
+                <p className="text-[16px] leading-7 text-[color:var(--muted)]">
+                  These patterns are built automatically from your post-cook feedback. Chef uses them quietly — they never override your kitchen profile above.
+                </p>
+              </div>
+              <LearnedPreferencesSection signals={learnedSignals} />
+            </section>
+          )}
         </div>
       </div>
     </div>
