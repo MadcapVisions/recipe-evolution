@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { ShellContextPanel } from "@/components/shell/ShellContextPanel";
 import { useAppShell } from "@/components/shell/AppShellContext";
 import type { PlannerRecipeOption } from "@/lib/plannerData";
+import type { ExistingPlannedMeal, PlannerMode } from "@/lib/planner/plannerEngine";
 import { buildMealPlan } from "@/lib/recipes/mealPlanner";
 import { formatGroceryItemDisplay } from "@/lib/recipes/servings";
+import {
+  deriveWeekGroceryFromAcceptedEntries,
+  type AcceptedMealPlanEntry,
+  type DerivedWeekGroceryResult,
+  type DerivedWeekGroceryReason,
+} from "@/lib/planner/plannerGrocery";
 import { downloadTextFile, shareOrFallback } from "@/lib/exportText";
 import { ServingsControl } from "@/components/ServingsControl";
+import { trackEventInBackground } from "@/lib/trackEventInBackground";
+import {
+  regeneratePlannerDraft,
+  type PlannerDraftNight,
+  type PlannerRegenerationCandidate,
+  type PlannerTransientDraft,
+} from "@/lib/planner/plannerRegeneration";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -29,6 +43,29 @@ type InitialWeekEntry = {
   servings: number;
 };
 
+function toAcceptedEntries(weekStartDate: string, assignments: WeekAssignments): AcceptedMealPlanEntry[] {
+  return buildWeekDays(weekStartDate).flatMap((day) =>
+    (assignments[day.label] ?? []).map((assignment, index) => ({
+      plan_date: day.isoDate,
+      sort_order: index,
+      recipe_id: assignment.recipeId,
+      version_id: assignment.versionId,
+      servings: assignment.servings,
+    }))
+  );
+}
+
+function labelForDerivedGroceryReason(reason: DerivedWeekGroceryReason) {
+  switch (reason) {
+    case "merged_overlapping_ingredients":
+      return "Overlapping ingredients merged";
+    case "pantry_staples_omitted":
+      return "Pantry staples omitted";
+    case "generated_from_accepted_plan":
+    default:
+      return "Generated from your accepted weekly plan";
+  }
+}
 function formatDateOnly(date: Date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -106,19 +143,40 @@ export function MealPlannerClient({
   pantryStaples,
   initialSelectedRecipeIds = [],
   initialSelectedVersionIds = [],
+  initialAcceptedWeekEntries = [],
+  initialAcceptedWeekGrocery = null,
   initialWeekEntries = [],
   weekStartDate,
   plannerPersistenceAvailable = true,
   autoAssignedFromQuery = false,
+  initialAssistedDraft = null,
+  assistedCandidates = [],
+  assistedExistingMeals = [],
+  assistedSparseData = false,
+  assistedPlannerMeta = null,
 }: {
   recipeOptions: PlannerRecipeOption[];
   pantryStaples: string[];
   initialSelectedRecipeIds?: string[];
   initialSelectedVersionIds?: string[];
+  initialAcceptedWeekEntries?: AcceptedMealPlanEntry[];
+  initialAcceptedWeekGrocery?: DerivedWeekGroceryResult | null;
   initialWeekEntries?: InitialWeekEntry[];
   weekStartDate: string;
   plannerPersistenceAvailable?: boolean;
   autoAssignedFromQuery?: boolean;
+  initialAssistedDraft?: PlannerTransientDraft | null;
+  assistedCandidates?: PlannerRegenerationCandidate[];
+  assistedExistingMeals?: ExistingPlannedMeal[];
+  assistedSparseData?: boolean;
+  assistedPlannerMeta?: {
+    enabled: boolean;
+    mode: PlannerMode;
+    modeLabel: string;
+    openNightsAvailable: number;
+    suggestedNightCount: number;
+    draftAvailable: boolean;
+  } | null;
 }) {
   const router = useRouter();
   const { setOpenPanel, openPanel } = useAppShell();
@@ -136,6 +194,9 @@ export function MealPlannerClient({
   const [modalText, setModalText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [weekAssignments, setWeekAssignments] = useState<WeekAssignments>(() => buildInitialAssignments(weekStartDate, initialWeekEntries));
+  const [acceptedWeekAssignments, setAcceptedWeekAssignments] = useState<WeekAssignments>(() =>
+    buildInitialAssignments(weekStartDate, initialAcceptedWeekEntries)
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [plannerFilter, setPlannerFilter] = useState<PlannerFilter>("all");
   const [focusedVersionId, setFocusedVersionId] = useState<string | null>(defaultSelectedVersionIds[0] ?? recipeOptions[0]?.versionId ?? null);
@@ -145,7 +206,20 @@ export function MealPlannerClient({
   const [collapsedAisles, setCollapsedAisles] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<PlannerTab>("week");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveCompleteMessage, setSaveCompleteMessage] = useState<string | null>(null);
   const [mobileTargetDay, setMobileTargetDay] = useState<string | null>(null);
+  const [assistedDraft, setAssistedDraft] = useState<PlannerTransientDraft | null>(initialAssistedDraft);
+  const [assistedDraftMessages, setAssistedDraftMessages] = useState<Record<string, string>>({});
+  const assistedShownTrackedRef = useRef(false);
+  const assistedManualFallbackTrackedRef = useRef(false);
+  const assistedAppliedRef = useRef(false);
+  const openGroceriesAfterSaveRef = useRef(false);
+  const assistedPartialRegenerationRef = useRef({
+    used: false,
+    targeted: 0,
+    replaced: 0,
+    kept: 0,
+  });
 
   const weekDays = useMemo(() => buildWeekDays(weekStartDate), [weekStartDate]);
   const currentWeekStart = useMemo(() => {
@@ -211,6 +285,17 @@ export function MealPlannerClient({
     [selectedRecipes]
   );
   const plan = useMemo(() => buildMealPlan(selectedRecipes, pantryStaples), [pantryStaples, selectedRecipes]);
+  const acceptedWeekGrocery = useMemo(() => {
+    if (initialAcceptedWeekGrocery && initialAcceptedWeekEntries.length === 0 && Object.keys(acceptedWeekAssignments).length === 0) {
+      return initialAcceptedWeekGrocery;
+    }
+
+    return deriveWeekGroceryFromAcceptedEntries({
+      acceptedEntries: toAcceptedEntries(weekStartDate, acceptedWeekAssignments),
+      recipeOptions,
+      pantryStaples,
+    });
+  }, [acceptedWeekAssignments, initialAcceptedWeekEntries.length, initialAcceptedWeekGrocery, pantryStaples, recipeOptions, weekStartDate]);
 
   const assignedDayCount = useMemo(() => weekDays.filter((day) => (weekAssignments[day.label]?.length ?? 0) > 0).length, [weekAssignments, weekDays]);
   const unassignedRecipeCount = Math.max(0, recipeOptions.length - scheduledVersionIds.size);
@@ -277,6 +362,102 @@ export function MealPlannerClient({
   }, [plan, selectedRecipesById, weekAssignments, weekDays]);
 
   const isCompactViewport = () => (typeof window !== "undefined" ? window.innerWidth < 1280 : false);
+  const currentAssistedMode = assistedPlannerMeta?.mode ?? "plan_three_dinners";
+  const currentAssistedModeLabel = assistedPlannerMeta?.modeLabel ?? "Plan 3 dinners for me";
+  const assistedNightCount = assistedDraft?.nights.length ?? 0;
+
+  const switchAssistedMode = (mode: PlannerMode) => {
+    const params = new URLSearchParams();
+    params.set("week", weekStartDate);
+    params.set("mode", mode);
+    router.push(`/planner?${params.toString()}`);
+    router.refresh();
+  };
+
+  const trackManualFallbackIfNeeded = () => {
+    if (!assistedPlannerMeta?.enabled || !initialAssistedDraft || assistedAppliedRef.current || assistedManualFallbackTrackedRef.current) {
+      return;
+    }
+
+    assistedManualFallbackTrackedRef.current = true;
+    trackEventInBackground("planner_manual_fallback_used", {
+      mode: assistedPlannerMeta.mode,
+      suggested_nights_filled: initialAssistedDraft.nights.length,
+      open_nights_available: assistedPlannerMeta.openNightsAvailable,
+    });
+  };
+
+  useEffect(() => {
+    if (!assistedPlannerMeta?.enabled || assistedShownTrackedRef.current) {
+      return;
+    }
+
+    assistedShownTrackedRef.current = true;
+    trackEventInBackground("planner_assisted_entry_shown", {
+      mode: assistedPlannerMeta.mode,
+      draft_available: assistedPlannerMeta.draftAvailable,
+      nights_filled: assistedPlannerMeta.suggestedNightCount,
+      open_nights_available: assistedPlannerMeta.openNightsAvailable,
+    });
+
+    if (initialAssistedDraft) {
+      trackEventInBackground("planner_assisted_entry_used", {
+        mode: assistedPlannerMeta.mode,
+        nights_filled: initialAssistedDraft.nights.length,
+        open_nights_available: assistedPlannerMeta.openNightsAvailable,
+      });
+      trackEventInBackground("planner_week_draft_generated", {
+        mode: assistedPlannerMeta.mode,
+        nights_filled: initialAssistedDraft.nights.length,
+        open_nights_available: assistedPlannerMeta.openNightsAvailable,
+      });
+    }
+  }, [assistedPlannerMeta, initialAssistedDraft]);
+
+  const regenerateDraftNight = (night: PlannerDraftNight) => {
+    if (!assistedDraft) {
+      return;
+    }
+
+    const regeneration = regeneratePlannerDraft({
+      draft: assistedDraft,
+      targetedDates: [night.date],
+      candidates: assistedCandidates,
+      existingMeals: assistedExistingMeals,
+      pantryStaples,
+      sparseData: assistedSparseData,
+    });
+    const nightResult = regeneration.resultsByDate[night.date];
+    assistedPartialRegenerationRef.current.used = true;
+    assistedPartialRegenerationRef.current.targeted += 1;
+    if (nightResult?.status === "replaced") {
+      assistedPartialRegenerationRef.current.replaced += 1;
+    } else if (nightResult?.status === "kept_original" || nightResult?.status === "no_better_option") {
+      assistedPartialRegenerationRef.current.kept += 1;
+    }
+
+    trackEventInBackground("planner_partial_regeneration_used", {
+      mode: currentAssistedMode,
+      scope: "single_night",
+      nights_targeted: 1,
+      nights_replaced: nightResult?.status === "replaced" ? 1 : 0,
+      nights_kept_no_better_option:
+        nightResult?.status === "kept_original" || nightResult?.status === "no_better_option" ? 1 : 0,
+    });
+
+    setAssistedDraft(regeneration.updatedDraft);
+    setAssistedDraftMessages((current) => {
+      if (!nightResult?.reason) {
+        const next = { ...current };
+        delete next[night.date];
+        return next;
+      }
+      return {
+        ...current,
+        [night.date]: nightResult.reason,
+      };
+    });
+  };
 
   const openLeftPanelMode = (mode: "selection" | "summary") => {
     setLeftSidebarMode(mode);
@@ -293,11 +474,13 @@ export function MealPlannerClient({
   };
 
   const addRecipe = (versionId: string) => {
+    trackManualFallbackIfNeeded();
     openLeftPanelMode("selection");
     setFocusedVersionId(versionId);
   };
 
   const removeRecipe = (versionId: string) => {
+    trackManualFallbackIfNeeded();
     openLeftPanelMode("selection");
     setWeekAssignments((existing) =>
       Object.fromEntries(
@@ -310,6 +493,7 @@ export function MealPlannerClient({
   };
 
   const assignRecipeToDay = (day: string, versionId: string) => {
+    trackManualFallbackIfNeeded();
     setWeekAssignments((current) => ({
       ...current,
       [day]: [
@@ -325,6 +509,7 @@ export function MealPlannerClient({
   };
 
   const updateDayServings = (day: string, index: number, servings: number) => {
+    trackManualFallbackIfNeeded();
     setWeekAssignments((current) => {
       const assignments = current[day];
       if (!assignments?.[index]) {
@@ -346,6 +531,7 @@ export function MealPlannerClient({
   };
 
   const clearDayAssignment = (day: string, index: number) => {
+    trackManualFallbackIfNeeded();
     setWeekAssignments((current) => {
       const assignments = current[day];
       const assignmentToRemove = assignments?.[index];
@@ -373,6 +559,7 @@ export function MealPlannerClient({
   };
 
   const handleDayClick = (day: string) => {
+    trackManualFallbackIfNeeded();
     if (isCompactViewport()) {
       openPanelForDay(day);
       return;
@@ -408,6 +595,52 @@ export function MealPlannerClient({
     if (typeof window !== "undefined") {
       window.print();
     }
+  };
+
+  const applyAssistedDraft = () => {
+    if (!assistedDraft) {
+      return;
+    }
+
+    trackEventInBackground("planner_week_draft_applied", {
+      mode: currentAssistedMode,
+      nights_filled: assistedNightCount,
+      open_nights_available: assistedPlannerMeta?.openNightsAvailable ?? weekDays.length - assignedDayCount,
+    });
+    if (assistedPartialRegenerationRef.current.used) {
+      trackEventInBackground("planner_partial_regeneration_applied", {
+        mode: currentAssistedMode,
+        scope: "single_night",
+        nights_targeted: assistedPartialRegenerationRef.current.targeted,
+        nights_replaced: assistedPartialRegenerationRef.current.replaced,
+        nights_kept_no_better_option: assistedPartialRegenerationRef.current.kept,
+      });
+    }
+    assistedAppliedRef.current = true;
+
+    setWeekAssignments((current) => {
+      const next = { ...current };
+      for (const night of assistedDraft.nights) {
+        if (!night.versionId || !night.recipeId) {
+          continue;
+        }
+        const option = recipeOptionsById.get(night.versionId);
+        if (!option) {
+          continue;
+        }
+        next[night.dayLabel] = [
+          {
+            recipeId: night.recipeId,
+            versionId: night.versionId,
+            servings: option.targetServings ?? option.servings ?? 1,
+          },
+        ];
+      }
+      return next;
+    });
+    setAssistedDraft(null);
+    setAssistedDraftMessages({});
+    openGroceriesAfterSaveRef.current = true;
   };
 
   useEffect(() => {
@@ -463,10 +696,18 @@ export function MealPlannerClient({
       }
 
       setSaveError(null);
+      setAcceptedWeekAssignments(buildInitialAssignments(weekStartDate, payload.entries));
+      if (openGroceriesAfterSaveRef.current) {
+        openGroceriesAfterSaveRef.current = false;
+        setActiveTab("groceries");
+        setSaveCompleteMessage("Accepted week saved. Grocery is now derived from this plan.");
+      } else {
+        setSaveCompleteMessage(null);
+      }
     };
 
     persistWeek();
-  }, [plannerPersistenceAvailable, weekAssignments, weekDays]);
+  }, [plannerPersistenceAvailable, weekAssignments, weekDays, weekStartDate]);
 
   const mobilePanelContent =
     leftSidebarMode === "selection" ? (
@@ -765,6 +1006,128 @@ export function MealPlannerClient({
             </div>
 
             <div className="mt-5 flex flex-col gap-4 border-t border-[rgba(57,52,43,0.08)] pt-5">
+              {assistedDraft ? (
+                <div className="rounded-[24px] border border-[rgba(210,76,47,0.18)] bg-[rgba(255,246,240,0.94)] p-4 sm:p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="app-kicker">Assisted planning</p>
+                      <h3 className="mt-2 text-[24px] font-semibold tracking-tight text-[color:var(--text)]">{currentAssistedModeLabel}</h3>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
+                        This suggestion only targets open nights. Your current accepted week stays untouched until you apply it.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          onClick={() => switchAssistedMode("plan_three_dinners")}
+                          variant={currentAssistedMode === "plan_three_dinners" ? "primary" : "secondary"}
+                          className="min-h-9 px-3"
+                        >
+                          Plan 3 dinners for me
+                        </Button>
+                        <Button
+                          onClick={() => switchAssistedMode("build_easy_week")}
+                          variant={currentAssistedMode === "build_easy_week" ? "primary" : "secondary"}
+                          className="min-h-9 px-3"
+                        >
+                          Build an easy week
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button onClick={applyAssistedDraft} className="min-h-10 px-4">
+                        Apply suggestion
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          trackEventInBackground("planner_week_draft_dismissed", {
+                            mode: currentAssistedMode,
+                            nights_filled: assistedNightCount,
+                            open_nights_available: assistedPlannerMeta?.openNightsAvailable ?? weekDays.length - assignedDayCount,
+                          });
+                          if (assistedPartialRegenerationRef.current.used) {
+                            trackEventInBackground("planner_partial_regeneration_dismissed", {
+                              mode: currentAssistedMode,
+                              scope: "single_night",
+                              nights_targeted: assistedPartialRegenerationRef.current.targeted,
+                              nights_replaced: assistedPartialRegenerationRef.current.replaced,
+                              nights_kept_no_better_option: assistedPartialRegenerationRef.current.kept,
+                            });
+                          }
+                          setAssistedDraft(null);
+                          setAssistedDraftMessages({});
+                        }}
+                        variant="secondary"
+                        className="min-h-10 px-4"
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    {assistedDraft.nights.map((assignment) => (
+                      <div
+                        key={`${assignment.dayLabel}-${assignment.versionId ?? assignment.date}`}
+                        className="rounded-[18px] border border-[rgba(210,76,47,0.14)] bg-[rgba(255,251,247,0.92)] p-4"
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--primary-strong)]">
+                          {assignment.dayLabel}
+                        </p>
+                        <p className="mt-2 text-[17px] font-semibold leading-7 text-[color:var(--text)]">{assignment.title ?? "Open night"}</p>
+                        {assignment.reasonLabels.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {assignment.reasonLabels.map((label) => (
+                              <span
+                                key={label}
+                                className="rounded-full border border-[rgba(57,75,70,0.08)] bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--muted)]"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {assistedDraftMessages[assignment.date] ? (
+                          <p className="mt-3 text-xs leading-5 text-[color:var(--muted)]">{assistedDraftMessages[assignment.date]}</p>
+                        ) : null}
+                        <div className="mt-4">
+                          <Button
+                            onClick={() => regenerateDraftNight(assignment)}
+                            variant="secondary"
+                            className="min-h-9 px-3"
+                          >
+                            Regenerate this night
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : assistedPlannerMeta?.enabled && assistedPlannerMeta.openNightsAvailable > 0 ? (
+                <div className="rounded-[24px] border border-[rgba(57,75,70,0.08)] bg-[rgba(255,252,246,0.88)] p-4 sm:p-5">
+                  <p className="app-kicker">Assisted planning</p>
+                  <h3 className="mt-2 text-[22px] font-semibold tracking-tight text-[color:var(--text)]">
+                    No confident {currentAssistedMode === "build_easy_week" ? "easy-week" : "3-dinner"} suggestion yet
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
+                    Max did not find a strong enough assisted draft for your open nights. You can still plan manually from your saved recipes below.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => switchAssistedMode("plan_three_dinners")}
+                      variant={currentAssistedMode === "plan_three_dinners" ? "primary" : "secondary"}
+                      className="min-h-9 px-3"
+                    >
+                      Plan 3 dinners for me
+                    </Button>
+                    <Button
+                      onClick={() => switchAssistedMode("build_easy_week")}
+                      variant={currentAssistedMode === "build_easy_week" ? "primary" : "secondary"}
+                      className="min-h-9 px-3"
+                    >
+                      Build an easy week
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap gap-2">
                   {([
@@ -969,8 +1332,27 @@ export function MealPlannerClient({
                       <div>
                         <p className="app-kicker">Combined grocery</p>
                         <p className="mt-1 text-sm text-[color:var(--muted)]">
-                          {plan.groceryPlan.groupedItems.reduce((sum, group) => sum + group.items.length, 0) + plan.groceryPlan.flexibleItems.length} items to shop
+                          {acceptedWeekGrocery.groceryPlan.groupedItems.reduce((sum, group) => sum + group.items.length, 0) + acceptedWeekGrocery.groceryPlan.flexibleItems.length} items to shop
                         </p>
+                        {saveCompleteMessage ? (
+                          <p className="mt-2 text-xs font-medium text-[color:var(--primary-strong)]">{saveCompleteMessage}</p>
+                        ) : null}
+                        {acceptedWeekGrocery.metadata.acceptedEntryCount > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {acceptedWeekGrocery.reasons.map((reason) => (
+                              <span
+                                key={reason}
+                                className="rounded-full border border-[rgba(57,75,70,0.08)] bg-[rgba(255,255,255,0.82)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted)]"
+                              >
+                                {labelForDerivedGroceryReason(reason)}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-[color:var(--muted)]">
+                            Accept a weekly plan to generate a grocery list from it.
+                          </p>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -981,7 +1363,7 @@ export function MealPlannerClient({
                       </button>
                     </div>
                     <div className="mt-4 max-h-[48rem] space-y-3 overflow-y-auto pr-1">
-                      {plan.groceryPlan.groupedItems.map((group) => {
+                      {acceptedWeekGrocery.groceryPlan.groupedItems.map((group) => {
                         const isCollapsed = collapsedAisles[group.aisle] ?? false;
                         return (
                           <section key={group.aisle} className="rounded-[18px] border border-[rgba(57,52,43,0.06)] bg-[rgba(255,250,245,0.9)]">
@@ -1032,14 +1414,14 @@ export function MealPlannerClient({
                         );
                       })}
 
-                      {plan.groceryPlan.flexibleItems.length > 0 ? (
+                      {acceptedWeekGrocery.groceryPlan.flexibleItems.length > 0 ? (
                         <section className="rounded-[18px] border border-[rgba(57,52,43,0.06)] bg-[rgba(255,250,245,0.9)]">
                           <div className="px-3 py-3">
                             <span className="block text-sm font-semibold text-[color:var(--text)]">Flexible items</span>
-                            <span className="block text-xs text-[color:var(--muted)]">{plan.groceryPlan.flexibleItems.length} items</span>
+                            <span className="block text-xs text-[color:var(--muted)]">{acceptedWeekGrocery.groceryPlan.flexibleItems.length} items</span>
                           </div>
                           <div className="space-y-1 border-t border-[rgba(57,52,43,0.06)] px-3 py-2">
-                            {plan.groceryPlan.flexibleItems.map((item) => {
+                            {acceptedWeekGrocery.groceryPlan.flexibleItems.map((item) => {
                               const label = formatGroceryItemDisplay(item).primary;
                               return (
                                 <label key={item.id} className="flex items-start gap-3 rounded-[14px] px-2 py-2 text-sm text-[color:var(--text)]">
@@ -1064,12 +1446,12 @@ export function MealPlannerClient({
                         </section>
                       ) : null}
 
-                      {plan.groceryPlan.pantryItems.length > 0 ? (
+                      {acceptedWeekGrocery.groceryPlan.pantryItems.length > 0 ? (
                         <section className="rounded-[18px] border border-[rgba(74,106,96,0.08)] bg-[rgba(247,250,248,0.84)] px-3 py-3">
                           <span className="block text-sm font-semibold text-[color:var(--text)]">Already stocked</span>
-                          <span className="mt-1 block text-xs text-[color:var(--muted)]">{plan.groceryPlan.pantryItems.length} pantry staples</span>
+                          <span className="mt-1 block text-xs text-[color:var(--muted)]">{acceptedWeekGrocery.groceryPlan.pantryItems.length} pantry staples</span>
                           <div className="mt-2 space-y-1">
-                            {plan.groceryPlan.pantryItems.map((item) => (
+                            {acceptedWeekGrocery.groceryPlan.pantryItems.map((item) => (
                               <p key={item.id} className="text-sm text-[color:var(--muted)]">
                                 {formatGroceryItemDisplay(item).primary}
                               </p>

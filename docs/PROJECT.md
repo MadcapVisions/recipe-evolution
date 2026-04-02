@@ -1,7 +1,17 @@
 # Recipe Evolution — Project Reference
 
 > Internal reference. Updated whenever major features are added, changed, or removed.
-> Last updated: 2026-03-23
+> Last updated: 2026-04-02
+
+See also:
+- `docs/roadmap-snapshot.md` for the Milestones 1–6 status snapshot and immediate sequence
+- `docs/decisions/product-authority-map.md` for the locked Milestone 1–4 product and contract baseline
+- `docs/decisions/authority-boundaries.md` for Milestone 2 contract ownership
+- `docs/decisions/m3-authority-boundaries.md` for Milestone 3 coaching ownership
+- `docs/m4-learning-authority.md` for Milestone 4 learning-signal hierarchy
+- `docs/decisions/m5-planner-authority-boundaries.md` for Milestone 5 planner signal hierarchy and persistence rules
+- `docs/decisions/m5-planner-module-audit.md` for Milestone 5 planner/grocery module disposition
+- `docs/decisions/m5-planner-rules.md` for Milestone 5 planner ranking, overlap, grocery, QA, and rollout rules
 
 ---
 

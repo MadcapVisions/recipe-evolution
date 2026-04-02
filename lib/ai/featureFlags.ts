@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 const CACHE_TTL_MS = 60_000;
 
 const flagCache = new Map<string, { value: boolean; cachedAt: number }>();
+const shouldBypassFeatureFlagCache = process.env.PLAYWRIGHT_E2E === "1";
 
 // Typed flag key registry — use these constants instead of raw strings.
 export const FEATURE_FLAG_KEYS = {
@@ -27,12 +28,16 @@ export const FEATURE_FLAG_KEYS = {
   LIBRARY_RESURFACING_V1: "library_resurfacing_v1",
   CREATE_PERSONALIZATION_V1: "create_personalization_v1",
   LEARNED_PREFERENCES_SETTINGS_V1: "learned_preferences_settings_v1",
+  // Milestone 5
+  PLANNER_ASSISTED_V1: "planner_assisted_v1",
+  PLANNER_OVERLAP_V1: "planner_overlap_v1",
+  PLANNER_GROCERY_OPT_V1: "planner_grocery_opt_v1",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS];
 
 export async function getFeatureFlag(key: string, defaultValue = false): Promise<boolean> {
-  const cached = flagCache.get(key);
+  const cached = shouldBypassFeatureFlagCache ? null : flagCache.get(key);
   if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
     return cached.value;
   }
@@ -50,7 +55,9 @@ export async function getFeatureFlag(key: string, defaultValue = false): Promise
   }
 
   const value = typeof data?.value === "boolean" ? data.value : defaultValue;
-  flagCache.set(key, { value, cachedAt: Date.now() });
+  if (!shouldBypassFeatureFlagCache) {
+    flagCache.set(key, { value, cachedAt: Date.now() });
+  }
   return value;
 }
 
