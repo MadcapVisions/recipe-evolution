@@ -14,13 +14,14 @@ import {
 } from "@/lib/validation/recipes";
 import { Button } from "@/components/Button";
 
-export function NewRecipeForm() {
+export function NewRecipeForm({ suggestions = [] }: { suggestions?: string[] }) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateRecipeWithVersionInput, unknown, CreateRecipeWithVersionValues>({
     resolver: zodResolver(createRecipeWithVersionSchema),
@@ -92,6 +93,34 @@ export function NewRecipeForm() {
           This first save creates the base version of the dish. Later changes can become named iterations inside the same recipe.
         </p>
       </div>
+
+      {suggestions.length > 0 && (
+        <div>
+          <p className="mb-2 text-[13px] font-medium text-[color:var(--muted)]">
+            Based on your cooking history:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => {
+                  const textarea = document.getElementById("description") as HTMLTextAreaElement | null;
+                  const current = textarea?.value ?? "";
+                  setValue(
+                    "description",
+                    current ? `${current} ${suggestion.toLowerCase()}.` : `${suggestion}.`,
+                    { shouldDirty: true }
+                  );
+                }}
+                className="rounded-full border border-[rgba(79,54,33,0.15)] bg-[rgba(201,123,66,0.07)] px-3 py-1.5 text-[13px] font-semibold text-[color:var(--primary)] transition hover:bg-[rgba(201,123,66,0.14)]"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1">
         <label htmlFor="title" className="text-sm font-medium">
