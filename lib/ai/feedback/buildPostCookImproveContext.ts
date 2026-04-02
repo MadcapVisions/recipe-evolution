@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PostCookFeedback } from "@/lib/ai/feedback/postCookFeedbackTypes";
+import { postCookFeedbackSchema } from "@/lib/ai/feedback/postCookFeedbackTypes";
 
 /**
  * Formats a post-cook feedback record into a concise context string for the
@@ -44,7 +45,7 @@ export async function buildPostCookImproveContext(
   versionId: string,
   ownerId: string
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("recipe_postcook_feedback")
     .select("overall_outcome, issue_tags, would_make_again, notes")
     .eq("recipe_id", recipeId)
@@ -54,14 +55,9 @@ export async function buildPostCookImproveContext(
     .limit(1)
     .maybeSingle();
 
+  if (error) throw error;
   if (!data) return null;
 
-  const feedback: PostCookFeedback = {
-    overall_outcome: data.overall_outcome as PostCookFeedback["overall_outcome"],
-    issue_tags: (data.issue_tags as PostCookFeedback["issue_tags"]) ?? [],
-    would_make_again: data.would_make_again as boolean | null,
-    notes: data.notes as string | null,
-  };
-
+  const feedback = postCookFeedbackSchema.parse(data);
   return formatPostCookImproveContext(feedback);
 }
